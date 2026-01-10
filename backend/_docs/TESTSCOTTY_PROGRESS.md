@@ -11,8 +11,8 @@
 
 > **For AI Coding Agents**: Start here. This section summarizes current state, how to verify, and what's left to do. Read this before diving into the detailed sections below.
 
-**Last Updated**: January 9, 2026, 11:00 PM UTC
-**Handoff From**: Claude Opus 4.5 session
+**Last Updated**: January 10, 2026
+**Handoff From**: Claude Opus 4.5 session (Phase 7.3 implementation)
 
 ---
 
@@ -48,7 +48,7 @@
 |------|---------------|--------|
 | **Issue #8 Factor Storage** | Re-run batch for testscotty5, verify 12+ factors stored | ⏳ **PENDING** |
 | Stress testing | After Issue #8 fix, verify non-zero style factor impacts | ⏳ **PENDING** |
-| Phase 7 frontend | Frontend integration for status UI | ❌ **NOT STARTED** |
+| Phase 7.3 frontend | Batch Status UI implementation | ✅ **IMPLEMENTED** |
 
 ### Known Good Reference Points
 
@@ -91,8 +91,8 @@ ORDER BY p.created_at DESC;
 ### Priority 2 - Frontend Work
 | Task | Description | Design Doc |
 |------|-------------|------------|
-| Phase 7 Frontend | Real-time status UI during onboarding | `TESTSCOTTY_BATCH_STATUS_UI.md` |
-| Log download button | Download full activity log as txt | `TESTSCOTTY_BATCH_STATUS_UI.md` |
+| ~~Phase 7 Frontend~~ | ~~Real-time status UI during onboarding~~ | ✅ **IMPLEMENTED** (Phase 7.3) |
+| ~~Log download button~~ | ~~Download full activity log as txt~~ | ✅ **IMPLEMENTED** (Phase 7.3) |
 
 ### Priority 3 - Deferred/Nice-to-Have
 | Task | Description | Why Deferred |
@@ -1667,6 +1667,65 @@ fallbackRedirectUrl="/onboarding/upload"  // Skip invite page
 
 ---
 
+### Phase 7.3: Batch Status UI Implementation (January 10, 2026)
+
+**Status**: ✅ IMPLEMENTED
+
+**Problem Solved**:
+Phase 7.1 created the backend status endpoint, but there was no frontend UI to display real-time batch processing status. Users saw the old fake animation that didn't reflect actual progress.
+
+**Solution**: Implemented complete frontend batch status UI with:
+- Real-time phase progress display (9 phases)
+- Activity log with auto-scroll
+- Completion/Error/StatusUnavailable screens
+- Log download functionality
+
+**Design Document**: `backend/_docs/TESTSCOTTY_BATCH_STATUS_UI.md`
+
+**Backend Changes**:
+
+| File | Change |
+|------|--------|
+| `app/batch/batch_run_tracker.py` | Added `full_activity_log` (5000 entries) for download, `get_full_activity_log()` method |
+| `app/api/v1/onboarding_status.py` | Added `GET /status/{portfolio_id}/logs` endpoint for log download (txt/json) |
+
+**Frontend Changes**:
+
+| File | Change |
+|------|--------|
+| `src/hooks/useOnboardingStatus.ts` | **NEW** - Hook for polling status with 2s interval |
+| `src/services/onboardingService.ts` | Added `getOnboardingStatus()`, `downloadLogs()` methods + types |
+| `src/components/onboarding/PhaseListItem.tsx` | **NEW** - Single phase progress item |
+| `src/components/onboarding/PhaseList.tsx` | **NEW** - Phase list with default phases |
+| `src/components/onboarding/ActivityLogEntry.tsx` | **NEW** - Single log entry component |
+| `src/components/onboarding/ActivityLog.tsx` | **NEW** - Scrollable log with auto-scroll |
+| `src/components/onboarding/DownloadLogButton.tsx` | **NEW** - Log download button |
+| `src/components/onboarding/OnboardingProgress.tsx` | **NEW** - Main progress screen |
+| `src/components/onboarding/OnboardingComplete.tsx` | **NEW** - Completion screen |
+| `src/components/onboarding/OnboardingError.tsx` | **NEW** - Error/failure screen |
+| `src/components/onboarding/OnboardingStatusUnavailable.tsx` | **NEW** - Status unavailable screen |
+| `app/onboarding/progress/page.tsx` | **NEW** - Progress page at `/onboarding/progress` |
+
+**Key Features**:
+1. **Phase Progress List**: Shows all 9 phases with status icons (pending/running/completed/failed)
+2. **Progress Bars**: Running phases show progress bar with current/total count
+3. **Activity Log**: Scrollable log with smart auto-scroll (pauses if user scrolls up)
+4. **Duration Tracking**: Shows elapsed time per phase and overall
+5. **Download Log**: Only on completion/error screens (not during progress)
+6. **Status Unavailable**: After 3 consecutive `not_found` responses, shows recovery options
+
+**Route**: `/onboarding/progress?portfolioId=xxx`
+
+**Verification**:
+- [ ] Progress page loads and polls status endpoint
+- [ ] Phase list updates as batch progresses
+- [ ] Activity log auto-scrolls and shows real-time entries
+- [ ] Completion screen shows summary and download button
+- [ ] Error screen shows failed phase and retry option
+- [ ] Log download works in both txt and json formats
+
+---
+
 ## Manual Catch-Up: DEFERRED
 
 **Decision**: Deferred until after Phase 1 and Phase 2 are deployed.
@@ -2187,6 +2246,7 @@ This fix allows the batch to START, but it still runs inefficiently until Phase 
 | 2026-01-09 | Issue #8 partial fix | Added `total_symbols` key to `data_quality` dict |
 | 2026-01-09 | Code reviews received | Gemini: approved; Codex: found second bug (signature mismatch) |
 | 2026-01-09 | Issue #8 complete fix | Fixed signature mismatch in analytics_runner.py, added logging |
+| 2026-01-10 | Phase 7.3 implemented | Batch Status UI - real-time progress components and progress page |
 | | | |
 
 ---

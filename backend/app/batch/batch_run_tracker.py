@@ -7,18 +7,26 @@ Phase 7.1 Enhancement (2026-01-09):
 - Added portfolio_id tracking for per-portfolio status queries
 - Added phase progress tracking with phase names and progress counters
 """
+import copy
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
 from app.core.datetime_utils import utc_now
 
+logger = logging.getLogger(__name__)
 
-# Maximum activity log entries to keep (prevents memory growth)
+
+# Maximum activity log entries to keep for UI (prevents memory growth)
 MAX_ACTIVITY_LOG_ENTRIES = 50
 
+# Maximum full log entries to keep for download (allows complete history)
+MAX_FULL_LOG_ENTRIES = 5000
+
 # How long to retain completed run status (seconds)
-COMPLETED_RUN_TTL_SECONDS = 60
+# Increased from 60s to 300s (5 min) per code review - user may stay on success screen
+COMPLETED_RUN_TTL_SECONDS = 300
 
 
 @dataclass
@@ -62,8 +70,11 @@ class CurrentBatchRun:
     # Phase 7.1: Portfolio-specific tracking for onboarding status
     portfolio_id: Optional[str] = None
 
-    # Phase 7.1: Activity log for real-time updates
+    # Phase 7.1: Activity log for real-time updates (condensed, last 50)
     activity_log: List[ActivityLogEntry] = field(default_factory=list)
+
+    # Phase 7.2: Full activity log for download (up to 5000 entries)
+    full_activity_log: List[ActivityLogEntry] = field(default_factory=list)
 
     # Phase 7.1: Phase progress tracking
     phases: Dict[str, PhaseProgress] = field(default_factory=dict)
@@ -76,6 +87,10 @@ class CompletedRunStatus:
     status_data: Dict[str, Any]
     completed_at: datetime
     success: bool
+    # Phase 7.3 Fix: Preserve full activity log for download after completion
+    full_activity_log: List[Dict[str, Any]] = field(default_factory=list)
+    # Security Fix: Preserve phase details for completed runs to avoid cross-portfolio leaks
+    phases: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class BatchRunTracker:
@@ -108,17 +123,45 @@ class BatchRunTracker:
             success: Whether the batch completed successfully
         """
         if self._current and self._current.portfolio_id:
-            # Build final status before clearing
-            final_status = self._build_status_dict(self._current.portfolio_id)
-            if final_status:
-                final_status["status"] = "completed" if success else "failed"
-                final_status["overall_progress"]["percent_complete"] = 100 if success else final_status["overall_progress"].get("percent_complete", 0)
+            portfolio_id = self._current.portfolio_id
+            try:
+                # Build final status before clearing
+                final_status = self._build_status_dict(portfolio_id)
+                if final_status:
+                    final_status["status"] = "completed" if success else "failed"
+                    final_status["overall_progress"]["percent_complete"] = 100 if success else final_status["overall_progress"].get("percent_complete", 0)
 
-                # Store in completed runs with TTL
-                self._completed_runs[self._current.portfolio_id] = CompletedRunStatus(
-                    status_data=final_status,
-                    completed_at=utc_now(),
-                    success=success
+                    # Phase 7.3 Fix: Preserve full activity log for download after completion
+                    full_log = [
+                        {
+                            "timestamp": entry.timestamp.isoformat(),
+                            "message": entry.message,
+                            "level": entry.level
+                        }
+                        for entry in self._current.full_activity_log
+                    ]
+
+                    # Security Fix: Preserve phase details before clearing _current
+                    phase_progress = self.get_phase_progress()
+                    phases_list = phase_progress.get("phases", [])
+
+                    # Store in completed runs with TTL
+                    self._completed_runs[portfolio_id] = CompletedRunStatus(
+                        status_data=final_status,
+                        completed_at=utc_now(),
+                        success=success,
+                        full_activity_log=full_log,
+                        phases=phases_list
+                    )
+                else:
+                    logger.warning(
+                        f"Failed to build status dict for portfolio {portfolio_id} - "
+                        "completed run status will not be retained"
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Error preserving completed run status for portfolio {portfolio_id}: {e}",
+                    exc_info=True
                 )
 
         self._current = None
@@ -181,11 +224,16 @@ class BatchRunTracker:
             message=message,
             level=level
         )
-        self._current.activity_log.append(entry)
 
-        # Trim to max entries (keep most recent)
+        # Add to condensed log (for UI polling)
+        self._current.activity_log.append(entry)
         if len(self._current.activity_log) > MAX_ACTIVITY_LOG_ENTRIES:
             self._current.activity_log = self._current.activity_log[-MAX_ACTIVITY_LOG_ENTRIES:]
+
+        # Add to full log (for download)
+        self._current.full_activity_log.append(entry)
+        if len(self._current.full_activity_log) > MAX_FULL_LOG_ENTRIES:
+            self._current.full_activity_log = self._current.full_activity_log[-MAX_FULL_LOG_ENTRIES:]
 
     def get_activity_log(self, limit: int = 50) -> List[Dict[str, Any]]:
         """
@@ -209,6 +257,38 @@ class BatchRunTracker:
             }
             for entry in entries
         ]
+
+    def get_full_activity_log(self, portfolio_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get complete activity log for download (up to 5000 entries).
+
+        Security Fix: Only returns logs for the specified portfolio_id to prevent
+        cross-portfolio data leaks when multiple batches are running.
+
+        Args:
+            portfolio_id: Portfolio ID to get logs for (required for security)
+
+        Returns:
+            List of all activity log entries as dicts
+        """
+        # Security: Only return current run logs if portfolio_id matches
+        if self._current and portfolio_id and self._current.portfolio_id == portfolio_id:
+            return [
+                {
+                    "timestamp": entry.timestamp.isoformat(),
+                    "message": entry.message,
+                    "level": entry.level
+                }
+                for entry in self._current.full_activity_log
+            ]
+
+        # Check completed runs if portfolio_id provided
+        if portfolio_id:
+            self._cleanup_old_completed()
+            if portfolio_id in self._completed_runs:
+                return self._completed_runs[portfolio_id].full_activity_log
+
+        return []
 
     # ==========================================================================
     # Phase 7.1: Phase Progress Methods
@@ -367,6 +447,30 @@ class BatchRunTracker:
             "phases": phases_list
         }
 
+    def get_phase_progress_for_portfolio(self, portfolio_id: str) -> Dict[str, Any]:
+        """
+        Get phase progress for a specific portfolio only.
+
+        Security Fix: Prevents cross-portfolio data leaks by only returning phase
+        data for the specified portfolio, checking both current and completed runs.
+
+        Args:
+            portfolio_id: Portfolio ID to get phases for
+
+        Returns:
+            Dict with phases list, or empty dict if not found
+        """
+        # Only return current run phases if portfolio_id matches
+        if self._current and self._current.portfolio_id == portfolio_id:
+            return self.get_phase_progress()
+
+        # Check completed runs
+        self._cleanup_old_completed()
+        if portfolio_id in self._completed_runs:
+            return {"phases": self._completed_runs[portfolio_id].phases}
+
+        return {}
+
     def _build_status_dict(self, portfolio_id: str) -> Optional[Dict[str, Any]]:
         """
         Build status dictionary from current run state.
@@ -427,8 +531,9 @@ class BatchRunTracker:
         self._cleanup_old_completed()
         if portfolio_id in self._completed_runs:
             completed = self._completed_runs[portfolio_id]
-            # Return the saved terminal status
-            return completed.status_data
+            # Return a deep copy to prevent mutation of cached data
+            # (e.g., download endpoint modifies response with phases)
+            return copy.deepcopy(completed.status_data)
 
         # Check if currently running
         return self._build_status_dict(portfolio_id)
