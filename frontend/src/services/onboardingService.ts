@@ -188,8 +188,23 @@ export const onboardingService = {
    * Triggers browser download of the log file
    */
   downloadLogs: async (portfolioId: string, format: 'txt' | 'json' = 'txt'): Promise<void> => {
-    // Get auth token from storage (same as apiClient)
-    const token = localStorage.getItem('access_token');
+    // Get auth token using same priority as apiClient:
+    // 1. Clerk token (primary), 2. localStorage (legacy fallback)
+    let token: string | null = null;
+
+    // Try Clerk token first (primary auth system)
+    try {
+      const { getClerkTokenAsync } = await import('@/lib/clerkTokenStore');
+      token = await getClerkTokenAsync();
+    } catch {
+      // Clerk token store not available
+    }
+
+    // Fall back to localStorage (legacy auth)
+    if (!token) {
+      token = localStorage.getItem('access_token');
+    }
+
     const headers: HeadersInit = {};
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
