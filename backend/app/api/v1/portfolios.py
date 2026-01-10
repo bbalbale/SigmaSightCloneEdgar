@@ -570,11 +570,14 @@ async def trigger_portfolio_calculations(
             )
 
         # Create new batch run
+        # Set portfolio_id immediately to avoid race condition where frontend polls
+        # before the async background task starts (Phase 7.1 fix)
         batch_run_id = str(uuid4())
         run = CurrentBatchRun(
             batch_run_id=batch_run_id,
             started_at=utc_now(),
-            triggered_by=current_user.email
+            triggered_by=current_user.email,
+            portfolio_id=str(portfolio_id)  # Set immediately for status endpoint
         )
 
         batch_run_tracker.start(run)
@@ -587,15 +590,17 @@ async def trigger_portfolio_calculations(
             f"(batch_run_id: {batch_run_id}, calculation_date: {calculation_date}, today: {date.today()})"
         )
 
-        # Execute batch processing in background
+        # Execute batch processing in background using per-portfolio onboarding backfill
+        # Why run_portfolio_onboarding_backfill instead of run_daily_batch_with_backfill?
+        # - run_daily_batch_with_backfill uses GLOBAL watermark (max snapshot across ALL portfolios)
+        # - If cron already ran today, global backfill returns "already up to date" - new portfolio gets nothing
+        # - run_portfolio_onboarding_backfill finds earliest position entry_date for THIS portfolio
+        # - Processes all trading days from that date, guaranteeing complete historical analytics
+        # - Includes Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics)
         background_tasks.add_task(
-            batch_orchestrator.run_daily_batch_sequence,
-            calculation_date,  # Use most recent trading day, not today
-            [str(portfolio_id)],  # portfolio_ids as list of strings
-            None,  # db (let orchestrator create session)
-            None,  # run_sector_analysis (use default)
-            None,  # price_cache (use default)
-            True  # force_onboarding - Prevent historical run phase skips for onboarding
+            batch_orchestrator.run_portfolio_onboarding_backfill,
+            str(portfolio_id),  # portfolio_id - the specific portfolio to backfill
+            calculation_date  # end_date - process up to most recent trading day
         )
 
         return TriggerCalculationsResponse(

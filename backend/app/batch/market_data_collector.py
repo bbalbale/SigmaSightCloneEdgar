@@ -98,7 +98,8 @@ class MarketDataCollector:
         lookback_days: int = 365,
         db: Optional[AsyncSession] = None,
         portfolio_ids: Optional[List[UUID]] = None,
-        skip_company_profiles: bool = False
+        skip_company_profiles: bool = False,
+        scoped_only: bool = False,  # NEW: if True, only fetch portfolio symbols + factor ETFs
     ) -> Dict[str, Any]:
         """
         Main entry point - collect all market data for a calculation date
@@ -109,6 +110,9 @@ class MarketDataCollector:
             db: Optional database session (creates one if not provided)
             portfolio_ids: Optional list of portfolios to scope symbol universe
             skip_company_profiles: If True, skip company profile fetch (for historical backfills)
+            scoped_only: If True, only collect data for portfolio symbols + factor ETFs,
+                        skipping the entire cached universe. Use for single-portfolio
+                        onboarding to avoid ~40x unnecessary API calls.
 
         Returns:
             Data coverage report with metrics
@@ -123,11 +127,11 @@ class MarketDataCollector:
         if db is None:
             async with AsyncSessionLocal() as session:
                 result = await self._collect_with_session(
-                    session, calculation_date, lookback_days, portfolio_ids, skip_company_profiles
+                    session, calculation_date, lookback_days, portfolio_ids, skip_company_profiles, scoped_only
                 )
         else:
             result = await self._collect_with_session(
-                db, calculation_date, lookback_days, portfolio_ids, skip_company_profiles
+                db, calculation_date, lookback_days, portfolio_ids, skip_company_profiles, scoped_only
             )
 
         duration = int(asyncio.get_event_loop().time() - start_time)
@@ -147,12 +151,13 @@ class MarketDataCollector:
         calculation_date: date,
         lookback_days: int,
         portfolio_ids: Optional[List[UUID]] = None,
-        skip_company_profiles: bool = False
+        skip_company_profiles: bool = False,
+        scoped_only: bool = False,
     ) -> Dict[str, Any]:
         """Internal collection with provided DB session"""
 
         # Step 1: Get symbol universe
-        symbols = await self._get_symbol_universe(db, calculation_date, portfolio_ids)
+        symbols = await self._get_symbol_universe(db, calculation_date, portfolio_ids, scoped_only)
         logger.info(f"Symbol universe: {len(symbols)} symbols")
 
         # Step 2: TWO-PHASE DATE RANGE DETERMINATION
@@ -408,13 +413,22 @@ class MarketDataCollector:
         self,
         db: AsyncSession,
         calculation_date: date,
-        portfolio_ids: Optional[List[UUID]] = None
+        portfolio_ids: Optional[List[UUID]] = None,
+        scoped_only: bool = False,
     ) -> Set[str]:
         """
         Get all unique symbols from:
         1. Active positions (from portfolios)
         2. Factor ETFs (required for analytics)
         3. All symbols already in market_data_cache (to keep index data up to date)
+           - ONLY included if scoped_only=False (cron mode)
+           - SKIPPED if scoped_only=True (single-portfolio onboarding mode)
+
+        Args:
+            db: Database session
+            calculation_date: Date to collect data for
+            portfolio_ids: Optional list of portfolios to scope positions
+            scoped_only: If True, skip cached universe (for single-portfolio mode)
 
         Returns:
             Set of symbols that need market data
@@ -443,14 +457,20 @@ class MarketDataCollector:
 
         # Get all symbols already in market_data_cache (to keep index/universe data up to date)
         # This ensures S&P 500, Nasdaq 100, Russell 2000 tickers stay current even if not in portfolios
-        cached_symbols_query = select(MarketDataCache.symbol).distinct()
-        cached_result = await db.execute(cached_symbols_query)
-        cached_symbols = {
-            normalize_symbol(symbol)
-            for symbol in cached_result.scalars().all()
-            if symbol  # Skip None/empty
-        }
-        logger.info(f"  Cached universe symbols: {len(cached_symbols)}")
+        # OPTIMIZATION: Skip this in scoped_only mode (single-portfolio onboarding)
+        # to avoid processing 1,193 symbols when only ~30 are needed
+        if scoped_only:
+            cached_symbols: Set[str] = set()
+            logger.info(f"  Scoped mode: skipping cached universe (single-portfolio optimization)")
+        else:
+            cached_symbols_query = select(MarketDataCache.symbol).distinct()
+            cached_result = await db.execute(cached_symbols_query)
+            cached_symbols = {
+                normalize_symbol(symbol)
+                for symbol in cached_result.scalars().all()
+                if symbol  # Skip None/empty
+            }
+            logger.info(f"  Cached universe symbols: {len(cached_symbols)}")
 
         # Add factor ETFs
         factor_symbols = {normalize_symbol(symbol) for symbol in FACTOR_ETFS}

@@ -258,6 +258,7 @@ async def get_portfolio_factor_exposures(
             'use_delta_adjusted': use_delta_adjusted
         },
         'data_quality': {
+            'total_symbols': len(symbols),
             'symbols_with_ridge': 0,
             'symbols_with_spread': 0,
             'symbols_missing': 0
@@ -462,6 +463,7 @@ def _build_empty_result(
             'skip_reason': reason
         },
         'data_quality': {
+            'total_symbols': 0,
             'symbols_with_ridge': 0,
             'symbols_with_spread': 0,
             'symbols_missing': 0

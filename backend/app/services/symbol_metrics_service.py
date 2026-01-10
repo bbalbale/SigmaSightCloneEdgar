@@ -70,6 +70,7 @@ def get_previous_trading_day(d: date) -> date:
 async def calculate_symbol_metrics(
     calculation_date: date,
     price_cache=None,
+    symbols_override: Optional[List[str]] = None,  # NEW: Override symbol list for scoped mode
 ) -> Dict[str, Any]:
     """
     Calculate returns and metrics for all symbols in the universe.
@@ -80,6 +81,8 @@ async def calculate_symbol_metrics(
     Args:
         calculation_date: The date to calculate metrics for
         price_cache: Optional PriceCache instance for efficient price lookups
+        symbols_override: Optional list of symbols to process. If provided, overrides
+                         get_all_active_symbols() (used for single-portfolio scoped mode)
 
     Returns:
         Dict with symbols_updated count and any errors
@@ -87,9 +90,14 @@ async def calculate_symbol_metrics(
     logger.info(f"Phase 1.75: Calculating symbol metrics for {calculation_date}")
 
     async with AsyncSessionLocal() as db:
-        # Step 1: Get all active symbols from universe
-        symbols = await get_all_active_symbols(db)
-        logger.info(f"Found {len(symbols)} active symbols in universe")
+        # Step 1: Get symbols to process
+        # If symbols_override provided (scoped mode), use those; otherwise get all active symbols
+        if symbols_override:
+            symbols = list(symbols_override)
+            logger.info(f"Scoped mode: processing {len(symbols)} provided symbols")
+        else:
+            symbols = await get_all_active_symbols(db)
+            logger.info(f"Found {len(symbols)} active symbols in universe")
 
         if not symbols:
             return {'symbols_updated': 0, 'errors': ['No active symbols found']}

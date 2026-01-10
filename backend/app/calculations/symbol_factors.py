@@ -535,7 +535,8 @@ async def calculate_universe_factors(
     regularization_alpha: float = DEFAULT_REGULARIZATION_ALPHA,
     calculate_ridge: bool = True,
     calculate_spread: bool = True,
-    price_cache=None
+    price_cache=None,
+    symbols: Optional[List[str]] = None,  # NEW: Override symbol list for scoped mode
 ) -> Dict[str, Any]:
     """
     Calculate factor betas for all symbols in the universe using parallel batches.
@@ -549,6 +550,8 @@ async def calculate_universe_factors(
         calculate_ridge: Whether to calculate Ridge factors
         calculate_spread: Whether to calculate Spread factors
         price_cache: Optional price cache
+        symbols: Optional list of symbols to process. If provided, overrides
+                 get_all_active_symbols() (used for single-portfolio scoped mode)
 
     Returns:
         Dict with:
@@ -567,9 +570,14 @@ async def calculate_universe_factors(
         'errors': []
     }
 
-    # Step 1: Get all unique symbols (single query)
+    # Step 1: Get symbols to process
+    # If symbols provided (scoped mode), use those; otherwise get all active symbols
     async with AsyncSessionLocal() as db:
-        all_symbols = await get_all_active_symbols(db)
+        if symbols:
+            all_symbols = list(symbols)
+            logger.info(f"Scoped mode: processing {len(all_symbols)} provided symbols")
+        else:
+            all_symbols = await get_all_active_symbols(db)
         factor_name_to_id = await _load_factor_definitions(db)
 
         if not all_symbols:

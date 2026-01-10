@@ -1,0 +1,613 @@
+# TODO5.md
+
+## Phase 1.0: OPTIONS Position Risk Analytics Fix ⚠️ **IN PROGRESS**
+
+**Phase**: 1.0 - Critical Bug Fix for OPTIONS Position Market Data Collection
+**Version**: v1.4.7
+**Status**: ⚠️ **IN PROGRESS** - Awaiting Plan Review
+**Start Date**: November 17, 2025
+**Goal**: Enable risk analytics for OPTIONS positions by including underlying symbols in market data collection
+
+---
+
+## Overview
+
+Critical bug discovered where OPTIONS positions (both Format A and Format B) are excluded from market data collection, resulting in missing risk analytics:
+- **0 factor exposures** for all OPTIONS positions
+- **Missing correlations** for OPTIONS positions
+- **Phase 6 (Risk Analytics) SKIPPED** when OPTIONS positions exceed 5% of portfolio
+
+**Impact**:
+- Affects 2 portfolios with 16 OPTIONS positions (14 unique underlyings)
+- Demo "Hedge Fund Style" portfolio has had broken analytics since creation
+- New test portfolios (test009 Contrarian) fail batch processing with insufficient price coverage
+
+**Root Cause**: `market_data_collector.py` line 384 excludes ALL OPTIONS positions from symbol universe, regardless of format.
+
+**Source**: User testing with Contrarian-Value-Trader.csv (November 17, 2025)
+
+### Phase Progress
+- ✅ **Phase 1.1**: Root Cause Analysis (COMPLETED November 17, 2025)
+- ⚠️ **Phase 1.2**: Implementation - Market Data Collector Fix (IN PROGRESS - Code complete, awaiting review)
+- 🔲 **Phase 1.3**: Testing & Validation (PENDING)
+- 🔲 **Phase 1.4**: Documentation Updates (PENDING)
+
+---
+
+## Phase 1.1: Root Cause Analysis ✅ **COMPLETED**
+
+**Completion Date**: November 17, 2025
+
+### 1.1.1 ✅ Bug Discovery - COMPLETED
+**Status**: ✅ **COMPLETED**
+**Severity**: HIGH
+
+**Discovery Sequence**:
+1. User uploaded Contrarian CSV with 31 positions (8 OPTIONS using Format B)
+2. Upload succeeded, batch processing started
+3. Phase 4 logged: "insufficient price coverage: 3/31 positions missing (9.7%)"
+4. Missing symbols: DIA, XLE, XLF (all OPTIONS underlyings)
+5. Phase 6 (Risk Analytics) SKIPPED due to coverage < 95% threshold
+6. Result: Portfolio missing stress test, correlation matrix, factor spread
+
+**Evidence**:
+```python
+# Backend logs (test009 portfolio)
+WARNING - No historical data found for symbols ['DIA'] between 2024-11-17 and 2025-11-17
+WARNING - No historical data found for symbols ['XLE'] between 2024-11-17 and 2025-11-17
+WARNING - No historical data found for symbols ['XLF'] between 2024-11-17 and 2025-11-17
+ERROR - Phase 4 insufficient price coverage: 3/31 positions missing (9.7%)
+ERROR - Skipping Phase 6 due to insufficient price coverage in Phase 4
+```
+
+**Database Verification**:
+```sql
+-- test009 portfolio analytics status
+Portfolio ID: 99b4effe-902c-5c68-b04b-78df9a247f99
+Positions: 31
+Portfolio Snapshots (Phase 2): 1
+Factor Exposures (Phase 3): 0 (expected ~155)
+Correlations (Phase 3): 0 (expected ~465)
+```
+
+---
+
+### 1.1.2 ✅ Root Cause Identification - COMPLETED
+**Status**: ✅ **COMPLETED**
+**Location**: `app/batch/market_data_collector.py:361-445`
+
+**Root Cause**:
+```python
+# Line 384 in _get_symbol_universe()
+.where(
+    Position.symbol.is_not(None),
+    Position.symbol != '',
+    Position.deleted_at.is_(None),
+    (Position.investment_class.notin_(['PRIVATE', 'OPTIONS'])) | (Position.investment_class.is_(None)),  # ⚠️ EXCLUDES ALL OPTIONS
+    (Position.exit_date.is_(None)) | (Position.exit_date >= calculation_date),
+    (Position.expiration_date.is_(None)) | (Position.expiration_date >= calculation_date),
+)
+```
+
+**Impact Analysis**:
+- **Format A OPTIONS** (OCC symbols like "MSFT250919P00380000"):
+  - Position.symbol = "MSFT250919P00380000" (synthetic, can't fetch prices)
+  - Position.underlying_symbol = "MSFT"
+  - investment_class = "OPTIONS"
+  - ❌ Excluded from symbol universe → No "MSFT" historical prices
+
+- **Format B OPTIONS** (Empty symbol, underlying in separate field):
+  - Position.symbol = "IWM" (we populate with underlying)
+  - Position.underlying_symbol = "IWM"
+  - investment_class = "OPTIONS"
+  - ❌ Excluded from symbol universe → No "IWM" historical prices
+
+**Affected Data**:
+```python
+# Current state in database
+Total OPTIONS positions: 16
+Unique underlying symbols: 14
+Portfolios affected:
+  - Contrarian (test009): 8 OPTIONS
+  - Demo Hedge Fund Style Investor Portfolio: 8 OPTIONS
+
+Factor exposures for OPTIONS: 0 (should be ~80)
+```
+
+**Why This Matters**:
+- Risk analytics calculations need underlying stock price history
+- Factor exposures measure how OPTIONS positions correlate with market factors
+- Correlation matrices need price history for all positions
+- Current code assumes OPTIONS don't need risk analytics (INCORRECT)
+
+---
+
+### 1.1.3 ✅ Historical Context - COMPLETED
+**Status**: ✅ **COMPLETED**
+
+**Key Finding**: This bug existed BEFORE Format B support was added.
+
+**Timeline**:
+1. **Original Design**: Demo portfolios created with FORMAT A OPTIONS (OCC symbols)
+2. **Bug Present**: Market data collector excluded OPTIONS from day 1
+3. **Never Noticed**: Demo portfolios with OPTIONS never had factor exposures
+4. **Format B Added**: CSV parser enhanced to support empty Symbol field (November 17, 2025)
+5. **Bug Exposed**: Format B made coverage threshold failure more visible
+
+**Proof**:
+```sql
+-- Demo Hedge Fund Style portfolio (created months ago)
+Portfolio: Demo Hedge Fund Style Investor Portfolio
+OPTIONS positions: 8 (Format A with OCC symbols)
+Factor exposures for OPTIONS: 0 ❌ (should be ~40)
+```
+
+**Conclusion**: Format B didn't cause the bug, it just made it more obvious by triggering the coverage threshold check.
+
+---
+
+## Phase 1.2: Implementation - Market Data Collector Fix ⚠️ **IN PROGRESS**
+
+**Status**: ⚠️ **IN PROGRESS** - Code complete, awaiting plan review
+**Files Modified**: `app/batch/market_data_collector.py`
+**Lines Changed**: 361-450 (~90 lines)
+
+### 1.2.1 ⚠️ Code Implementation - COMPLETED (Awaiting Review)
+**Status**: ⚠️ **COMPLETED** - Awaiting approval to apply
+
+**Changes Made**:
+
+**File**: `app/batch/market_data_collector.py`
+
+**Change 1**: Enhanced `_get_symbol_universe()` method (lines 361-423)
+```python
+async def _get_symbol_universe(
+    self,
+    db: AsyncSession,
+    calculation_date: date,
+    portfolio_ids: Optional[List[UUID]] = None
+) -> Set[str]:
+    """
+    Get all unique symbols from active positions + factor ETFs
+
+    For OPTIONS positions, this fetches the underlying symbol's stock price history,
+    which is needed for risk analytics calculations.
+
+    Returns:
+        Set of symbols that need market data
+    """
+    # Get all non-OPTIONS, non-PRIVATE position symbols
+    query = (
+        select(Position.symbol)
+        .distinct()
+        .where(
+            Position.symbol.is_not(None),
+            Position.symbol != '',
+            Position.deleted_at.is_(None),
+            (Position.investment_class.notin_(['PRIVATE', 'OPTIONS'])) | (Position.investment_class.is_(None)),
+            (Position.exit_date.is_(None)) | (Position.exit_date >= calculation_date),
+            (Position.expiration_date.is_(None)) | (Position.expiration_date >= calculation_date),
+        )
+    )
+    if portfolio_ids is not None:
+        query = query.where(Position.portfolio_id.in_(portfolio_ids))
+
+    result = await db.execute(query)
+    position_symbols = {
+        normalize_symbol(symbol)
+        for symbol in result.scalars().all()
+    }
+
+    # CRITICAL FIX: For OPTIONS positions, include underlying symbols
+    # OPTIONS positions store the underlying symbol in the 'symbol' field
+    # We need historical prices for the underlying to calculate risk analytics
+    options_query = (
+        select(Position.symbol)
+        .distinct()
+        .where(
+            Position.symbol.is_not(None),
+            Position.symbol != '',
+            Position.deleted_at.is_(None),
+            Position.investment_class == 'OPTIONS',
+            (Position.exit_date.is_(None)) | (Position.exit_date >= calculation_date),
+            (Position.expiration_date.is_(None)) | (Position.expiration_date >= calculation_date),
+        )
+    )
+    if portfolio_ids is not None:
+        options_query = options_query.where(Position.portfolio_id.in_(portfolio_ids))
+
+    options_result = await db.execute(options_query)
+    options_underlying_symbols = {
+        normalize_symbol(symbol)
+        for symbol in options_result.scalars().all()
+    }
+
+    # Combine both sets
+    position_symbols = position_symbols | options_underlying_symbols
+
+    # Add factor ETFs
+    factor_symbols = {normalize_symbol(symbol) for symbol in FACTOR_ETFS}
+    all_symbols = {symbol for symbol in (position_symbols | factor_symbols) if symbol}
+    # ... rest of method continues unchanged
+```
+
+**Change 2**: Enhanced logging (line 443)
+```python
+logger.info(f"  Position symbols: {len(position_symbols)}")
+logger.info(f"  OPTIONS underlying symbols: {len(options_underlying_symbols)}")  # NEW
+logger.info(f"  Factor ETFs: {len(FACTOR_ETFS)}")
+logger.info(f"  Filtered (real symbols): {len(filtered_symbols)}")
+```
+
+**Impact**:
+- OPTIONS underlying symbols now included in market data collection
+- Works for BOTH Format A and Format B
+- Existing validation/filtering still applies
+- No changes to other batch phases needed
+
+---
+
+### 1.2.2 🔲 Risk Assessment - COMPLETED (Awaiting Decision)
+**Status**: ⚠️ **COMPLETED** - Documented, awaiting approval
+
+#### Risk Matrix
+
+| Risk Category | Level | Impact | Mitigation |
+|---|---|---|---|
+| API Cost | 🟢 LOW | +10-20% calls | YFinance is free |
+| Data Quality | 🟢 LOW | Invalid symbols | Existing validation handles it |
+| Backward Compatibility | 🟡 MODERATE | Behavior change | Bug fix, not breaking |
+| Calculation Errors | 🟢 LOW | Unexpected results | Calculations are defensive |
+| Coverage Threshold | 🟡 MODERATE | Could fail if exotic | Use major ETFs only |
+| Storage | 🟢 LOW | +35K records | PostgreSQL easily handles |
+
+#### Detailed Risk Analysis
+
+**1. Performance & API Cost (🟢 LOW)**
+- **Impact**: +14 symbols to fetch (from existing 16 OPTIONS positions)
+- **Cost**: YFinance is free, no additional API costs
+- **Load**: +10-20% more market data calls
+- **Mitigation**: Existing batch fetching handles this efficiently
+
+**2. Data Quality (🟢 LOW)**
+- **Concern**: What if underlying symbols are invalid?
+- **Protection**: Lines 432-445 already validate all symbols
+- **Filtering**: `should_skip_symbol()` and `validate_symbols()` catch issues
+- **Evidence**: All 14 current underlying symbols are valid major ETFs/stocks
+
+**3. Backward Compatibility (🟡 MODERATE)**
+- **Change**: 2 existing portfolios will get new analytics data
+- **Impact**: 16 OPTIONS positions will suddenly have factor exposures
+- **Breaking?**: No - this is a bug fix enabling missing features
+- **User Impact**: Positive - previously broken features now work
+
+**4. Calculation Engines (🟢 LOW)**
+- **Review**: Only `sector_analysis.py` explicitly handles OPTIONS
+- **Behavior**: Classifies OPTIONS as "Unclassified" (correct)
+- **Safety**: All calculations use defensive patterns
+- **Risk**: No breaking changes expected
+
+**5. Coverage Threshold (🟡 MODERATE)**
+- **Threshold**: 95% price coverage required (line 484 in batch_orchestrator.py)
+- **Concern**: If OPTIONS underlyings fail to fetch, could still fail
+- **Current Symbols**: IWM, DIA, XLE, XLF (all major ETFs, very reliable)
+- **Likelihood**: LOW - these are tier-1 symbols with excellent availability
+
+**6. Database Storage (🟢 LOW)**
+- **New Data**: ~35,000 records (16 OPTIONS × 365 days × 6 records/day)
+- **Table Impact**: market_data_cache, position_factor_exposures, correlations
+- **Size**: Trivial for PostgreSQL
+- **Cleanup**: Existing retention policies handle this
+
+#### Overall Risk Assessment
+**Recommendation**: ✅ **SAFE TO DEPLOY**
+
+**Rationale**:
+1. ✅ Bug fix, not new feature
+2. ✅ Affects small dataset (16 positions, 14 symbols)
+3. ✅ Easy rollback (single file revert)
+4. ✅ Existing validation/filtering prevents edge cases
+5. ✅ Calculations are defensive and won't break
+
+**Deployment Strategy**:
+1. Apply fix and restart backend
+2. Manually trigger batch run for test009 portfolio
+3. Verify factor exposures appear for OPTIONS positions
+4. Monitor logs for coverage failures
+5. If issues: immediate rollback (revert one file)
+
+---
+
+## Phase 1.3: Testing & Validation 🔲 **PENDING**
+
+**Status**: 🔲 **PENDING** - Awaiting approval to proceed
+**Dependencies**: Phase 1.2 must be approved and applied
+
+### 1.3.1 🔲 Backend Restart - PENDING
+**Action Items**:
+- [ ] Kill existing backend processes: `pkill -f "python.*run.py"`
+- [ ] Start fresh backend: `uv run python run.py`
+- [ ] Verify startup logs show no errors
+- [ ] Confirm API endpoints responding
+
+### 1.3.2 🔲 Database Pre-Test Verification - PENDING
+**Action Items**:
+- [ ] Count current factor exposures for test009 portfolio (should be 0)
+- [ ] Count current correlations for test009 portfolio (should be 0)
+- [ ] Verify OPTIONS positions exist (should be 8)
+- [ ] Record baseline metrics
+
+**Expected Results**:
+```sql
+Portfolio: test009 Contrarian
+Positions: 31 (23 PUBLIC, 8 OPTIONS)
+Factor Exposures: 0 (baseline before fix)
+Correlations: 0 (baseline before fix)
+```
+
+### 1.3.3 🔲 Batch Processing Test - PENDING
+**Action Items**:
+- [ ] Manually trigger batch run: `POST /api/v1/admin/batch/run`
+- [ ] Monitor backend logs for Phase 1 symbol collection
+- [ ] Verify log shows: "OPTIONS underlying symbols: 4" (or similar)
+- [ ] Confirm all 4 symbols fetch successfully (IWM, DIA, XLE, XLF)
+- [ ] Verify Phase 4 price coverage > 95%
+- [ ] Confirm Phase 6 executes (not skipped)
+
+**Success Criteria**:
+```
+Phase 1: Market Data Collection
+  Position symbols: 23
+  OPTIONS underlying symbols: 4  ← NEW
+  Factor ETFs: 17
+  Filtered (real symbols): 44
+  Data coverage: 100.0%
+
+Phase 4: Position Market Values
+  Positions updated: 31
+  Positions skipped: 0  ← SUCCESS
+  Coverage: 100.0%  ← SUCCESS
+
+Phase 6: Risk Analytics
+  ✅ EXECUTED (not skipped)
+```
+
+### 1.3.4 🔲 Post-Test Verification - PENDING
+**Action Items**:
+- [ ] Query factor exposures for test009 OPTIONS positions (should be ~40 records)
+- [ ] Verify correlations exist for all positions (should be ~465 records)
+- [ ] Check frontend: Stress test feature visible
+- [ ] Check frontend: Correlation matrix displays
+- [ ] Check frontend: Factor spread displays
+
+**Expected Results**:
+```sql
+Portfolio: test009 Contrarian
+Positions: 31
+Factor Exposures: ~155 (31 positions × 5 factors)
+  - OPTIONS factor exposures: ~40 (8 OPTIONS × 5 factors) ← NEW
+Correlations: ~465 (31 × 30 / 2)
+  - OPTIONS in correlation matrix: ✅ PRESENT ← NEW
+```
+
+### 1.3.5 🔲 Demo Portfolio Verification - PENDING
+**Action Items**:
+- [ ] Trigger batch run for Demo Hedge Fund Style portfolio
+- [ ] Verify factor exposures appear for 8 OPTIONS positions
+- [ ] Confirm total factor exposures: ~125 records (25 positions × 5 factors)
+- [ ] Check frontend analytics display correctly
+
+**Expected Results**:
+- Demo Hedge Fund portfolio will NOW have complete analytics
+- Previously broken: 0 factor exposures for OPTIONS
+- After fix: ~40 factor exposures for 8 OPTIONS positions
+
+---
+
+## Phase 1.4: Documentation Updates 🔲 **PENDING**
+
+**Status**: 🔲 **PENDING** - After successful testing
+
+### 1.4.1 🔲 CLAUDE.md Updates - PENDING
+**Location**: `backend/CLAUDE.md`
+
+**Action Items**:
+- [ ] Add to "Recent Major Updates" section:
+  ```markdown
+  - **November 17, 2025**: OPTIONS position risk analytics enabled - market data collector now fetches underlying symbol prices for both Format A and Format B OPTIONS positions
+  ```
+
+- [ ] Update Part II "Common Issues & Solutions" section:
+  ```markdown
+  ### OPTIONS Position Analytics
+  # Fixed: November 17, 2025
+  # Both Format A (OCC symbols) and Format B (empty Symbol) now collect underlying prices
+  # This enables factor exposures, correlations, and risk analytics for OPTIONS
+  ```
+
+### 1.4.2 🔲 API Reference Updates - PENDING
+**Location**: `_docs/reference/API_REFERENCE_V1.4.6.md`
+
+**Action Items**:
+- [ ] No changes needed (endpoints unchanged)
+- [ ] Consider adding note in Analytics section about OPTIONS support
+
+### 1.4.3 🔲 Test Portfolio Documentation - PENDING
+**Location**: `test_portfolios/README.md`
+
+**Action Items**:
+- [ ] Update Contrarian portfolio description:
+  ```markdown
+  **Risk Analytics**: ✅ Full support including OPTIONS positions
+  **Factor Exposures**: All 31 positions (23 PUBLIC + 8 OPTIONS)
+  **Known Issues**: None (OPTIONS analytics enabled November 17, 2025)
+  ```
+
+### 1.4.4 🔲 Batch Processing Documentation - PENDING
+**Location**: New section in CLAUDE.md or separate doc
+
+**Action Items**:
+- [ ] Document how OPTIONS underlying symbols are handled
+- [ ] Explain Format A vs Format B behavior
+- [ ] Note that underlying symbols must be valid stock/ETF tickers
+- [ ] Clarify that OPTIONS still show as "Unclassified" in sector analysis (correct behavior)
+
+---
+
+## Phase 1.5: Follow-up Items 🔲 **PENDING**
+
+**Status**: 🔲 **PENDING** - After main fix deployed
+
+### 1.5.1 🔲 Consider: Backfill Historical Data - PENDING
+**Decision Needed**: Should we backfill analytics for existing OPTIONS positions?
+
+**Scope**:
+- 2 portfolios affected (test009, Demo Hedge Fund)
+- 16 OPTIONS positions total
+- Would create ~80 factor exposure records
+- Would add ~150 correlation records
+
+**Options**:
+1. **Auto-backfill**: Next batch run will automatically backfill
+2. **Manual trigger**: Admin can trigger via `/api/v1/admin/batch/run`
+3. **Do nothing**: Wait for natural batch cycle
+
+**Recommendation**: Option 2 (Manual trigger during testing in Phase 1.3.3)
+
+### 1.5.2 🔲 Consider: Adjust Coverage Threshold - PENDING
+**Current**: 95% coverage required (5% tolerance)
+**Question**: Is 5% threshold appropriate for portfolios with OPTIONS?
+
+**Analysis**:
+- Current threshold: 95% (line 484 in batch_orchestrator.py)
+- With OPTIONS: Could fail if 1-2 exotic underlyings don't fetch
+- Most OPTIONS use major ETFs: Very unlikely to fail
+
+**Recommendation**: Keep current threshold (95%) - no change needed
+
+### 1.5.3 🔲 Consider: OPTIONS-Specific Analytics - PENDING
+**Future Enhancement**: Add OPTIONS-specific risk metrics?
+
+**Potential Features**:
+- Greeks decay tracking over time
+- Implied volatility changes
+- Options-specific factor exposures (vega, gamma)
+- Separate OPTIONS concentration metric
+
+**Recommendation**: Defer to future phase (not critical for this fix)
+
+---
+
+## Success Criteria
+
+**Phase 1.2 (Implementation)**:
+- [x] Code changes completed in `market_data_collector.py`
+- [x] Risk assessment documented
+- [ ] Plan reviewed and approved by user
+- [ ] Changes applied to running backend
+
+**Phase 1.3 (Testing)**:
+- [ ] test009 portfolio batch run succeeds
+- [ ] Phase 6 executes (not skipped)
+- [ ] Factor exposures created for OPTIONS positions
+- [ ] Correlations include OPTIONS positions
+- [ ] Frontend displays all analytics features
+
+**Phase 1.4 (Documentation)**:
+- [ ] CLAUDE.md updated with fix details
+- [ ] Test portfolio README updated
+- [ ] Known issues section cleared
+
+**Overall Success**:
+- [ ] All OPTIONS positions have factor exposures
+- [ ] Risk analytics work for both Format A and Format B
+- [ ] No regressions in existing functionality
+- [ ] Coverage threshold consistently passes
+
+---
+
+## Rollback Plan
+
+**If issues discovered after deployment:**
+
+1. **Immediate Rollback** (< 5 minutes):
+   ```bash
+   cd backend
+   git checkout HEAD~1 app/batch/market_data_collector.py
+   pkill -f "python.*run.py"
+   uv run python run.py
+   ```
+
+2. **Verify Rollback**:
+   - Backend starts successfully
+   - API endpoints respond
+   - Batch processing works (without OPTIONS analytics)
+
+3. **Investigation**:
+   - Review error logs
+   - Identify specific failing symbols
+   - Test fix in isolated environment
+
+4. **Re-deploy**:
+   - Once issue resolved, re-apply changes
+   - Repeat testing protocol
+
+---
+
+## Completion Checklist
+
+### Phase 1.2: Implementation
+- [x] Code written and reviewed
+- [x] Risk assessment completed
+- [ ] **User approval obtained** ← CURRENT BLOCKER
+- [ ] Changes applied to running system
+
+### Phase 1.3: Testing
+- [ ] Backend restarted successfully
+- [ ] Batch run for test009 completes
+- [ ] Factor exposures verified
+- [ ] Frontend features verified
+- [ ] Demo portfolio tested
+
+### Phase 1.4: Documentation
+- [ ] CLAUDE.md updated
+- [ ] Test portfolio docs updated
+- [ ] Commit message written
+- [ ] Changes pushed to repository
+
+### Phase 1.5: Validation
+- [ ] All affected portfolios verified
+- [ ] No regressions detected
+- [ ] Performance acceptable
+- [ ] User acceptance confirmed
+
+---
+
+## Notes
+
+**Implementation Status**: Code complete, awaiting plan review (November 17, 2025)
+
+**Key Decisions Made**:
+1. Fix applies to BOTH Format A and Format B OPTIONS
+2. Using Position.symbol field (which contains underlying for Format B)
+3. No changes to calculation engines needed
+4. No changes to threshold values needed
+5. Single file change (market_data_collector.py)
+
+**Key Decisions Pending**:
+1. Approval to apply changes to running backend
+2. Timing of backfill for existing portfolios
+3. Whether to update API documentation (probably not needed)
+
+**Testing Approach**:
+- Manual batch trigger for controlled testing
+- Verify test009 portfolio first (new upload)
+- Then verify Demo Hedge Fund (existing data)
+- Monitor logs throughout process
+- Rollback plan ready if issues arise
+
+---
+
+**Created**: November 17, 2025
+**Last Updated**: November 17, 2025
+**Status**: Awaiting user plan review and approval to proceed

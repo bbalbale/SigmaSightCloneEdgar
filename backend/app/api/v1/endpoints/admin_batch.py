@@ -42,24 +42,90 @@ async def _run_market_data_refresh_with_session():
             await session.close()
 
 
+async def _run_admin_batch_with_tracker_cleanup(
+    start_date: Optional[date],
+    end_date: Optional[date],
+    portfolio_ids: Optional[list],
+    portfolio_id: Optional[str],
+    force_rerun: bool,
+):
+    """
+    Wrapper to run batch processing with guaranteed batch_run_tracker cleanup.
+
+    CRITICAL: The caller (admin endpoint) calls batch_run_tracker.start(),
+    so we MUST call batch_run_tracker.complete() in a finally block to prevent
+    the tracker from being stuck "running" forever.
+    """
+    try:
+        result = await batch_orchestrator.run_daily_batch_with_backfill(
+            start_date=start_date,
+            end_date=end_date,
+            portfolio_ids=portfolio_ids,
+            portfolio_id=portfolio_id,
+            source="admin",
+            force_rerun=force_rerun,
+        )
+        logger.info(f"Admin batch completed: {result.get('dates_processed', 0)} dates processed")
+        return result
+    except Exception as e:
+        logger.error(f"Admin batch failed: {e}", exc_info=True)
+        raise
+    finally:
+        # CRITICAL: Always clear batch_run_tracker, even on exception
+        batch_run_tracker.complete()
+        logger.debug("Batch run tracker cleared (admin batch wrapper)")
+
+
 @router.post("/run")
 async def run_batch_processing(
     background_tasks: BackgroundTasks,
     admin_user: CurrentAdmin = Depends(get_current_admin),
     portfolio_id: Optional[str] = Query(None, description="Specific portfolio ID or all"),
-    force: bool = Query(False, description="Force run even if batch already running")
+    force: bool = Query(False, description="Force run even if batch already running"),
+    force_rerun: bool = Query(False, description="Force reprocess dates even if snapshots exist (repair partial runs)"),
+    start_date: Optional[date] = Query(None, description="Start date for reprocessing (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date for reprocessing (YYYY-MM-DD, defaults to today)")
 ):
     """
     Trigger batch processing with real-time tracking.
 
     Returns batch_run_id for status polling via GET /admin/batch/run/current.
     Prevents concurrent runs unless force=True.
+
+    **Force Rerun Mode (force_rerun=True):**
+    Use this to repair partial batch runs where snapshots exist but later phases
+    (market values, sector tags, analytics) didn't complete due to crashes/deploys.
+
+    When force_rerun=True:
+    - Bypasses snapshot existence checks
+    - Reprocesses all dates in the specified range
+    - Re-runs ALL phases for each date (Phases 2-6)
+
+    **Date Range:**
+    - start_date: Beginning of reprocess range (required for force_rerun)
+    - end_date: End of reprocess range (defaults to today)
     """
     # Check if batch already running
     if batch_run_tracker.get_current() and not force:
         raise HTTPException(
             status_code=409,
             detail="Batch already running. Use force=true to override."
+        )
+
+    # Validate force_rerun parameters
+    if force_rerun and not start_date:
+        raise HTTPException(
+            status_code=400,
+            detail="start_date is required when using force_rerun=true"
+        )
+
+    # Validate date parameters are only used with force_rerun
+    # Prevents silent ignoring of user-provided dates
+    if not force_rerun and (start_date or end_date):
+        raise HTTPException(
+            status_code=400,
+            detail="start_date and end_date are only supported with force_rerun=true. "
+                   "Normal batch runs process only the most recent trading day."
         )
 
     # Create new batch run
@@ -75,27 +141,48 @@ async def run_batch_processing(
     # Get most recent trading day for calculations (handles weekends/holidays)
     calculation_date = get_most_recent_trading_day()
 
+    # Determine effective date range
+    # For normal runs (force_rerun=False): default to single-date (most recent trading day)
+    # For force_rerun=True: use provided start_date (required) and end_date
+    if force_rerun:
+        effective_start = start_date
+        effective_end = end_date  # None = today
+        mode = "FORCE_RERUN"
+        logger.warning(
+            f"FORCE_RERUN: Reprocessing dates {start_date} to {end_date or 'today'} "
+            f"(bypassing snapshot checks)"
+        )
+    else:
+        # Normal mode: single-date processing (most recent trading day)
+        effective_start = calculation_date
+        effective_end = calculation_date
+        mode = "normal (single-date)"
+
     logger.info(
         f"Admin {admin_user.email} triggered batch run {batch_run_id} "
         f"for portfolio {portfolio_id or 'all'} "
-        f"(calculation_date: {calculation_date}, today: {date.today()})"
+        f"(mode: {mode}, dates: {effective_start} to {effective_end or 'today'})"
     )
 
-    # Execute in background with tracking
+    # Execute in background with tracker cleanup wrapper
     background_tasks.add_task(
-        batch_orchestrator.run_daily_batch_sequence,
-        calculation_date,  # Use most recent trading day, not today
-        [portfolio_id] if portfolio_id else None,  # portfolio_ids as list
-        None,  # db
-        None,  # run_sector_analysis
-        None,  # price_cache
-        False  # force_onboarding - Admin runs use normal historical logic
+        _run_admin_batch_with_tracker_cleanup,
+        effective_start,  # start_date
+        effective_end,    # end_date
+        [portfolio_id] if portfolio_id else None,  # portfolio_ids
+        portfolio_id if portfolio_id else None,    # portfolio_id (single mode)
+        force_rerun,      # force_rerun
     )
 
     return {
         "status": "started",
         "batch_run_id": batch_run_id,
         "portfolio_id": portfolio_id or "all",
+        "force_rerun": force_rerun,
+        "date_range": {
+            "start": str(effective_start),
+            "end": str(effective_end) if effective_end else "today"
+        },
         "triggered_by": admin_user.email,
         "timestamp": utc_now(),
         "poll_url": "/api/v1/admin/batch/run/current"
