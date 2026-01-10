@@ -206,8 +206,8 @@ async def get_onboarding_status(
         for entry in status_data.get("activity_log", [])
     ]
 
-    # Get phase details from tracker
-    phase_progress = batch_run_tracker.get_phase_progress()
+    # Get phase details from tracker (portfolio-scoped to prevent cross-portfolio leaks)
+    phase_progress = batch_run_tracker.get_phase_progress_for_portfolio(portfolio_id)
     phases = None
     if phase_progress.get("phases"):
         phases = [
@@ -411,11 +411,11 @@ async def download_onboarding_logs(
         )
 
     # Get full activity log (up to 5000 entries)
-    # Phase 7.3 Fix: Pass portfolio_id to also check completed runs
+    # Security Fix: Pass portfolio_id to ensure we only get this portfolio's logs
     activity_log = batch_run_tracker.get_full_activity_log(portfolio_id=portfolio_id)
 
-    # Build phase details from status
-    phase_progress = batch_run_tracker.get_phase_progress()
+    # Build phase details from status (portfolio-scoped to prevent cross-portfolio leaks)
+    phase_progress = batch_run_tracker.get_phase_progress_for_portfolio(portfolio_id)
     status_data["phases"] = phase_progress.get("phases", [])
 
     # Generate timestamp for filename

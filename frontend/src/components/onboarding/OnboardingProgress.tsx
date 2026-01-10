@@ -77,6 +77,7 @@ export function OnboardingProgress({ status, isLoading = false }: OnboardingProg
               <PhaseList
                 phases={status?.phases ?? null}
                 currentPhase={overallProgress?.current_phase}
+                activityLog={status?.activity_log}
               />
             </div>
 

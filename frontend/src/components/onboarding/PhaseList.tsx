@@ -1,7 +1,7 @@
 'use client'
 
 import { PhaseListItem, PhaseListItemProps } from './PhaseListItem'
-import { PhaseDetail } from '@/services/onboardingService'
+import { PhaseDetail, ActivityLogEntry } from '@/services/onboardingService'
 
 /**
  * Default phase definitions for display when no backend data is available
@@ -21,6 +21,7 @@ const DEFAULT_PHASES: Array<{ phase_id: string; phase_name: string }> = [
 export interface PhaseListProps {
   phases: PhaseDetail[] | null
   currentPhase?: string | null
+  activityLog?: ActivityLogEntry[]
 }
 
 /**
@@ -49,15 +50,29 @@ function mapPhaseToItemProps(
 }
 
 /**
+ * Check if a phase has any warning-level entries in the activity log
+ * Per design doc Section 9.5: "Warning phase status - Map from activity log"
+ */
+function phaseHasWarning(phaseName: string, activityLog: ActivityLogEntry[]): boolean {
+  // Check if any warning entries mention this phase name
+  return activityLog.some(
+    (entry) => entry.level === 'warning' && entry.message.toLowerCase().includes(phaseName.toLowerCase())
+  )
+}
+
+/**
  * List of all batch processing phases with their current status
  */
-export function PhaseList({ phases, currentPhase }: PhaseListProps) {
+export function PhaseList({ phases, currentPhase, activityLog = [] }: PhaseListProps) {
   // If we have backend phase data, use it
   if (phases && phases.length > 0) {
     return (
       <div className="space-y-2">
         {phases.map((phase) => (
-          <PhaseListItem key={phase.phase_id} {...mapPhaseToItemProps(phase)} />
+          <PhaseListItem
+            key={phase.phase_id}
+            {...mapPhaseToItemProps(phase, phaseHasWarning(phase.phase_name, activityLog))}
+          />
         ))}
       </div>
     )

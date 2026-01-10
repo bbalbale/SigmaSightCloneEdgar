@@ -9,17 +9,14 @@ export interface ActivityLogEntryProps {
 }
 
 /**
- * Format ISO timestamp to time-only display (HH:MM:SS)
+ * Format ISO timestamp to UTC time-only display (HH:MM:SS)
+ * Per design doc Section 9.5: "UTC everywhere (UI and download)"
  */
 function formatTimestamp(isoTimestamp: string): string {
   try {
     const date = new Date(isoTimestamp)
-    return date.toLocaleTimeString('en-US', {
-      hour12: false,
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
+    // Use UTC to match downloaded log format per design doc
+    return date.toISOString().slice(11, 19)
   } catch {
     return isoTimestamp
   }

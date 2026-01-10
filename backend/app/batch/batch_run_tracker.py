@@ -84,6 +84,8 @@ class CompletedRunStatus:
     success: bool
     # Phase 7.3 Fix: Preserve full activity log for download after completion
     full_activity_log: List[Dict[str, Any]] = field(default_factory=list)
+    # Security Fix: Preserve phase details for completed runs to avoid cross-portfolio leaks
+    phases: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class BatchRunTracker:
@@ -132,12 +134,17 @@ class BatchRunTracker:
                     for entry in self._current.full_activity_log
                 ]
 
+                # Security Fix: Preserve phase details before clearing _current
+                phase_progress = self.get_phase_progress()
+                phases_list = phase_progress.get("phases", [])
+
                 # Store in completed runs with TTL
                 self._completed_runs[self._current.portfolio_id] = CompletedRunStatus(
                     status_data=final_status,
                     completed_at=utc_now(),
                     success=success,
-                    full_activity_log=full_log
+                    full_activity_log=full_log,
+                    phases=phases_list
                 )
 
         self._current = None
@@ -238,16 +245,17 @@ class BatchRunTracker:
         """
         Get complete activity log for download (up to 5000 entries).
 
-        Phase 7.3 Fix: Also checks completed runs if portfolio_id is provided.
+        Security Fix: Only returns logs for the specified portfolio_id to prevent
+        cross-portfolio data leaks when multiple batches are running.
 
         Args:
-            portfolio_id: Optional portfolio ID to check completed runs
+            portfolio_id: Portfolio ID to get logs for (required for security)
 
         Returns:
             List of all activity log entries as dicts
         """
-        # First check current run
-        if self._current:
+        # Security: Only return current run logs if portfolio_id matches
+        if self._current and portfolio_id and self._current.portfolio_id == portfolio_id:
             return [
                 {
                     "timestamp": entry.timestamp.isoformat(),
@@ -257,7 +265,7 @@ class BatchRunTracker:
                 for entry in self._current.full_activity_log
             ]
 
-        # Phase 7.3 Fix: Check completed runs if portfolio_id provided
+        # Check completed runs if portfolio_id provided
         if portfolio_id:
             self._cleanup_old_completed()
             if portfolio_id in self._completed_runs:
@@ -421,6 +429,30 @@ class BatchRunTracker:
             "percent_complete": percent_complete,
             "phases": phases_list
         }
+
+    def get_phase_progress_for_portfolio(self, portfolio_id: str) -> Dict[str, Any]:
+        """
+        Get phase progress for a specific portfolio only.
+
+        Security Fix: Prevents cross-portfolio data leaks by only returning phase
+        data for the specified portfolio, checking both current and completed runs.
+
+        Args:
+            portfolio_id: Portfolio ID to get phases for
+
+        Returns:
+            Dict with phases list, or empty dict if not found
+        """
+        # Only return current run phases if portfolio_id matches
+        if self._current and self._current.portfolio_id == portfolio_id:
+            return self.get_phase_progress()
+
+        # Check completed runs
+        self._cleanup_old_completed()
+        if portfolio_id in self._completed_runs:
+            return {"phases": self._completed_runs[portfolio_id].phases}
+
+        return {}
 
     def _build_status_dict(self, portfolio_id: str) -> Optional[Dict[str, Any]]:
         """

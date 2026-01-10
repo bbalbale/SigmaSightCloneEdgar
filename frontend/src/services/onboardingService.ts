@@ -188,11 +188,19 @@ export const onboardingService = {
    * Triggers browser download of the log file
    */
   downloadLogs: async (portfolioId: string, format: 'txt' | 'json' = 'txt'): Promise<void> => {
+    // Get auth token from storage (same as apiClient)
+    const token = localStorage.getItem('access_token');
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const response = await fetch(
       `/api/proxy/api/v1/onboarding/status/${portfolioId}/logs?format=${format}`,
       {
         method: 'GET',
         credentials: 'include',
+        headers,
       }
     );
 
