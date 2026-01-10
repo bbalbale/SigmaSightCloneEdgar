@@ -1,0 +1,122 @@
+'use client'
+
+import { useEffect, useCallback } from 'react'
+import { useSearchParams, useRouter } from 'next/navigation'
+import { useOnboardingStatus } from '@/hooks/useOnboardingStatus'
+import { usePortfolioStore } from '@/stores/portfolioStore'
+import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress'
+import { OnboardingComplete } from '@/components/onboarding/OnboardingComplete'
+import { OnboardingError } from '@/components/onboarding/OnboardingError'
+import { OnboardingStatusUnavailable } from '@/components/onboarding/OnboardingStatusUnavailable'
+import { Loader2 } from 'lucide-react'
+
+/**
+ * Onboarding Progress Page (Phase 7.2)
+ *
+ * Route: /onboarding/progress?portfolioId=xxx
+ *
+ * Shows real-time batch processing status during portfolio setup.
+ * Polls the status endpoint every 2 seconds and displays:
+ * - Phase-by-phase progress with completion percentages
+ * - Activity log with per-symbol/per-date granularity
+ * - Completion/Error screens with download log option
+ */
+export default function OnboardingProgressPage() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const portfolioIdFromUrl = searchParams?.get('portfolioId')
+
+  // Get portfolio info from store as fallback
+  const { portfolioId: storePortfolioId, portfolioName } = usePortfolioStore()
+
+  // Use URL param first, then fall back to store
+  const portfolioId = portfolioIdFromUrl || storePortfolioId
+
+  // Hook for polling status
+  const { status, isLoading, error, refetch, notFoundCount } = useOnboardingStatus({
+    portfolioId: portfolioId || '',
+    pollInterval: 2000,
+    enabled: !!portfolioId,
+  })
+
+  // Navigation handlers
+  const handleContinueToDashboard = useCallback(() => {
+    router.push('/command-center')
+  }, [router])
+
+  const handleRetry = useCallback(() => {
+    // Navigate back to upload page to retry
+    router.push('/onboarding/upload')
+  }, [router])
+
+  const handleRefreshStatus = useCallback(() => {
+    refetch()
+  }, [refetch])
+
+  const handleViewPortfolio = useCallback(() => {
+    router.push('/command-center')
+  }, [router])
+
+  // Redirect if no portfolio ID
+  useEffect(() => {
+    if (!portfolioId) {
+      router.push('/onboarding/upload')
+    }
+  }, [portfolioId, router])
+
+  // No portfolio ID - redirect in progress
+  if (!portfolioId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  // Initial loading
+  if (isLoading && !status) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+          <p className="text-muted-foreground">Loading status...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show unavailable screen after 3 consecutive not_found responses
+  if (notFoundCount >= 3) {
+    return (
+      <OnboardingStatusUnavailable
+        onRefresh={handleRefreshStatus}
+        onViewPortfolio={handleViewPortfolio}
+      />
+    )
+  }
+
+  // Status completed
+  if (status?.status === 'completed') {
+    return (
+      <OnboardingComplete
+        status={status}
+        portfolioName={portfolioName || 'Your Portfolio'}
+        onContinue={handleContinueToDashboard}
+      />
+    )
+  }
+
+  // Status failed
+  if (status?.status === 'failed') {
+    return (
+      <OnboardingError
+        status={status}
+        onRetry={handleRetry}
+        onContinue={handleContinueToDashboard}
+      />
+    )
+  }
+
+  // Running or loading
+  return <OnboardingProgress status={status} isLoading={isLoading} />
+}

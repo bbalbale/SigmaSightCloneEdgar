@@ -14,8 +14,11 @@ from typing import Optional, List, Dict, Any
 from app.core.datetime_utils import utc_now
 
 
-# Maximum activity log entries to keep (prevents memory growth)
+# Maximum activity log entries to keep for UI (prevents memory growth)
 MAX_ACTIVITY_LOG_ENTRIES = 50
+
+# Maximum full log entries to keep for download (allows complete history)
+MAX_FULL_LOG_ENTRIES = 5000
 
 # How long to retain completed run status (seconds)
 COMPLETED_RUN_TTL_SECONDS = 60
@@ -62,8 +65,11 @@ class CurrentBatchRun:
     # Phase 7.1: Portfolio-specific tracking for onboarding status
     portfolio_id: Optional[str] = None
 
-    # Phase 7.1: Activity log for real-time updates
+    # Phase 7.1: Activity log for real-time updates (condensed, last 50)
     activity_log: List[ActivityLogEntry] = field(default_factory=list)
+
+    # Phase 7.2: Full activity log for download (up to 5000 entries)
+    full_activity_log: List[ActivityLogEntry] = field(default_factory=list)
 
     # Phase 7.1: Phase progress tracking
     phases: Dict[str, PhaseProgress] = field(default_factory=dict)
@@ -181,11 +187,16 @@ class BatchRunTracker:
             message=message,
             level=level
         )
-        self._current.activity_log.append(entry)
 
-        # Trim to max entries (keep most recent)
+        # Add to condensed log (for UI polling)
+        self._current.activity_log.append(entry)
         if len(self._current.activity_log) > MAX_ACTIVITY_LOG_ENTRIES:
             self._current.activity_log = self._current.activity_log[-MAX_ACTIVITY_LOG_ENTRIES:]
+
+        # Add to full log (for download)
+        self._current.full_activity_log.append(entry)
+        if len(self._current.full_activity_log) > MAX_FULL_LOG_ENTRIES:
+            self._current.full_activity_log = self._current.full_activity_log[-MAX_FULL_LOG_ENTRIES:]
 
     def get_activity_log(self, limit: int = 50) -> List[Dict[str, Any]]:
         """
@@ -208,6 +219,25 @@ class BatchRunTracker:
                 "level": entry.level
             }
             for entry in entries
+        ]
+
+    def get_full_activity_log(self) -> List[Dict[str, Any]]:
+        """
+        Get complete activity log for download (up to 5000 entries).
+
+        Returns:
+            List of all activity log entries as dicts
+        """
+        if not self._current:
+            return []
+
+        return [
+            {
+                "timestamp": entry.timestamp.isoformat(),
+                "message": entry.message,
+                "level": entry.level
+            }
+            for entry in self._current.full_activity_log
         ]
 
     # ==========================================================================
