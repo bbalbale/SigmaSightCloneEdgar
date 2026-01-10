@@ -92,13 +92,13 @@ export function ActivityLog({
         </div>
       </div>
 
-      {/* Scroll to bottom indicator */}
+      {/* Scroll to bottom indicator - shown when user has scrolled up */}
       {showScrollIndicator && (
         <button
           onClick={scrollToBottom}
           className="absolute bottom-2 right-2 flex items-center gap-1 px-2 py-1 text-xs bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors shadow-md"
         >
-          <span>auto-scrolling</span>
+          <span>↓ Jump to latest</span>
         </button>
       )}
     </div>

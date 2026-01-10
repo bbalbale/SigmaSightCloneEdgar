@@ -80,7 +80,12 @@ export function useOnboardingStatus(options: UseOnboardingStatusOptions): UseOnb
     setIsLoading(true)
     setNotFoundCount(0)
     fetchStatus()
-  }, [fetchStatus])
+
+    // Restart polling if it was stopped (e.g., after completed/failed status)
+    if (!pollIntervalRef.current && enabled && portfolioId) {
+      pollIntervalRef.current = setInterval(fetchStatus, pollInterval)
+    }
+  }, [fetchStatus, enabled, portfolioId, pollInterval])
 
   // Set up polling
   useEffect(() => {

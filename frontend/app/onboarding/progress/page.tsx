@@ -27,10 +27,19 @@ export default function OnboardingProgressPage() {
   const portfolioIdFromUrl = searchParams?.get('portfolioId')
 
   // Get portfolio info from store as fallback
-  const { portfolioId: storePortfolioId, portfolioName } = usePortfolioStore()
+  const storePortfolioId = usePortfolioStore((state) => state.portfolioId)
+  const getSelectedPortfolio = usePortfolioStore((state) => state.getSelectedPortfolio)
+  const onboardingSession = usePortfolioStore((state) => state.onboardingSession)
 
   // Use URL param first, then fall back to store
   const portfolioId = portfolioIdFromUrl || storePortfolioId
+
+  // Get portfolio name from store or onboarding session
+  const portfolioName =
+    getSelectedPortfolio()?.account_name ||
+    getSelectedPortfolio()?.name ||
+    onboardingSession?.portfoliosAdded?.[0]?.portfolioName ||
+    'Your Portfolio'
 
   // Hook for polling status
   const { status, isLoading, error, refetch, notFoundCount } = useOnboardingStatus({
@@ -100,7 +109,7 @@ export default function OnboardingProgressPage() {
     return (
       <OnboardingComplete
         status={status}
-        portfolioName={portfolioName || 'Your Portfolio'}
+        portfolioName={portfolioName}
         onContinue={handleContinueToDashboard}
       />
     )

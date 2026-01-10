@@ -82,6 +82,8 @@ class CompletedRunStatus:
     status_data: Dict[str, Any]
     completed_at: datetime
     success: bool
+    # Phase 7.3 Fix: Preserve full activity log for download after completion
+    full_activity_log: List[Dict[str, Any]] = field(default_factory=list)
 
 
 class BatchRunTracker:
@@ -120,11 +122,22 @@ class BatchRunTracker:
                 final_status["status"] = "completed" if success else "failed"
                 final_status["overall_progress"]["percent_complete"] = 100 if success else final_status["overall_progress"].get("percent_complete", 0)
 
+                # Phase 7.3 Fix: Preserve full activity log for download after completion
+                full_log = [
+                    {
+                        "timestamp": entry.timestamp.isoformat(),
+                        "message": entry.message,
+                        "level": entry.level
+                    }
+                    for entry in self._current.full_activity_log
+                ]
+
                 # Store in completed runs with TTL
                 self._completed_runs[self._current.portfolio_id] = CompletedRunStatus(
                     status_data=final_status,
                     completed_at=utc_now(),
-                    success=success
+                    success=success,
+                    full_activity_log=full_log
                 )
 
         self._current = None
@@ -221,24 +234,36 @@ class BatchRunTracker:
             for entry in entries
         ]
 
-    def get_full_activity_log(self) -> List[Dict[str, Any]]:
+    def get_full_activity_log(self, portfolio_id: Optional[str] = None) -> List[Dict[str, Any]]:
         """
         Get complete activity log for download (up to 5000 entries).
+
+        Phase 7.3 Fix: Also checks completed runs if portfolio_id is provided.
+
+        Args:
+            portfolio_id: Optional portfolio ID to check completed runs
 
         Returns:
             List of all activity log entries as dicts
         """
-        if not self._current:
-            return []
+        # First check current run
+        if self._current:
+            return [
+                {
+                    "timestamp": entry.timestamp.isoformat(),
+                    "message": entry.message,
+                    "level": entry.level
+                }
+                for entry in self._current.full_activity_log
+            ]
 
-        return [
-            {
-                "timestamp": entry.timestamp.isoformat(),
-                "message": entry.message,
-                "level": entry.level
-            }
-            for entry in self._current.full_activity_log
-        ]
+        # Phase 7.3 Fix: Check completed runs if portfolio_id provided
+        if portfolio_id:
+            self._cleanup_old_completed()
+            if portfolio_id in self._completed_runs:
+                return self._completed_runs[portfolio_id].full_activity_log
+
+        return []
 
     # ==========================================================================
     # Phase 7.1: Phase Progress Methods

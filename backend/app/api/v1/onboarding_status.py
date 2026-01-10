@@ -362,7 +362,7 @@ This endpoint provides a downloadable log file useful for:
 )
 async def download_onboarding_logs(
     portfolio_id: str,
-    format: str = Query(default="txt", description="Output format: 'txt' or 'json'"),
+    output_format: str = Query(default="txt", alias="format", description="Output format: 'txt' or 'json'"),
     current_user: User = Depends(get_current_user_clerk),
     db: AsyncSession = Depends(get_db),
 ):
@@ -411,7 +411,8 @@ async def download_onboarding_logs(
         )
 
     # Get full activity log (up to 5000 entries)
-    activity_log = batch_run_tracker.get_full_activity_log()
+    # Phase 7.3 Fix: Pass portfolio_id to also check completed runs
+    activity_log = batch_run_tracker.get_full_activity_log(portfolio_id=portfolio_id)
 
     # Build phase details from status
     phase_progress = batch_run_tracker.get_phase_progress()
@@ -421,7 +422,7 @@ async def download_onboarding_logs(
     timestamp = utc_now().strftime("%Y%m%d_%H%M%S")
     filename_base = f"portfolio_setup_log_{portfolio_id[:8]}_{timestamp}"
 
-    if format.lower() == "json":
+    if output_format.lower() == "json":
         # JSON format
         json_response = {
             "portfolio_id": portfolio_id,
