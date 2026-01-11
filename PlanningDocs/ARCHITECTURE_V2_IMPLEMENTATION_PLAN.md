@@ -839,6 +839,494 @@ async def run_comprehensive_stress_test(...):
 3. **New symbol onboarding completes in <60 seconds**
 4. **No regression in calculation accuracy** (validated against current system)
 5. **System handles 10,000 concurrent portfolios** without degradation
+6. **User onboarding completes in <5 seconds** (for known symbols)
+
+---
+
+## Part 10: User Onboarding Impact
+
+This section details how the new architecture transforms the user onboarding experience from a 15-30 minute wait to near-instant portfolio analytics.
+
+### 10.1 Current Onboarding Flow (SLOW)
+
+**Current files involved:**
+- `app/api/v1/onboarding.py` - Portfolio creation endpoint
+- `app/api/v1/onboarding_status.py` - Progress polling (Phase 7.1)
+- `app/services/batch_trigger_service.py` - Triggers full batch
+- `app/batch/batch_orchestrator.py` - 9-phase processing
+
+**Current flow:**
+```
+1. User uploads CSV via POST /api/v1/onboarding/create-portfolio
+   ↓ (~2-3 sec)
+2. Portfolio + positions created in database
+   ↓
+3. User triggers batch via POST /api/v1/portfolio/{id}/calculate
+   ↓
+4. batch_trigger_service calls batch_orchestrator.run_daily_batch_sequence()
+   ↓
+5. Watermark calculation determines start date (may go back weeks)
+   ↓
+6. FOR EACH DATE from watermark to today:
+   - Phase 0: Company Profile Sync
+   - Phase 1: Market Data Collection ← API calls for ALL symbols
+   - Phase 1.5: Symbol Factor Calculation ← Regressions for ALL symbols
+   - Phase 1.75: Symbol Metrics
+   - Phase 2: Fundamentals
+   - Phase 3: P&L/Snapshots
+   - Phase 4: Position Market Values
+   - Phase 5: Sector Tags
+   - Phase 6: Risk Analytics
+   ↓ (~15-30+ minutes)
+7. User polls GET /api/v1/onboarding/status/{portfolio_id} every 2 sec
+   ↓
+8. Finally receives analytics
+```
+
+**Current user experience:**
+- "Please wait 15-20 minutes while we process your portfolio..."
+- Complex progress UI showing 9 phases
+- High drop-off rate during wait
+
+### 10.2 New Onboarding Flow (FAST)
+
+**New flow:**
+```
+1. User uploads CSV via POST /api/v1/onboarding/create-portfolio
+   ↓ (~2-3 sec)
+2. Portfolio + positions created in database
+   ↓ (<1 sec)
+3. Check symbols against symbol_universe:
+   ├── Known symbols (99% of cases): Already have factor betas ✓
+   └── Unknown symbols: Queue async onboarding job
+   ↓ (<1 sec)
+4. Compute portfolio analytics IMMEDIATELY:
+   - Lookup pre-computed symbol betas from symbol_factor_exposures
+   - Aggregate by position weights
+   - Cache result
+   ↓ (<1 sec)
+5. Return response with analytics ready
+   ↓
+   TOTAL: <5 seconds
+```
+
+**New user experience:**
+- "Your portfolio is ready!" (immediate)
+- Analytics displayed instantly
+- Rare case (new symbols): "Loading data for NEWSTOCK... (30 sec)"
+
+### 10.3 Onboarding Code Changes
+
+#### 10.3.1 Modify `onboarding.py` - `/create-portfolio` endpoint
+
+**Before (current):**
+```python
+@router.post("/create-portfolio", response_model=CreatePortfolioResponse)
+async def create_portfolio(...):
+    # Create portfolio with CSV import
+    result = await onboarding_service.create_portfolio_with_csv(...)
+    await db.commit()
+
+    # Return - user must trigger batch separately
+    return CreatePortfolioResponse(
+        **result,
+        message="Portfolio created! Use POST /api/v1/portfolio/{id}/calculate to run analytics.",
+        next_step={
+            "action": "calculate",
+            "endpoint": f"/api/v1/portfolio/{result['portfolio_id']}/calculate"
+        }
+    )
+```
+
+**After (new):**
+```python
+@router.post("/create-portfolio", response_model=CreatePortfolioResponse)
+async def create_portfolio(...):
+    # Create portfolio with CSV import
+    result = await onboarding_service.create_portfolio_with_csv(...)
+    await db.commit()
+
+    portfolio_id = UUID(result['portfolio_id'])
+
+    # NEW: Check symbol readiness
+    symbols = await get_portfolio_symbols(db, portfolio_id)
+    pending_symbols = await check_symbols_pending(db, symbols)
+
+    if pending_symbols:
+        # Queue async jobs for unknown symbols
+        for symbol in pending_symbols:
+            await queue_symbol_onboarding(symbol, requested_by=current_user.id)
+
+        # Compute partial analytics (known symbols only)
+        await compute_and_cache_portfolio_analytics(db, portfolio_id, exclude=pending_symbols)
+
+        return CreatePortfolioResponse(
+            **result,
+            status="partial",
+            pending_symbols=pending_symbols,
+            message=f"Portfolio created! Analytics ready for {len(symbols) - len(pending_symbols)}/{len(symbols)} positions. Loading {len(pending_symbols)} new symbols (30-60 sec)...",
+            next_step={
+                "action": "poll_status",
+                "endpoint": f"/api/v1/onboarding/status/{result['portfolio_id']}"
+            }
+        )
+
+    # All symbols ready - compute analytics immediately
+    await compute_and_cache_portfolio_analytics(db, portfolio_id)
+
+    return CreatePortfolioResponse(
+        **result,
+        status="ready",
+        message="Portfolio created with full analytics!",
+        next_step={
+            "action": "view_dashboard",
+            "endpoint": f"/dashboard/{result['portfolio_id']}"
+        }
+    )
+```
+
+#### 10.3.2 Simplify `onboarding_status.py`
+
+**Before (current - Phase 7.1):**
+- Tracks 9 batch phases with detailed progress
+- Activity log for 15-30 min process
+- Complex phase-by-phase status
+
+**After (new):**
+```python
+class OnboardingStatusResponse(BaseModel):
+    """Simplified onboarding status response"""
+    portfolio_id: str
+    status: str  # "ready", "pending", "error"
+    analytics_available: bool
+    pending_symbols: Optional[List[str]]
+    estimated_seconds_remaining: Optional[int]
+    message: str
+
+
+@router.get("/status/{portfolio_id}")
+async def get_onboarding_status(
+    portfolio_id: str,
+    current_user: User = Depends(get_current_user_clerk),
+    db: AsyncSession = Depends(get_db),
+) -> OnboardingStatusResponse:
+    """
+    Get portfolio onboarding status.
+
+    In the new architecture, this is MUCH simpler:
+    - Most portfolios: status="ready" immediately
+    - Pending symbols: Simple countdown (30-60 sec max)
+
+    No more 9-phase progress tracking needed.
+    """
+    # Verify ownership
+    portfolio = await verify_portfolio_ownership(db, portfolio_id, current_user.id)
+
+    # Check if any symbols are still pending
+    pending = await get_pending_symbols_for_portfolio(db, portfolio_id)
+
+    if not pending:
+        return OnboardingStatusResponse(
+            portfolio_id=portfolio_id,
+            status="ready",
+            analytics_available=True,
+            pending_symbols=None,
+            estimated_seconds_remaining=None,
+            message="Your portfolio analytics are ready!"
+        )
+
+    # Calculate estimated time (30 sec per symbol)
+    estimated_seconds = len(pending) * 30
+
+    return OnboardingStatusResponse(
+        portfolio_id=portfolio_id,
+        status="pending",
+        analytics_available=True,  # Partial analytics available
+        pending_symbols=pending,
+        estimated_seconds_remaining=estimated_seconds,
+        message=f"Loading data for {len(pending)} new symbol(s)..."
+    )
+```
+
+#### 10.3.3 Remove Batch Trigger from Onboarding
+
+**Before (current) - `batch_trigger_service.py`:**
+```python
+# Called during onboarding to trigger full 9-phase batch
+background_tasks.add_task(
+    batch_orchestrator.run_daily_batch_sequence,
+    calculation_date,
+    [portfolio_id],
+    db,
+    None,  # run_sector_analysis
+    None,  # price_cache
+    force_onboarding
+)
+```
+
+**After (new):**
+```python
+# NO BATCH TRIGGER NEEDED FOR ONBOARDING
+# Symbol data is already current (from daily cron)
+# Portfolio analytics are computed on-demand via cache service
+
+# Only symbol onboarding jobs are queued (if needed)
+if pending_symbols:
+    for symbol in pending_symbols:
+        await symbol_onboarding_queue.enqueue(symbol)
+```
+
+### 10.4 New Helper Functions
+
+**`app/services/onboarding_helpers.py`:**
+
+```python
+"""
+Onboarding helper functions for the new architecture.
+"""
+
+async def get_portfolio_symbols(db: AsyncSession, portfolio_id: UUID) -> List[str]:
+    """Get all symbols in a portfolio."""
+    result = await db.execute(
+        select(Position.symbol)
+        .where(
+            Position.portfolio_id == portfolio_id,
+            Position.exit_date.is_(None)
+        )
+        .distinct()
+    )
+    return [row[0] for row in result.all()]
+
+
+async def check_symbols_pending(db: AsyncSession, symbols: List[str]) -> List[str]:
+    """
+    Check which symbols are not yet in the universe or still pending.
+
+    Returns list of symbols that need onboarding.
+    """
+    result = await db.execute(
+        select(SymbolUniverse.symbol)
+        .where(
+            SymbolUniverse.symbol.in_(symbols),
+            SymbolUniverse.status == 'active'
+        )
+    )
+    active_symbols = {row[0] for row in result.all()}
+
+    return [s for s in symbols if s not in active_symbols]
+
+
+async def queue_symbol_onboarding(
+    symbol: str,
+    requested_by: Optional[UUID] = None,
+    priority: str = "high"
+) -> None:
+    """
+    Queue a symbol for async onboarding.
+
+    The symbol_onboarding_worker will:
+    1. Fetch 1 year of historical prices
+    2. Calculate all factor betas
+    3. Add to symbol_universe as active
+    """
+    async with AsyncSessionLocal() as db:
+        # Check if already queued
+        existing = await db.execute(
+            select(SymbolOnboardingQueue)
+            .where(
+                SymbolOnboardingQueue.symbol == symbol,
+                SymbolOnboardingQueue.status.in_(['pending', 'processing'])
+            )
+        )
+        if existing.scalar_one_or_none():
+            return  # Already queued
+
+        # Add to queue
+        job = SymbolOnboardingQueue(
+            symbol=symbol,
+            status='pending',
+            requested_by=requested_by,
+            priority=priority
+        )
+        db.add(job)
+        await db.commit()
+
+
+async def get_pending_symbols_for_portfolio(
+    db: AsyncSession,
+    portfolio_id: str
+) -> List[str]:
+    """
+    Get symbols in portfolio that are still pending onboarding.
+    """
+    portfolio_uuid = UUID(portfolio_id)
+
+    # Get portfolio symbols
+    symbols = await get_portfolio_symbols(db, portfolio_uuid)
+
+    # Check which are pending
+    return await check_symbols_pending(db, symbols)
+
+
+async def compute_and_cache_portfolio_analytics(
+    db: AsyncSession,
+    portfolio_id: UUID,
+    exclude: Optional[List[str]] = None
+) -> Dict[str, Any]:
+    """
+    Compute portfolio analytics from pre-computed symbol betas.
+
+    This is FAST because symbol betas are already computed.
+    Just lookup + aggregate + cache.
+
+    Args:
+        exclude: Symbols to exclude (still pending)
+    """
+    from app.services.portfolio_factor_service import get_portfolio_factor_exposures
+    from app.services.portfolio_cache_service import PortfolioCacheService
+
+    cache_service = PortfolioCacheService(db)
+
+    # Get factor exposures (lookup + aggregate)
+    result = await get_portfolio_factor_exposures(
+        db=db,
+        portfolio_id=portfolio_id,
+        calculation_date=date.today(),
+        use_delta_adjusted=False,
+        include_ridge=True,
+        include_spread=True
+    )
+
+    # Cache for future requests
+    await cache_service.cache_factors(portfolio_id, result)
+
+    return result
+```
+
+### 10.5 Timeline Comparison
+
+| Step | Current | New |
+|------|---------|-----|
+| CSV upload + validation | 2-3 sec | 2-3 sec |
+| Portfolio + positions created | 1-2 sec | 1-2 sec |
+| **Symbol readiness check** | N/A | <1 sec |
+| **Batch processing** | 15-30 min | **0 sec** (data already exists) |
+| **Analytics computation** | Part of batch | <1 sec (aggregation) |
+| **User sees results** | **15-30+ min** | **<5 sec** |
+
+### 10.6 Edge Cases
+
+#### Case 1: All Symbols Known (99% of users)
+```
+User uploads: AAPL, MSFT, GOOGL, SPY, QQQ
+↓
+All in symbol_universe with status='active'
+↓
+Analytics computed immediately (<1 sec)
+↓
+Response: { status: "ready", message: "Your portfolio is ready!" }
+```
+
+#### Case 2: One Unknown Symbol
+```
+User uploads: AAPL, MSFT, NEWSTOCK
+↓
+AAPL, MSFT in universe ✓
+NEWSTOCK not in universe
+↓
+Queue NEWSTOCK for onboarding
+Compute partial analytics (AAPL, MSFT)
+↓
+Response: {
+  status: "partial",
+  pending_symbols: ["NEWSTOCK"],
+  message: "Analytics ready for 2/3 positions. Loading NEWSTOCK (30 sec)..."
+}
+↓
+Background: symbol_onboarding_worker processes NEWSTOCK
+↓
+30-60 sec later: Full analytics available
+```
+
+#### Case 3: All Unknown Symbols (rare - new asset class)
+```
+User uploads: CRYPTO1, CRYPTO2, CRYPTO3
+↓
+None in symbol_universe
+↓
+Queue all 3 for onboarding
+↓
+Response: {
+  status: "pending",
+  pending_symbols: ["CRYPTO1", "CRYPTO2", "CRYPTO3"],
+  message: "Loading data for 3 new symbols (1-2 min)..."
+}
+↓
+Background: symbol_onboarding_worker processes all 3
+↓
+1-2 min later: Full analytics available
+```
+
+### 10.7 Frontend Changes (Suggested)
+
+**Current frontend (waiting state):**
+```jsx
+// Shows for 15-30 minutes
+<div className="onboarding-progress">
+  <h2>Processing your portfolio...</h2>
+  <ProgressBar phases={9} current={currentPhase} />
+  <ActivityLog entries={activityLog} />
+  <p>Estimated time: 15-20 minutes</p>
+</div>
+```
+
+**New frontend (instant):**
+```jsx
+// Case 1: Immediate success
+<div className="onboarding-complete">
+  <h2>✅ Your portfolio is ready!</h2>
+  <Button onClick={() => navigate('/dashboard')}>
+    View Analytics
+  </Button>
+</div>
+
+// Case 2: Partial (rare)
+<div className="onboarding-partial">
+  <h2>📊 Analytics ready for most positions</h2>
+  <p>Loading data for {pendingSymbols.length} new symbol(s)...</p>
+  <ProgressBar indeterminate />
+  <Button onClick={() => navigate('/dashboard')}>
+    View Available Analytics
+  </Button>
+</div>
+```
+
+### 10.8 Files to Modify for Onboarding
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `app/api/v1/onboarding.py` | MAJOR | Add symbol check, remove batch trigger, compute analytics inline |
+| `app/api/v1/onboarding_status.py` | SIMPLIFY | Remove 9-phase tracking, simple pending symbol status |
+| `app/services/batch_trigger_service.py` | MINOR | Remove onboarding-specific batch logic |
+| `app/services/onboarding_service.py` | MINOR | Add symbol check integration |
+| `app/services/onboarding_helpers.py` | NEW | Helper functions for new flow |
+
+### 10.9 Deprecations
+
+The following will be deprecated/simplified:
+
+1. **Phase 7.1 Progress Tracking** - No longer needed for onboarding
+   - `batch_run_tracker.get_onboarding_status()` - simplified
+   - Activity log for onboarding - removed
+   - Phase progress UI - removed
+
+2. **Batch Trigger for Onboarding**
+   - `batch_trigger_service.trigger_batch(force_onboarding=True)` - removed
+   - `run_daily_batch_sequence()` for single portfolio - removed
+
+3. **Complex Status Polling**
+   - 9-phase status response - simplified to ready/pending/error
+   - 2-second polling for 15+ minutes - reduced to 5-second polling for <60 sec
 
 ---
 
@@ -852,6 +1340,10 @@ async def run_comprehensive_stress_test(...):
 | `analytics_runner.py` | Add cache check, use pre-computed betas only |
 | `portfolio_factor_service.py` | Minor - already uses symbol betas |
 | `symbol_factors.py` | Minor - add Market/IR Beta support |
+| `onboarding.py` | MAJOR - Add symbol check, compute analytics inline |
+| `onboarding_status.py` | SIMPLIFY - Remove 9-phase tracking |
+| `batch_trigger_service.py` | Remove onboarding-specific batch logic |
+| `onboarding_service.py` | Add symbol check integration |
 
 ### New Files to Create
 
@@ -861,6 +1353,7 @@ async def run_comprehensive_stress_test(...):
 | `symbol_onboarding_worker.py` | Async new symbol processing |
 | `portfolio_cache_service.py` | Cache management |
 | `symbol_price_service.py` | Price data management |
+| `onboarding_helpers.py` | Symbol check and queue helpers |
 
 ### Database Migrations
 
