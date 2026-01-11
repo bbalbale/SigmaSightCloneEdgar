@@ -39,11 +39,8 @@ export function OnboardingProgress({ status, isLoading = false }: OnboardingProg
   const percentComplete = overallProgress?.percent_complete ?? 0
   const elapsedSeconds = status?.elapsed_seconds ?? 0
 
-  // Build header message
-  let headerMessage = 'Setting up your portfolio...'
-  if (overallProgress?.phases_total) {
-    headerMessage = `Analyzing your portfolio with ${overallProgress.phases_total} processing phases.`
-  }
+  // Phase 7.4: Static header message for 9-phase architecture
+  const headerMessage = 'Analyzing your portfolio in 9 processing phases.'
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800 p-4">
@@ -61,9 +58,6 @@ export function OnboardingProgress({ status, isLoading = false }: OnboardingProg
               <div className="flex-1">
                 <CardTitle>Setting Up Your Portfolio</CardTitle>
                 <CardDescription>{headerMessage}</CardDescription>
-                <CardDescription className="mt-1">
-                  This typically takes 15-20 minutes.
-                </CardDescription>
               </div>
             </div>
           </CardHeader>

@@ -12,6 +12,11 @@ Phase 7.3 Enhancement (2026-01-11):
 - Logs are persisted at each phase completion for crash recovery
 - TTL increased to 2 hours for longer user sessions
 - Added database fallback for get_full_activity_log
+
+Phase 7.4 Enhancement (2026-01-11):
+- Added BatchActivityLogHandler to capture existing INFO/WARNING logs
+- Logs from calculation engines are automatically forwarded to activity log
+- Provides Railway-level debugging detail in downloadable logs
 """
 import copy
 import logging
@@ -34,6 +39,120 @@ MAX_FULL_LOG_ENTRIES = 5000
 # How long to retain completed run status (seconds)
 # Phase 7.3: Increased from 300s (5 min) to 7200s (2 hours) for longer user sessions
 COMPLETED_RUN_TTL_SECONDS = 7200
+
+# Logger prefixes to capture for activity log (batch and calculation engines)
+CAPTURED_LOGGER_PREFIXES = (
+    'app.batch',
+    'app.calculations',
+    'app.services.market_data',
+    'app.services.company_profile',
+)
+
+# Fixed phase ordering for consistent UI display
+# Phase 7.4 Fix: Ensures phases appear in execution order regardless of when they're created
+PHASE_ORDER = [
+    'phase_1',      # Market Data Collection
+    'phase_1_5',    # Factor Analysis
+    'phase_1_75',   # Symbol Metrics
+    'phase_0',      # Company Profile Sync (only on current date)
+    'phase_2',      # Fundamental Data Collection (only on current date)
+    'phase_3',      # P&L Calculation & Snapshots
+    'phase_4',      # Position Market Value Updates
+    'phase_5',      # Sector Tag Restoration (only on current date)
+    'phase_6',      # Risk Analytics
+]
+
+
+class BatchActivityLogHandler(logging.Handler):
+    """
+    Custom logging handler that forwards log messages to batch_run_tracker.
+
+    Phase 7.4: Captures existing INFO/WARNING/ERROR logs from calculation engines
+    and adds them to the activity log for debugging visibility.
+
+    Only captures logs from specific prefixes (batch, calculations, market data)
+    to avoid noise from unrelated modules.
+
+    Usage:
+        handler = BatchActivityLogHandler(batch_run_tracker)
+        handler.attach()  # Start capturing
+        # ... run batch processing ...
+        handler.detach()  # Stop capturing
+    """
+
+    def __init__(self, tracker: 'BatchRunTracker'):
+        super().__init__()
+        self.tracker = tracker
+        self.setLevel(logging.INFO)
+        # Format: just the message, no timestamp (tracker adds its own)
+        self.setFormatter(logging.Formatter('%(name)s: %(message)s'))
+        self._attached = False
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Forward log record to activity log if batch is running."""
+        # Only capture if batch is running
+        if not self.tracker._current:
+            return
+
+        # Only capture from specific logger prefixes
+        if not record.name.startswith(CAPTURED_LOGGER_PREFIXES):
+            return
+
+        try:
+            msg = self.format(record)
+            # Map log level
+            if record.levelno >= logging.ERROR:
+                level = "error"
+            elif record.levelno >= logging.WARNING:
+                level = "warning"
+            else:
+                level = "info"
+
+            self.tracker.add_activity(msg, level=level)
+        except Exception:
+            # Don't let logging errors break the batch
+            pass
+
+    def attach(self) -> None:
+        """Attach handler to root logger to start capturing.
+
+        Phase 7.4 Fix (Round 2): Removes any existing BatchActivityLogHandler
+        instances before attaching to prevent duplicate logging from leaked
+        handlers (e.g., if a previous batch failed mid-run).
+        """
+        if self._attached:
+            return
+
+        root_logger = logging.getLogger()
+
+        # Remove any existing BatchActivityLogHandler instances to prevent duplicates
+        # This handles the case where a previous batch failed and leaked its handler
+        existing_handlers = [
+            h for h in root_logger.handlers
+            if isinstance(h, BatchActivityLogHandler)
+        ]
+        for h in existing_handlers:
+            root_logger.removeHandler(h)
+            h._attached = False
+
+        root_logger.addHandler(self)
+        self._attached = True
+
+    def detach(self) -> None:
+        """Detach handler from root logger to stop capturing."""
+        if self._attached:
+            logging.getLogger().removeHandler(self)
+            self._attached = False
+
+    def __enter__(self) -> 'BatchActivityLogHandler':
+        """Context manager entry - attach handler."""
+        self.attach()
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        """Context manager exit - always detach handler, even on exception."""
+        self.detach()
+        # Don't suppress exceptions (return None/False)
 
 
 @dataclass
@@ -785,6 +904,10 @@ class BatchRunTracker:
                 "unit": phase.unit,
                 "duration_seconds": phase.duration_seconds
             })
+
+        # Phase 7.4 Fix: Sort phases by fixed execution order for consistent UI display
+        phase_order_map = {pid: idx for idx, pid in enumerate(PHASE_ORDER)}
+        phases_list.sort(key=lambda p: phase_order_map.get(p["phase_id"], 999))
 
         # Calculate overall percent (rough estimate based on phases)
         percent_complete = 0

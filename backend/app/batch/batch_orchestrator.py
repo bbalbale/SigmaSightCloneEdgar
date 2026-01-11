@@ -337,7 +337,17 @@ class BatchOrchestrator:
         Returns:
             Summary of batch operation
         """
-        from app.batch.batch_run_tracker import batch_run_tracker
+        from app.batch.batch_run_tracker import batch_run_tracker, BatchActivityLogHandler
+
+        # Phase 7.4: Attach log handler to capture INFO logs from calculation engines
+        # This provides Railway-level debugging detail in the downloadable activity log.
+        #
+        # Phase 7.4 Fix (Round 2): Handler has duplicate prevention - if a previous batch
+        # failed and leaked its handler, attach() removes it before adding the new one.
+        # This prevents duplicate logging even without try/finally around the entire
+        # function body (which would require re-indenting 500+ lines).
+        log_handler = BatchActivityLogHandler(batch_run_tracker)
+        log_handler.attach()
 
         start_time = asyncio.get_event_loop().time()
 
@@ -621,17 +631,42 @@ class BatchOrchestrator:
         # PHASE 2 FIX (2026-01-08): Per-date portfolio filtering
         # In cron mode (scoped_only=False), check which portfolios already have
         # snapshots for each date and skip them to avoid redundant processing.
+        #
+        # PHASE 7.4 (2026-01-11): Individual phase tracking moved to _run_phases_2_through_6
+        # Each phase (0, 2, 3, 4, 5, 6) now tracked separately for granular UI display.
         # =============================================================================
-        # Phase 7.1: Start Phase 2-6 tracking (combined as "Portfolio Snapshots")
+
+        results = []
+        dates_skipped = 0
+
+        # Phase 7.4 Fix: Track phases 3, 4, 6 once per batch (not per-date)
+        # These phases run for every date, so we aggregate across all dates.
+        # Phases 0, 2, 5 only run on current date, so they're tracked inside _run_phases_2_through_6
         batch_run_tracker.start_phase(
-            phase_id="phase_2_6",
-            phase_name="Portfolio Snapshots & Analytics",
+            phase_id="phase_3",
+            phase_name="P&L Calculation & Snapshots",
+            total=len(missing_dates),
+            unit="dates"
+        )
+        batch_run_tracker.start_phase(
+            phase_id="phase_4",
+            phase_name="Position Market Value Updates",
+            total=len(missing_dates),
+            unit="dates"
+        )
+        batch_run_tracker.start_phase(
+            phase_id="phase_6",
+            phase_name="Risk Analytics",
             total=len(missing_dates),
             unit="dates"
         )
 
-        results = []
-        dates_skipped = 0
+        # Aggregate stats for phases 3, 4, 6 across all dates
+        aggregate_stats = {
+            "phase_3": {"portfolios": 0, "snapshots": 0, "success": True},
+            "phase_4": {"positions_updated": 0, "total_positions": 0, "success": True},
+            "phase_6": {"portfolios": 0, "analytics": 0, "success": True},
+        }
 
         # PHASE 2 OPTIMIZATION: Cache all active portfolio IDs once before the loop
         # (Code review recommendation: avoid querying this for every date)
@@ -691,12 +726,11 @@ class BatchOrchestrator:
                     if skipped_count > 0:
                         logger.info(f"Processing {calc_date}: {len(portfolios_to_process)} portfolios need updates ({skipped_count} already have snapshots)")
 
-            logger.debug(f"Phases 2-6: {calc_date} ({i}/{len(missing_dates)})")
+            logger.debug(f"Phases 0, 2-6: {calc_date} ({i}/{len(missing_dates)})")
 
-            # Phase 7.1: Update phase progress (show every 5th date to avoid log spam)
-            batch_run_tracker.update_phase_progress("phase_2_6", i)
+            # Phase 7.4: Log date processing milestone (every 5th date to avoid spam)
             if i == 1 or i % 5 == 0 or i == len(missing_dates):
-                batch_run_tracker.add_activity(f"Creating snapshot for {calc_date}... ({i}/{len(missing_dates)})")
+                batch_run_tracker.add_activity(f"Processing date {calc_date}... ({i}/{len(missing_dates)})")
 
             # Create fresh session for this date
             async with AsyncSessionLocal() as db:
@@ -709,6 +743,33 @@ class BatchOrchestrator:
                 )
 
                 results.append(result)
+
+                # Phase 7.4 Fix: Update progress and aggregate stats for phases 3, 4, 6
+                batch_run_tracker.update_phase_progress("phase_3", i)
+                batch_run_tracker.update_phase_progress("phase_4", i)
+                batch_run_tracker.update_phase_progress("phase_6", i)
+
+                # Aggregate stats from this date's results
+                if result.get('phase_3'):
+                    p3 = result['phase_3']
+                    aggregate_stats["phase_3"]["portfolios"] += p3.get('portfolios_processed', 0)
+                    aggregate_stats["phase_3"]["snapshots"] += p3.get('snapshots_created', 0)
+                    if not p3.get('success', True):
+                        aggregate_stats["phase_3"]["success"] = False
+
+                if result.get('phase_4'):
+                    p4 = result['phase_4']
+                    aggregate_stats["phase_4"]["positions_updated"] += p4.get('positions_updated', 0)
+                    aggregate_stats["phase_4"]["total_positions"] += p4.get('total_positions', 0)
+                    if not p4.get('success', True):
+                        aggregate_stats["phase_4"]["success"] = False
+
+                if result.get('phase_6'):
+                    p6 = result['phase_6']
+                    aggregate_stats["phase_6"]["portfolios"] += p6.get('portfolios_processed', 0)
+                    aggregate_stats["phase_6"]["analytics"] += p6.get('analytics_completed', 0)
+                    if not p6.get('success', True):
+                        aggregate_stats["phase_6"]["success"] = False
 
                 # Mark as complete in tracking table
                 if result['success']:
@@ -727,18 +788,30 @@ class BatchOrchestrator:
                 else:
                     progress["failed"] += 1
 
+        # Phase 7.4 Fix: Complete phases 3, 4, 6 with aggregate stats
+        batch_run_tracker.complete_phase(
+            "phase_3",
+            success=aggregate_stats["phase_3"]["success"],
+            summary=f"{aggregate_stats['phase_3']['portfolios']} portfolios, {aggregate_stats['phase_3']['snapshots']} snapshots"
+        )
+        batch_run_tracker.complete_phase(
+            "phase_4",
+            success=aggregate_stats["phase_4"]["success"],
+            summary=f"{aggregate_stats['phase_4']['positions_updated']}/{aggregate_stats['phase_4']['total_positions']} positions updated"
+        )
+        batch_run_tracker.complete_phase(
+            "phase_6",
+            success=aggregate_stats["phase_6"]["success"],
+            summary=f"{aggregate_stats['phase_6']['portfolios']} portfolios analyzed"
+        )
+
         duration = int(asyncio.get_event_loop().time() - start_time)
 
         success_count = sum(1 for r in results if r['success'])
         failed_count = len(results) - success_count
 
-        # Phase 7.1: Complete Phase 2-6
-        batch_run_tracker.complete_phase(
-            "phase_2_6",
-            success=(failed_count == 0),
-            summary=f"{success_count}/{len(results)} dates processed"
-        )
-        batch_run_tracker.add_activity(f"Batch complete: {success_count} dates processed in {duration}s")
+        # Phase 7.4: Final batch summary
+        batch_run_tracker.add_activity(f"Batch complete: {success_count}/{len(results)} dates processed in {duration}s")
 
         # PHASE 2 FIX: Include skipped dates in summary
         if dates_skipped > 0:
@@ -781,6 +854,11 @@ class BatchOrchestrator:
             phase_durations=phase_durations,
             error_summary=error_summary,
         )
+
+        # Phase 7.4: Detach log handler before returning
+        # Note: Even if this is skipped due to an exception, the duplicate handler
+        # prevention in attach() ensures the next batch won't have duplicate logging.
+        log_handler.detach()
 
         return {
             'success': overall_success,
@@ -1333,6 +1411,9 @@ class BatchOrchestrator:
         """
         normalized_portfolio_ids = self._normalize_portfolio_ids(portfolio_ids)
 
+        # Phase 7.4: Import batch_run_tracker for individual phase tracking
+        from app.batch.batch_run_tracker import batch_run_tracker
+
         result: Dict[str, Any] = {
             'success': False,
             'calculation_date': calculation_date,
@@ -1353,6 +1434,14 @@ class BatchOrchestrator:
         # Phase 0: Company Profile Sync (BEFORE all calculations)
         # Only run on final/current date to get fresh beta values, sector, industry
         if not is_historical:
+
+            # Phase 7.4: Track Phase 0 separately
+            batch_run_tracker.start_phase(
+                phase_id="phase_0",
+                phase_name="Company Profile Sync",
+                total=0,  # Will be updated after counting symbols
+                unit="symbols"
+            )
             try:
                 self._log_phase_start("phase_0", calculation_date, normalized_portfolio_ids)
                 phase0_result = await self._sync_company_profiles(
@@ -1362,12 +1451,29 @@ class BatchOrchestrator:
                 result['phase_0'] = phase0_result
                 self._log_phase_result("phase_0", phase0_result)
 
+                # Phase 7.4: Add verbose logging
+                symbols_synced = phase0_result.get('symbols_successful', 0)
+                symbols_total = phase0_result.get('symbols_attempted', 0)
+                batch_run_tracker.complete_phase(
+                    "phase_0",
+                    success=phase0_result.get('success', False),
+                    summary=f"{symbols_synced}/{symbols_total} profiles synced"
+                )
+
                 if not phase0_result.get('success'):
                     logger.warning("Phase 0 (Company Profiles) had errors, continuing to Phase 2")
+                    # Log failed symbols for debugging
+                    failed_symbols = phase0_result.get('failed_symbols', [])
+                    if failed_symbols:
+                        batch_run_tracker.add_activity(
+                            f"⚠️ Profile sync failed for: {', '.join(failed_symbols[:5])}{'...' if len(failed_symbols) > 5 else ''}",
+                            level="warning"
+                        )
 
             except Exception as e:
                 logger.error(f"Phase 0 (Company Profiles) error: {e}")
                 result['errors'].append(f"Phase 0 (Company Profiles) error: {str(e)}")
+                batch_run_tracker.complete_phase("phase_0", success=False, summary=f"Error: {str(e)[:50]}")
         else:
             logger.debug(f"Skipping Phase 0 (Company Profiles) for historical date ({calculation_date})")
             result['phase_0'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
@@ -1378,6 +1484,13 @@ class BatchOrchestrator:
         # Phase 2: Fundamental Data Collection
         # OPTIMIZATION: Only run on current/final date (fundamentals don't change historically)
         if not is_historical:
+            # Phase 7.4: Track Phase 2 separately
+            batch_run_tracker.start_phase(
+                phase_id="phase_2",
+                phase_name="Fundamental Data Collection",
+                total=0,
+                unit="symbols"
+            )
             try:
                 self._log_phase_start("phase_2", calculation_date, normalized_portfolio_ids)
                 phase2_fundamentals_result = await fundamentals_collector.collect_fundamentals_data(
@@ -1387,12 +1500,21 @@ class BatchOrchestrator:
                 result['phase_2'] = phase2_fundamentals_result
                 self._log_phase_result("phase_2", phase2_fundamentals_result)
 
+                # Phase 7.4: Verbose logging
+                symbols_processed = phase2_fundamentals_result.get('symbols_processed', 0)
+                batch_run_tracker.complete_phase(
+                    "phase_2",
+                    success=phase2_fundamentals_result.get('success', False),
+                    summary=f"{symbols_processed} symbols processed"
+                )
+
                 if not phase2_fundamentals_result.get('success'):
                     logger.warning("Phase 2 (Fundamentals) had errors, continuing to Phase 3")
 
             except Exception as e:
                 logger.error(f"Phase 2 (Fundamentals) error: {e}")
                 result['errors'].append(f"Phase 2 (Fundamentals) error: {str(e)}")
+                batch_run_tracker.complete_phase("phase_2", success=False, summary=f"Error: {str(e)[:50]}")
         else:
             logger.debug(f"Skipping Phase 2 (Fundamentals) for historical date ({calculation_date})")
             result['phase_2'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
@@ -1416,6 +1538,7 @@ class BatchOrchestrator:
             logger.error(f"Phase 2.5 (Cleanup) error: {e}")
 
         # Phase 3: P&L & Snapshots
+        # Phase 7.4 Fix: Phase tracking moved to _execute_batch_phases (per-batch, not per-date)
         try:
             self._log_phase_start("phase_3", calculation_date, normalized_portfolio_ids)
             phase3_result = await pnl_calculator.calculate_all_portfolios_pnl(
@@ -1435,6 +1558,7 @@ class BatchOrchestrator:
             result['errors'].append(f"Phase 3 (P&L) error: {str(e)}")
 
         # Phase 4: Update Position Market Values
+        # Phase 7.4 Fix: Phase tracking moved to _execute_batch_phases (per-batch, not per-date)
         try:
             self._log_phase_start("phase_4", calculation_date, normalized_portfolio_ids)
             phase4_result = await self._update_all_position_market_values(
@@ -1445,6 +1569,14 @@ class BatchOrchestrator:
             result['phase_4'] = phase4_result
             self._log_phase_result("phase_4", phase4_result)
 
+            # Log missing symbols for debugging (keep for verbose logging)
+            missing_symbols = phase4_result.get('missing_price_symbols', [])
+            if missing_symbols:
+                batch_run_tracker.add_activity(
+                    f"⚠️ Missing prices for: {', '.join(missing_symbols[:5])}{'...' if len(missing_symbols) > 5 else ''}",
+                    level="warning"
+                )
+
             if not phase4_result.get('success'):
                 logger.warning("Phase 4 (Position Updates) had errors, continuing to Phase 5")
 
@@ -1454,6 +1586,13 @@ class BatchOrchestrator:
 
         # Phase 5: Restore Sector Tags from Company Profiles
         if not is_historical:
+            # Phase 7.4: Track Phase 5 separately
+            batch_run_tracker.start_phase(
+                phase_id="phase_5",
+                phase_name="Sector Tag Restoration",
+                total=0,
+                unit="positions"
+            )
             try:
                 self._log_phase_start("phase_5", calculation_date, normalized_portfolio_ids)
                 phase5_result = await self._restore_all_sector_tags(
@@ -1463,17 +1602,28 @@ class BatchOrchestrator:
                 result['phase_5'] = phase5_result
                 self._log_phase_result("phase_5", phase5_result)
 
+                # Phase 7.4: Verbose logging
+                positions_tagged = phase5_result.get('positions_tagged', 0)
+                tags_created = phase5_result.get('tags_created', 0)
+                batch_run_tracker.complete_phase(
+                    "phase_5",
+                    success=phase5_result.get('success', False),
+                    summary=f"{positions_tagged} positions tagged, {tags_created} tags created"
+                )
+
                 if not phase5_result.get('success'):
                     logger.warning("Phase 5 (Sector Tags) had errors, continuing to Phase 6")
 
             except Exception as e:
                 logger.error(f"Phase 5 (Sector Tags) error: {e}")
                 result['errors'].append(f"Phase 5 (Sector Tags) error: {str(e)}")
+                batch_run_tracker.complete_phase("phase_5", success=False, summary=f"Error: {str(e)[:50]}")
         else:
             logger.debug(f"Skipping Phase 5 (Sector Tags) for historical date ({calculation_date})")
             result['phase_5'] = {'success': True, 'skipped': True, 'reason': 'historical_date'}
 
         # Phase 6: Risk Analytics
+        # Phase 7.4 Fix: Phase tracking moved to _execute_batch_phases (per-batch, not per-date)
         try:
             self._log_phase_start("phase_6", calculation_date, normalized_portfolio_ids)
             phase6_result = await analytics_runner.run_all_portfolios_analytics(

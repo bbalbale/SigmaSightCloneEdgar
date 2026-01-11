@@ -4,18 +4,23 @@ import { PhaseListItem, PhaseListItemProps } from './PhaseListItem'
 import { PhaseDetail, ActivityLogEntry } from '@/services/onboardingService'
 
 /**
- * Default phase definitions for display when no backend data is available
+ * Default phase definitions for display when no backend data is available.
+ * Phase 7.4: Updated to match backend 9-phase architecture (2026-01-11)
+ *
+ * Phase execution order:
+ * - Phases 1, 1_5, 1_75: Run first (market data, factors, symbol metrics)
+ * - Phases 0, 2, 3, 4, 5, 6: Run per-date (profiles, fundamentals, P&L, market values, tags, analytics)
  */
 const DEFAULT_PHASES: Array<{ phase_id: string; phase_name: string }> = [
   { phase_id: 'phase_1', phase_name: 'Market Data Collection' },
-  { phase_id: 'phase_1.5', phase_name: 'Factor Analysis' },
-  { phase_id: 'phase_1.75', phase_name: 'Symbol Metrics' },
-  { phase_id: 'phase_2', phase_name: 'Portfolio Snapshots' },
-  { phase_id: 'phase_2.5', phase_name: 'Position Values' },
-  { phase_id: 'phase_3', phase_name: 'Position Betas' },
-  { phase_id: 'phase_4', phase_name: 'Factor Exposures' },
-  { phase_id: 'phase_5', phase_name: 'Volatility Analysis' },
-  { phase_id: 'phase_6', phase_name: 'Correlations' },
+  { phase_id: 'phase_1_5', phase_name: 'Factor Analysis' },
+  { phase_id: 'phase_1_75', phase_name: 'Symbol Metrics' },
+  { phase_id: 'phase_0', phase_name: 'Company Profile Sync' },
+  { phase_id: 'phase_2', phase_name: 'Fundamental Data Collection' },
+  { phase_id: 'phase_3', phase_name: 'P&L Calculation & Snapshots' },
+  { phase_id: 'phase_4', phase_name: 'Position Market Value Updates' },
+  { phase_id: 'phase_5', phase_name: 'Sector Tag Restoration' },
+  { phase_id: 'phase_6', phase_name: 'Risk Analytics' },
 ]
 
 export interface PhaseListProps {
