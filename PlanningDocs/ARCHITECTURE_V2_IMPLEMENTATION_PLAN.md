@@ -336,8 +336,9 @@ ON CONFLICT (name) DO NOTHING;
 
 ```
 backend/app/batch/
-├── symbol_batch_runner.py      # NEW: Symbol-only daily batch
-├── symbol_onboarding_worker.py # NEW: Async symbol onboarding
+├── symbol_batch_runner.py       # NEW: Symbol-only daily batch
+├── symbol_onboarding_worker.py  # NEW: Async symbol onboarding
+├── symbol_onboarding_tracker.py # NEW: Concurrent job tracking (see 4.1.1)
 └── portfolio_analytics_cache.py # NEW: Cache management
 
 backend/app/services/
@@ -346,6 +347,119 @@ backend/app/services/
 
 backend/app/api/v1/
 └── onboarding_status.py        # MODIFY: Add symbol status endpoint
+```
+
+#### 4.1.1 Symbol Onboarding Job Tracker
+
+The current `batch_run_tracker` is a singleton that tracks ONE batch at a time. In the new
+architecture, we may have:
+- Daily symbol batch (cron) running
+- Multiple symbol onboarding jobs (async) running concurrently
+
+Add a separate tracker for async symbol onboarding jobs:
+
+**`backend/app/batch/symbol_onboarding_tracker.py`:**
+
+```python
+"""
+Symbol Onboarding Tracker - Track multiple concurrent symbol onboarding jobs.
+
+Unlike batch_run_tracker (singleton for one batch), this tracks many
+concurrent async jobs for new symbol processing.
+"""
+from dataclasses import dataclass, field
+from datetime import datetime
+from typing import Dict, List, Optional
+
+from app.core.datetime_utils import utc_now
+
+
+# How long to retain completed job status (seconds)
+JOB_COMPLETED_TTL_SECONDS = 120
+
+
+@dataclass
+class SymbolOnboardingJob:
+    """Status of a single symbol onboarding job."""
+    symbol: str
+    status: str  # "pending", "processing", "completed", "failed"
+    started_at: datetime
+    completed_at: Optional[datetime] = None
+    error_message: Optional[str] = None
+    phases_completed: List[str] = field(default_factory=list)
+
+
+class SymbolOnboardingTracker:
+    """
+    Track multiple concurrent symbol onboarding jobs.
+
+    This is separate from batch_run_tracker to allow:
+    - Daily symbol batch running (tracked by batch_run_tracker)
+    - Multiple async symbol onboarding jobs running concurrently
+    """
+
+    def __init__(self):
+        self._jobs: Dict[str, SymbolOnboardingJob] = {}
+
+    def start_job(self, symbol: str) -> None:
+        """Start tracking a new symbol onboarding job."""
+        self._cleanup_old_completed()
+        self._jobs[symbol] = SymbolOnboardingJob(
+            symbol=symbol,
+            status="processing",
+            started_at=utc_now()
+        )
+
+    def update_job(self, symbol: str, phase_completed: str) -> None:
+        """Mark a phase as completed for a job."""
+        if symbol in self._jobs:
+            self._jobs[symbol].phases_completed.append(phase_completed)
+
+    def complete_job(self, symbol: str, success: bool, error: Optional[str] = None) -> None:
+        """Mark a job as completed or failed."""
+        if symbol in self._jobs:
+            self._jobs[symbol].status = "completed" if success else "failed"
+            self._jobs[symbol].completed_at = utc_now()
+            if error:
+                self._jobs[symbol].error_message = error
+
+    def get_pending_symbols(self, symbols: List[str]) -> List[str]:
+        """Get symbols from list that are still being processed."""
+        return [
+            s for s in symbols
+            if s in self._jobs and self._jobs[s].status == "processing"
+        ]
+
+    def get_job_status(self, symbol: str) -> Optional[Dict]:
+        """Get status of a specific job."""
+        self._cleanup_old_completed()
+        if symbol not in self._jobs:
+            return None
+
+        job = self._jobs[symbol]
+        return {
+            "symbol": job.symbol,
+            "status": job.status,
+            "started_at": job.started_at.isoformat(),
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "phases_completed": job.phases_completed,
+            "error_message": job.error_message
+        }
+
+    def _cleanup_old_completed(self) -> None:
+        """Remove completed jobs older than TTL."""
+        now = utc_now()
+        expired = [
+            symbol for symbol, job in self._jobs.items()
+            if job.completed_at and
+            (now - job.completed_at).total_seconds() > JOB_COMPLETED_TTL_SECONDS
+        ]
+        for symbol in expired:
+            del self._jobs[symbol]
+
+
+# Global singleton instance
+symbol_onboarding_tracker = SymbolOnboardingTracker()
 ```
 
 ### 4.2 Key Code: Symbol Batch Runner
@@ -481,6 +595,113 @@ class SymbolBatchRunner:
             'total': len(symbols)
         }
 ```
+
+#### 4.2.1 Phase Tracking Integration (Phase 7.x Compatibility)
+
+The Phase 7.1-7.4 tracking infrastructure (`batch_run_tracker`) should be **reused** for
+the new Symbol Batch Runner. This provides admin visibility into daily symbol processing.
+
+**Update `symbol_batch_runner.py` to use existing tracking:**
+
+```python
+from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
+from app.core.datetime_utils import utc_now
+
+class SymbolBatchRunner:
+
+    async def run_daily_symbol_batch(self, target_date: date = None, ...):
+        target_date = target_date or date.today()
+
+        # Initialize batch tracking (reuse Phase 7.x infrastructure)
+        batch_run_tracker.start(CurrentBatchRun(
+            batch_run_id=f"symbol_batch_{target_date.isoformat()}",
+            started_at=utc_now(),
+            triggered_by="cron"
+        ))
+
+        try:
+            symbols = await self._get_active_symbols()
+
+            # Phase 1: Price Collection
+            batch_run_tracker.start_phase(
+                phase_id="prices",
+                phase_name="Daily Price Collection",
+                total=len(symbols),
+                unit="symbols"
+            )
+            price_result = await self._update_daily_prices(symbols, target_date)
+            batch_run_tracker.complete_phase(
+                "prices",
+                success=True,
+                summary=f"{price_result['updated']} symbols updated"
+            )
+
+            # Phase 2: Market Beta
+            batch_run_tracker.start_phase(
+                phase_id="market_beta",
+                phase_name="Market Beta Calculation",
+                total=len(symbols),
+                unit="symbols"
+            )
+            market_beta_result = await self._calculate_symbol_market_betas(symbols, target_date)
+            batch_run_tracker.complete_phase(
+                "market_beta",
+                success=True,
+                summary=f"{market_beta_result['success']}/{len(symbols)} calculated"
+            )
+
+            # Phase 3: IR Beta
+            batch_run_tracker.start_phase(
+                phase_id="ir_beta",
+                phase_name="Interest Rate Beta Calculation",
+                total=len(symbols),
+                unit="symbols"
+            )
+            ir_beta_result = await self._calculate_symbol_ir_betas(symbols, target_date)
+            batch_run_tracker.complete_phase("ir_beta", success=True, ...)
+
+            # Phase 4: Ridge Factors
+            batch_run_tracker.start_phase(
+                phase_id="ridge_factors",
+                phase_name="Ridge Factor Analysis",
+                total=len(symbols),
+                unit="symbols"
+            )
+            ridge_result = await calculate_universe_factors(...)
+            batch_run_tracker.complete_phase("ridge_factors", success=True, ...)
+
+            # Phase 5: Spread Factors
+            batch_run_tracker.start_phase(
+                phase_id="spread_factors",
+                phase_name="Spread Factor Analysis",
+                total=len(symbols),
+                unit="symbols"
+            )
+            spread_result = await calculate_universe_factors(...)
+            batch_run_tracker.complete_phase("spread_factors", success=True, ...)
+
+            # Phase 6: Cache Invalidation
+            batch_run_tracker.start_phase(
+                phase_id="cache_invalidation",
+                phase_name="Portfolio Cache Refresh",
+                total=1,
+                unit="operation"
+            )
+            await self._invalidate_all_portfolio_caches()
+            batch_run_tracker.complete_phase("cache_invalidation", success=True)
+
+            batch_run_tracker.complete(success=True)
+            return results
+
+        except Exception as e:
+            batch_run_tracker.complete(success=False)
+            raise
+```
+
+**Key Difference from Portfolio Batch:**
+- Symbol batch uses **6 phases** (prices, market_beta, ir_beta, ridge, spread, cache)
+- Portfolio batch used **9 phases** (phase_0, phase_1, phase_1_5, phase_1_75, etc.)
+- Phase names are more descriptive ("Market Beta Calculation" vs "Phase 1.5")
 
 ### 4.3 Key Code: Portfolio Cache Service
 
@@ -1315,18 +1536,135 @@ Background: symbol_onboarding_worker processes all 3
 
 The following will be deprecated/simplified:
 
-1. **Phase 7.1 Progress Tracking** - No longer needed for onboarding
-   - `batch_run_tracker.get_onboarding_status()` - simplified
-   - Activity log for onboarding - removed
-   - Phase progress UI - removed
+1. **Phase 7.1-7.4 Progress Tracking FOR ONBOARDING** - No longer needed
+   - `batch_run_tracker.get_onboarding_status()` - simplified to simple status check
+   - Activity log for onboarding - removed (onboarding is now <5 seconds)
+   - Phase progress UI for onboarding - removed
+   - 9-phase tracking in onboarding flow - removed
+   - 60-second completed status TTL - reduce to 10 seconds for onboarding
+   - **NOTE**: Phase 7.x tracking is PRESERVED for daily symbol batch (see Part 11)
 
 2. **Batch Trigger for Onboarding**
    - `batch_trigger_service.trigger_batch(force_onboarding=True)` - removed
    - `run_daily_batch_sequence()` for single portfolio - removed
+   - `run_portfolio_onboarding_backfill()` - removed (no longer triggers batch)
 
 3. **Complex Status Polling**
    - 9-phase status response - simplified to ready/pending/error
    - 2-second polling for 15+ minutes - reduced to 5-second polling for <60 sec
+   - `PhaseProgress` dataclass for onboarding - not used (still used for symbol batch)
+
+4. **Onboarding-Specific Batch Code**
+   - `is_single_portfolio_mode` logic in batch_orchestrator - removed
+   - `source="onboarding"` tracking - removed
+   - `scoped_only` mode for onboarding - removed (still used for admin operations)
+
+---
+
+## Part 11: Phase 7.x Compatibility Analysis
+
+**Context**: 17 commits to main (January 9-10, 2026) implemented Phase 7.3 and 7.4
+enhancements for batch tracking. This section analyzes compatibility with Architecture V2.
+
+### 11.1 Phase 7.x Features Implemented
+
+**Phase 7.1**: Activity Logging
+- `ActivityLogEntry` dataclass for real-time status updates
+- `add_activity()`, `get_activity_log()` methods
+- Max 50 entries to prevent memory growth
+
+**Phase 7.1 Fix**: Completed Run Status Retention
+- `CompletedRunStatus` dataclass with 60-second TTL
+- `_completed_runs` dictionary to retain terminal status
+- Prevents frontend from seeing "not_found" after batch completes
+
+**Phase 7.4**: 9-Phase Individual Tracking
+- `PhaseProgress` dataclass with current/total/unit metrics
+- `start_phase()`, `update_phase_progress()`, `complete_phase()` methods
+- Phases: phase_1, phase_1_5, phase_1_75, phase_2_6 (combined)
+
+### 11.2 Compatibility Matrix
+
+| Phase 7.x Feature | Onboarding | Symbol Batch | Portfolio Batch |
+|-------------------|------------|--------------|-----------------|
+| Activity Log | ❌ DEPRECATED | ✅ REUSE | ✅ KEEP |
+| Phase Progress | ❌ DEPRECATED | ✅ REUSE (6 phases) | ✅ KEEP |
+| Completed Status TTL | ⚠️ REDUCE (10s) | ✅ KEEP (60s) | ✅ KEEP |
+| 9-Phase Tracking | ❌ DEPRECATED | ⚠️ REPLACE (6 phases) | ✅ KEEP |
+| `get_onboarding_status()` | ⚠️ SIMPLIFY | N/A | N/A |
+
+### 11.3 What Gets Reused
+
+**For Daily Symbol Batch** (REUSE Phase 7.x infrastructure):
+
+```python
+# batch_run_tracker can track the symbol batch with different phase names
+batch_run_tracker.start_phase("prices", "Daily Price Collection", len(symbols), "symbols")
+batch_run_tracker.start_phase("market_beta", "Market Beta Calculation", len(symbols), "symbols")
+batch_run_tracker.start_phase("ir_beta", "IR Beta Calculation", len(symbols), "symbols")
+batch_run_tracker.start_phase("ridge_factors", "Ridge Factor Analysis", len(symbols), "symbols")
+batch_run_tracker.start_phase("spread_factors", "Spread Factor Analysis", len(symbols), "symbols")
+batch_run_tracker.start_phase("cache_invalidation", "Portfolio Cache Refresh", 1, "operation")
+```
+
+**For Admin Dashboard** (KEEP existing features):
+- Admin can monitor daily symbol batch progress
+- Activity log shows what's happening
+- Phase progress shows completion status
+
+### 11.4 What Gets Deprecated (Onboarding Only)
+
+**Current onboarding flow** (15-30 minutes):
+```python
+# Phase 7.x was designed for this long-running process
+batch_run_tracker.set_portfolio_id(portfolio_id)
+batch_run_tracker.start_phase("phase_1", "Market Data Collection", ...)
+# ... 8 more phases over 15-30 minutes ...
+batch_run_tracker.complete(success=True)
+```
+
+**New onboarding flow** (< 5 seconds):
+```python
+# No batch tracking needed - operation is instant
+symbols = await get_portfolio_symbols(db, portfolio_id)
+pending = await check_symbols_pending(db, symbols)
+
+if not pending:
+    # Instant success - no tracking needed
+    await compute_and_cache_portfolio_analytics(db, portfolio_id)
+    return {"status": "ready"}
+
+# Only track pending symbols (rare case)
+for symbol in pending:
+    symbol_onboarding_tracker.start_job(symbol)  # Use NEW tracker
+```
+
+### 11.5 Concurrent Job Tracking
+
+**Current limitation**: `batch_run_tracker` tracks ONE batch at a time.
+
+**New requirement**: We may have running concurrently:
+- Daily symbol batch (tracked by `batch_run_tracker`)
+- Multiple symbol onboarding jobs (tracked by `symbol_onboarding_tracker`)
+
+**Solution**: Add separate `symbol_onboarding_tracker` (see Section 4.1.1).
+
+### 11.6 Migration Notes
+
+1. **Preserve batch_run_tracker** - Don't modify the core tracking infrastructure
+2. **Simplify onboarding_status.py** - Remove Phase 7.x complexity for onboarding
+3. **Add symbol_onboarding_tracker.py** - New tracker for concurrent symbol jobs
+4. **Update admin dashboard** - Show symbol batch phases instead of portfolio phases
+
+### 11.7 Code Preservation Table
+
+| File | Action | Notes |
+|------|--------|-------|
+| `batch_run_tracker.py` | KEEP AS-IS | Core infrastructure reused for symbol batch |
+| `batch_orchestrator.py` | KEEP Phase 7.x code | Still used for admin-triggered portfolio batches |
+| `onboarding.py` | REMOVE Phase 7.x calls | Onboarding no longer triggers batch |
+| `onboarding_status.py` | SIMPLIFY | Remove 9-phase tracking, keep simple status |
+| `symbol_batch_runner.py` | ADD Phase 7.x calls | Reuse existing tracking for symbol batch |
 
 ---
 
@@ -1336,12 +1674,13 @@ The following will be deprecated/simplified:
 
 | File | Changes |
 |------|---------|
-| `batch_orchestrator.py` | Remove symbol processing, add cache invalidation |
+| `batch_orchestrator.py` | Remove symbol processing, add cache invalidation; KEEP Phase 7.x for admin ops |
+| `batch_run_tracker.py` | KEEP AS-IS - Reused by symbol_batch_runner for Phase 7.x tracking |
 | `analytics_runner.py` | Add cache check, use pre-computed betas only |
 | `portfolio_factor_service.py` | Minor - already uses symbol betas |
 | `symbol_factors.py` | Minor - add Market/IR Beta support |
-| `onboarding.py` | MAJOR - Add symbol check, compute analytics inline |
-| `onboarding_status.py` | SIMPLIFY - Remove 9-phase tracking |
+| `onboarding.py` | MAJOR - Add symbol check, compute analytics inline, REMOVE Phase 7.x calls |
+| `onboarding_status.py` | SIMPLIFY - Remove 9-phase tracking, use simple ready/pending/error status |
 | `batch_trigger_service.py` | Remove onboarding-specific batch logic |
 | `onboarding_service.py` | Add symbol check integration |
 
@@ -1349,8 +1688,9 @@ The following will be deprecated/simplified:
 
 | File | Purpose |
 |------|---------|
-| `symbol_batch_runner.py` | Daily symbol-level batch |
+| `symbol_batch_runner.py` | Daily symbol-level batch (reuses Phase 7.x tracking) |
 | `symbol_onboarding_worker.py` | Async new symbol processing |
+| `symbol_onboarding_tracker.py` | Concurrent job tracking for symbol onboarding (see 4.1.1) |
 | `portfolio_cache_service.py` | Cache management |
 | `symbol_price_service.py` | Price data management |
 | `onboarding_helpers.py` | Symbol check and queue helpers |
