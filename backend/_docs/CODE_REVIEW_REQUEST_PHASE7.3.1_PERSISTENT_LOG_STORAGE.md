@@ -323,3 +323,170 @@ Older writes with fewer entries are now safely rejected.
 3. **TTL of 2 hours**: Is this too long? Could lead to memory growth if many batches run. Should we add a max completed runs limit?
 
 4. **Error handling**: Currently logs warning and continues if persistence fails. Should we retry? Store in a fallback location?
+
+---
+
+## Phase 7.3.2: Admin Batch Log Download (January 11, 2026)
+
+### Summary
+
+Added ability for admins to download activity logs for any batch run directly from the Admin Dashboard. This complements the user-facing log download (which is portfolio-scoped) by providing full administrative access to all batch run logs.
+
+### Problem Solved
+
+1. Admins needed to SSH into Railway or run database queries to view batch logs
+2. No easy way to debug failed batch runs from the admin UI
+3. Support tickets required manual log extraction
+
+### Solution
+
+1. **New backend endpoint** for admin log download
+2. **Frontend download buttons** in the Run Details card
+3. **Support for TXT and JSON formats**
+
+---
+
+### Files Changed
+
+#### 1. `backend/app/api/v1/endpoints/admin_batch.py`
+
+**Changes**: Added new endpoint `GET /api/v1/admin/batch/history/{batch_run_id}/logs`
+
+```python
+@router.get("/history/{batch_run_id}/logs")
+async def get_batch_run_logs(
+    batch_run_id: str,
+    format: str = Query("json", description="Output format: 'json' or 'txt'"),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download activity logs for a specific batch run.
+    Supports JSON and TXT formats for download.
+    """
+```
+
+**Features**:
+- Admin authentication required (`get_current_admin` dependency)
+- Supports `?format=txt` or `?format=json` query parameter
+- Returns `Content-Disposition` header for file download
+- TXT format includes header with batch metadata
+- JSON format includes full structured data
+
+**Review Focus**:
+- Is admin-only authentication sufficient, or should we add role-based access?
+- Should we limit log size in response (currently returns full log)?
+
+---
+
+#### 2. `frontend/src/services/adminApiService.ts`
+
+**Changes**: Added two new methods
+
+```typescript
+/**
+ * Download batch run activity logs
+ * Triggers browser file download
+ */
+async downloadBatchLogs(batchRunId: string, format: 'json' | 'txt' = 'txt'): Promise<void> {
+  // Fetches blob, creates object URL, triggers download
+}
+
+/**
+ * Get batch run log entry count (without downloading)
+ */
+async getBatchLogCount(batchRunId: string): Promise<number> {
+  // Returns just the count for UI display
+}
+```
+
+**Implementation Details**:
+- Uses raw `fetch()` instead of `adminFetch()` to handle blob response
+- Creates temporary `<a>` element to trigger download
+- Extracts filename from `Content-Disposition` header
+- Cleans up object URL after download
+
+**Review Focus**:
+- Is blob download the right pattern for this use case?
+- Should we add progress indication for large log files?
+
+---
+
+#### 3. `frontend/app/admin/batch/page.tsx`
+
+**Changes**: Added Download Logs section to Run Details card
+
+```tsx
+{/* Download Logs Section */}
+<div className="pt-4 border-t border-slate-700">
+  <p className="text-xs text-slate-500 uppercase mb-3">Activity Logs</p>
+  <div className="flex gap-2">
+    <Button onClick={() => downloadLogs('txt')}>
+      <FileText /> TXT
+    </Button>
+    <Button onClick={() => downloadLogs('json')}>
+      <Download /> JSON
+    </Button>
+  </div>
+</div>
+```
+
+**UI Details**:
+- Appears at bottom of Run Details card when a run is selected
+- Two buttons: TXT (human-readable) and JSON (machine-readable)
+- Loading spinner during download
+- Error handling with toast/alert
+
+**Review Focus**:
+- Is button placement intuitive?
+- Should we show log entry count before downloading?
+
+---
+
+### Testing Notes
+
+#### Manual Testing Steps
+
+1. **Navigate to Admin Batch History**:
+   - Login at `/admin/login`
+   - Go to `/admin/batch`
+
+2. **Select a batch run** from the Recent Runs list
+
+3. **Click TXT or JSON download button**:
+   - Verify file downloads with correct filename
+   - Verify TXT format is human-readable with header
+   - Verify JSON format includes all metadata
+
+4. **Test edge cases**:
+   - Batch run with no logs (should show "No activity log entries available")
+   - Very large log file (5000+ entries)
+   - Failed batch run (should still have partial logs)
+
+#### API Testing
+
+```bash
+# Test TXT format
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  "https://sigmasight-be-production.up.railway.app/api/v1/admin/batch/history/batch_20260111_140711/logs?format=txt"
+
+# Test JSON format
+curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
+  "https://sigmasight-be-production.up.railway.app/api/v1/admin/batch/history/batch_20260111_140711/logs?format=json"
+```
+
+---
+
+### Security Considerations
+
+1. **Admin-only access**: Endpoint requires `get_current_admin` authentication
+2. **No user data exposure**: Logs contain batch processing info, not user PII
+3. **Rate limiting**: Consider adding rate limits for large log downloads
+
+---
+
+### Deployment Notes
+
+- No database migration required (uses existing `activity_log` column)
+- Backend and frontend must be deployed together
+- Existing batch runs without `activity_log` will show "No activity log entries available"
