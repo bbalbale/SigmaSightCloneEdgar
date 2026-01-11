@@ -276,11 +276,49 @@ If issues arise:
 
 ---
 
+## Code Review Fixes Applied (January 11, 2026)
+
+Based on code review feedback, the following fixes were implemented:
+
+### Fix 1: DB Fallback Status - RESOLVED ✅
+
+**Problem**: When in-memory status expired but logs existed in DB, we hardcoded `status: "completed"` with 100% progress. This could misrepresent failed or partial runs.
+
+**Solution**: Added `get_batch_status_from_db_async()` method that fetches actual `BatchRunHistory` record including:
+- `status` (completed, failed, partial, running)
+- `started_at` / `completed_at` timestamps
+- `total_jobs`, `completed_jobs`, `failed_jobs`
+
+Now the download endpoint uses actual DB status instead of assuming success.
+
+### Fix 2: Race Condition Prevention - RESOLVED ✅
+
+**Problem**: Fire-and-forget `create_task(persist_logs_to_db())` could cause race conditions where a slower earlier task overwrites newer logs with fewer entries.
+
+**Solution**: Made UPDATE conditional using PostgreSQL `jsonb_array_length()`:
+```sql
+UPDATE batch_run_history
+SET activity_log = :new_logs
+WHERE batch_run_id = :id
+  AND (activity_log IS NULL
+       OR jsonb_array_length(COALESCE(activity_log, '[]'::jsonb)) <= :new_count)
+```
+
+Older writes with fewer entries are now safely rejected.
+
+### Fix 3: Batch Run ID Selection - DOCUMENTED
+
+**Problem**: DB fallback returns most recent run for a portfolio, which may not be the expected run after retries.
+
+**Status**: Documented as future enhancement. Would require API contract change to add optional `batch_run_id` query parameter to download endpoint. Current behavior (most recent) is acceptable for MVP.
+
+---
+
 ## Questions for Reviewers
 
 1. **JSONB vs separate table**: Is storing logs as JSONB in `BatchRunHistory` the right approach? Alternative would be a separate `batch_run_logs` table with one row per entry.
 
-2. **Fire-and-forget persistence**: The `create_task(persist_logs_to_db())` pattern doesn't await completion. Is this acceptable, or should we await to ensure logs are saved?
+2. **Fire-and-forget persistence**: The `create_task(persist_logs_to_db())` pattern doesn't await completion. Is this acceptable, or should we await to ensure logs are saved? **Note**: Now protected by conditional UPDATE.
 
 3. **TTL of 2 hours**: Is this too long? Could lead to memory growth if many batches run. Should we add a max completed runs limit?
 

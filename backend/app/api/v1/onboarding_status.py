@@ -406,25 +406,59 @@ async def download_onboarding_logs(
     # Security Fix: Pass portfolio_id to ensure we only get this portfolio's logs
     activity_log = await batch_run_tracker.get_full_activity_log_async(portfolio_id=portfolio_id)
 
-    # If no status in memory but logs exist in DB, create minimal status
+    # If no status in memory but logs exist in DB, fetch actual status from DB
     if status_data is None:
         if activity_log:
-            # Logs found in database - create minimal status for response
-            status_data = {
-                "portfolio_id": portfolio_id,
-                "status": "completed",  # Assume completed if we have DB logs
-                "started_at": None,
-                "elapsed_seconds": 0,
-                "overall_progress": {
-                    "current_phase": None,
-                    "current_phase_name": None,
-                    "phases_completed": 0,
-                    "phases_total": 0,
-                    "percent_complete": 100
-                },
-                "current_phase_progress": None,
-                "activity_log": []
-            }
+            # Logs found in database - fetch actual batch status from DB
+            db_status = await batch_run_tracker.get_batch_status_from_db_async(portfolio_id)
+
+            if db_status:
+                # Use actual status from BatchRunHistory
+                # Calculate elapsed seconds from started_at if available
+                elapsed = 0
+                if db_status.get("started_at") and db_status.get("completed_at"):
+                    from datetime import datetime
+                    started = datetime.fromisoformat(db_status["started_at"].replace("Z", "+00:00"))
+                    completed = datetime.fromisoformat(db_status["completed_at"].replace("Z", "+00:00"))
+                    elapsed = int((completed - started).total_seconds())
+
+                # Determine percent complete based on status
+                percent = 100 if db_status["status"] == "completed" else (
+                    0 if db_status["status"] == "failed" else 50
+                )
+
+                status_data = {
+                    "portfolio_id": portfolio_id,
+                    "status": db_status["status"],  # Actual status: completed, failed, partial
+                    "started_at": db_status.get("started_at"),
+                    "elapsed_seconds": elapsed,
+                    "overall_progress": {
+                        "current_phase": None,
+                        "current_phase_name": None,
+                        "phases_completed": db_status.get("completed_jobs", 0),
+                        "phases_total": db_status.get("total_jobs", 0),
+                        "percent_complete": percent
+                    },
+                    "current_phase_progress": None,
+                    "activity_log": []
+                }
+            else:
+                # Fallback if DB status query fails (shouldn't happen if logs exist)
+                status_data = {
+                    "portfolio_id": portfolio_id,
+                    "status": "unknown",  # Don't assume completed
+                    "started_at": None,
+                    "elapsed_seconds": 0,
+                    "overall_progress": {
+                        "current_phase": None,
+                        "current_phase_name": None,
+                        "phases_completed": 0,
+                        "phases_total": 0,
+                        "percent_complete": 0
+                    },
+                    "current_phase_progress": None,
+                    "activity_log": []
+                }
         else:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,

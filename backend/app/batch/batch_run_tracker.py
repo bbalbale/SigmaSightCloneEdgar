@@ -350,6 +350,59 @@ class BatchRunTracker:
 
         return []
 
+    async def get_batch_status_from_db_async(self, portfolio_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get batch run status from database for a portfolio.
+
+        Phase 7.3.1 Enhancement: Returns actual batch status from BatchRunHistory
+        instead of assuming completed. This provides accurate status for failed
+        or partial runs.
+
+        Args:
+            portfolio_id: Portfolio ID to get status for
+
+        Returns:
+            Dict with status info or None if not found:
+            - status: "running", "completed", "failed", "partial"
+            - started_at: ISO timestamp
+            - completed_at: ISO timestamp or None
+            - total_jobs, completed_jobs, failed_jobs
+            - phase_durations: dict of phase timings
+        """
+        try:
+            from app.database import AsyncSessionLocal
+            from app.models.admin import BatchRunHistory
+            from sqlalchemy import select
+
+            async with AsyncSessionLocal() as db:
+                # Find most recent batch run for this portfolio
+                stmt = (
+                    select(BatchRunHistory)
+                    .where(BatchRunHistory.portfolio_id == UUID(portfolio_id))
+                    .order_by(BatchRunHistory.started_at.desc())
+                    .limit(1)
+                )
+                result = await db.execute(stmt)
+                row = result.scalar_one_or_none()
+
+                if row:
+                    return {
+                        "batch_run_id": row.batch_run_id,
+                        "status": row.status,
+                        "started_at": row.started_at.isoformat() if row.started_at else None,
+                        "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+                        "total_jobs": row.total_jobs,
+                        "completed_jobs": row.completed_jobs,
+                        "failed_jobs": row.failed_jobs,
+                        "phase_durations": row.phase_durations or {},
+                        "error_summary": row.error_summary,
+                    }
+
+        except Exception as e:
+            logger.warning(f"Failed to retrieve batch status from database: {e}")
+
+        return None
+
     # ==========================================================================
     # Phase 7.1: Phase Progress Methods
     # ==========================================================================
@@ -428,6 +481,10 @@ class BatchRunTracker:
         Phase 7.3 Enhancement: Called at each phase completion to ensure logs
         are saved even if a later phase fails or the service crashes.
 
+        Phase 7.3.1 Fix: Uses conditional UPDATE to prevent race conditions.
+        Only updates if new log count >= existing count, preventing older
+        fire-and-forget tasks from overwriting newer logs.
+
         Updates BatchRunHistory.activity_log with current full_activity_log.
         """
         if not self._current:
@@ -445,17 +502,34 @@ class BatchRunTracker:
             }
             for entry in self._current.full_activity_log
         ]
+        new_log_count = len(logs_data)
 
         try:
             from app.database import AsyncSessionLocal
             from app.models.admin import BatchRunHistory
-            from sqlalchemy import select, update
+            from sqlalchemy import update, or_, func, text
+            from sqlalchemy.dialects.postgresql import JSONB
 
             async with AsyncSessionLocal() as db:
-                # Try to update existing record first
+                # Conditional UPDATE: only write if new log count >= existing
+                # This prevents older fire-and-forget tasks from overwriting newer logs
+                # Uses PostgreSQL jsonb_array_length() to check existing log count
                 stmt = (
                     update(BatchRunHistory)
                     .where(BatchRunHistory.batch_run_id == batch_run_id)
+                    .where(
+                        or_(
+                            # Condition 1: No existing logs (NULL or empty)
+                            BatchRunHistory.activity_log.is_(None),
+                            # Condition 2: New logs have more or equal entries
+                            func.jsonb_array_length(
+                                func.coalesce(
+                                    BatchRunHistory.activity_log,
+                                    text("'[]'::jsonb")
+                                )
+                            ) <= new_log_count
+                        )
+                    )
                     .values(
                         activity_log=logs_data,
                         portfolio_id=UUID(portfolio_id) if portfolio_id else None
@@ -464,15 +538,14 @@ class BatchRunTracker:
                 result = await db.execute(stmt)
 
                 if result.rowcount == 0:
-                    # No existing record - will be created by batch orchestrator
-                    # Just log a warning, don't fail
+                    # Either no record exists, or condition not met (newer logs already exist)
                     logger.debug(
-                        f"No BatchRunHistory record found for {batch_run_id} - "
-                        "logs will be persisted when record is created"
+                        f"Log persistence skipped for {batch_run_id} - "
+                        f"either no record exists or newer logs already saved"
                     )
                 else:
                     logger.debug(
-                        f"Persisted {len(logs_data)} log entries for batch {batch_run_id}"
+                        f"Persisted {new_log_count} log entries for batch {batch_run_id}"
                     )
 
                 await db.commit()
