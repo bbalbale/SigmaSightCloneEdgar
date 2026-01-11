@@ -170,6 +170,34 @@ else:
 # uv run alembic -c alembic_ai.ini revision --autogenerate -m "description"    # AI DB
 ```
 
+**🚨 CRITICAL: Creating Alembic Migrations**
+
+When creating database migrations, follow this workflow to avoid multiple heads:
+
+```bash
+# Step 1: ALWAYS check current heads first
+uv run alembic -c alembic.ini heads
+
+# Step 2: Use autogenerate to create migration (auto-detects correct down_revision)
+uv run alembic -c alembic.ini revision --autogenerate -m "description"
+
+# Step 3: Review the generated migration file
+# - Verify down_revision matches the current head from Step 1
+# - Check the upgrade() and downgrade() functions are correct
+
+# Step 4: Test locally before deploying
+uv run alembic -c alembic.ini upgrade head
+```
+
+**⚠️ NEVER manually set `down_revision`** by looking at "related" migrations. Always use `--autogenerate` or run `alembic heads` to find the actual current head.
+
+**Why this matters:** Setting wrong `down_revision` creates branched migration chains (multiple heads), which causes deployment failures and requires manual cleanup with `alembic stamp --purge`.
+
+**Applying migrations to Railway:**
+```bash
+railway ssh --service SigmaSight-BE "uv run alembic -c alembic.ini upgrade head"
+```
+
 **Error Handling:**
 ```python
 # Implement graceful degradation

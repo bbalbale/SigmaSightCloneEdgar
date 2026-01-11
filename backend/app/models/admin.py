@@ -225,6 +225,14 @@ class BatchRunHistory(Base):
     error_summary: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     # Example: {"count": 3, "types": ["timeout", "api_error"], "details": [...]}
 
+    # Portfolio tracking (for onboarding batches)
+    portfolio_id: Mapped[Optional[UUID]] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+
+    # Activity log for persistent storage (Phase 7.3 enhancement)
+    # Stores full activity log as JSONB array, written at each phase completion
+    # Format: [{"timestamp": "ISO8601", "message": "...", "level": "info|warning|error"}, ...]
+    activity_log: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSONB, nullable=True)
+
     # Timestamp
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow, index=True)
 
@@ -233,6 +241,7 @@ class BatchRunHistory(Base):
         Index('ix_batch_run_history_status', 'status'),
         Index('ix_batch_run_history_started_at', 'started_at'),
         Index('ix_batch_run_history_created_at', 'created_at'),
+        Index('ix_batch_run_history_portfolio_id', 'portfolio_id'),
     )
 
     def __repr__(self):

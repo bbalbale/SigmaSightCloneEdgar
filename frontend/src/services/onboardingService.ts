@@ -58,6 +58,48 @@ export interface BatchStatusResponse {
   elapsed_seconds: number;
 }
 
+// Phase 7.2: Onboarding Status Types
+export interface ActivityLogEntry {
+  timestamp: string;
+  message: string;
+  level: 'info' | 'warning' | 'error';
+}
+
+export interface CurrentPhaseProgress {
+  current: number;
+  total: number;
+  unit: string;
+}
+
+export interface OverallProgress {
+  current_phase: string | null;
+  current_phase_name: string | null;
+  phases_completed: number;
+  phases_total: number;
+  percent_complete: number;
+}
+
+export interface PhaseDetail {
+  phase_id: string;
+  phase_name: string;
+  status: 'pending' | 'running' | 'completed' | 'failed';
+  current: number;
+  total: number;
+  unit: string;
+  duration_seconds: number | null;
+}
+
+export interface OnboardingStatusResponse {
+  portfolio_id: string;
+  status: 'running' | 'completed' | 'partial' | 'failed' | 'not_found';
+  started_at: string | null;
+  elapsed_seconds: number;
+  overall_progress: OverallProgress | null;
+  current_phase_progress: CurrentPhaseProgress | null;
+  activity_log: ActivityLogEntry[];
+  phases: PhaseDetail[] | null;
+}
+
 /**
  * Onboarding Service
  */
@@ -128,6 +170,79 @@ export const onboardingService = {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  },
+
+  /**
+   * Get real-time onboarding status (Phase 7.2)
+   * Poll this endpoint every 2 seconds during batch processing
+   */
+  getOnboardingStatus: async (portfolioId: string): Promise<OnboardingStatusResponse> => {
+    const response = await apiClient.get<OnboardingStatusResponse>(
+      `/api/v1/onboarding/status/${portfolioId}`
+    );
+    return response;
+  },
+
+  /**
+   * Download onboarding logs (Phase 7.2)
+   * Triggers browser download of the log file
+   */
+  downloadLogs: async (portfolioId: string, format: 'txt' | 'json' = 'txt'): Promise<void> => {
+    // Get auth token using same priority as apiClient:
+    // 1. Clerk token (primary), 2. localStorage (legacy fallback)
+    let token: string | null = null;
+
+    // Try Clerk token first (primary auth system)
+    try {
+      const { getClerkTokenAsync } = await import('@/lib/clerkTokenStore');
+      token = await getClerkTokenAsync();
+    } catch {
+      // Clerk token store not available
+    }
+
+    // Fall back to localStorage (legacy auth)
+    if (!token) {
+      token = localStorage.getItem('access_token');
+    }
+
+    const headers: HeadersInit = {};
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const response = await fetch(
+      `/api/proxy/api/v1/onboarding/status/${portfolioId}/logs?format=${format}`,
+      {
+        method: 'GET',
+        credentials: 'include',
+        headers,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error('Failed to download logs');
+    }
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+
+    // Extract filename from Content-Disposition header or generate one
+    const contentDisposition = response.headers.get('Content-Disposition');
+    let filename = `portfolio_setup_log_${portfolioId.slice(0, 8)}.${format}`;
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="(.+)"/);
+      if (match) {
+        filename = match[1];
+      }
+    }
+
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
   },
 };
 

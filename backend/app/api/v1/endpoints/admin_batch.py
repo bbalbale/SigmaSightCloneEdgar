@@ -730,3 +730,128 @@ async def get_batch_run_details(
             status_code=500,
             detail=f"Error fetching batch run details: {str(e)}"
         )
+
+
+@router.get("/history/{batch_run_id}/logs")
+async def get_batch_run_logs(
+    batch_run_id: str,
+    format: str = Query("json", description="Output format: 'json' or 'txt'"),
+    count_only: bool = Query(False, description="Return only log entry count (lightweight)"),
+    admin_user: CurrentAdmin = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Download activity logs for a specific batch run.
+
+    Returns the complete activity log stored during batch processing.
+    Supports JSON and TXT formats for download.
+
+    **Path Parameters:**
+    - batch_run_id: The batch run identifier (e.g., "batch_20260111_140711")
+
+    **Query Parameters:**
+    - format: Output format - 'json' (default) or 'txt'
+    - count_only: If true, returns only the log entry count without full logs (lightweight)
+    """
+    from app.models.admin import BatchRunHistory
+    from fastapi.responses import PlainTextResponse, JSONResponse
+
+    # Validate format parameter
+    format_lower = format.lower()
+    if format_lower not in ("json", "txt"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid format '{format}'. Supported formats: 'json', 'txt'"
+        )
+
+    try:
+        result = await db.execute(
+            select(BatchRunHistory).where(
+                BatchRunHistory.batch_run_id == batch_run_id
+            )
+        )
+        run = result.scalar_one_or_none()
+
+        if not run:
+            raise HTTPException(
+                status_code=404,
+                detail=f"Batch run '{batch_run_id}' not found"
+            )
+
+        activity_log = run.activity_log or []
+        log_count = len(activity_log)
+
+        # Lightweight count-only response
+        if count_only:
+            return JSONResponse(
+                content={
+                    "batch_run_id": batch_run_id,
+                    "log_entry_count": log_count,
+                }
+            )
+
+        if format_lower == "txt":
+            # Build TXT format
+            lines = []
+            lines.append("=" * 80)
+            lines.append(f"BATCH RUN LOG: {batch_run_id}")
+            lines.append("=" * 80)
+            lines.append(f"Status: {run.status}")
+            lines.append(f"Started: {run.started_at.isoformat() if run.started_at else 'N/A'}")
+            lines.append(f"Completed: {run.completed_at.isoformat() if run.completed_at else 'N/A'}")
+            lines.append(f"Triggered By: {run.triggered_by}")
+            lines.append(f"Jobs: {run.completed_jobs}/{run.total_jobs} completed, {run.failed_jobs} failed")
+            lines.append(f"Log Entries: {log_count}")
+            lines.append("")
+            lines.append("=" * 80)
+            lines.append("ACTIVITY LOG")
+            lines.append("=" * 80)
+
+            if activity_log:
+                for entry in activity_log:
+                    timestamp = entry.get("timestamp", "")
+                    level = entry.get("level", "INFO").upper()
+                    message = entry.get("message", "")
+                    lines.append(f"{timestamp} [{level}] {message}")
+            else:
+                lines.append("No activity log entries available.")
+
+            lines.append("")
+            lines.append("=" * 80)
+            lines.append("END OF LOG")
+            lines.append("=" * 80)
+
+            return PlainTextResponse(
+                content="\n".join(lines),
+                headers={
+                    "Content-Disposition": f'attachment; filename="{batch_run_id}_log.txt"'
+                }
+            )
+        else:
+            # JSON format (validated to be 'json' at this point)
+            return JSONResponse(
+                content={
+                    "batch_run_id": batch_run_id,
+                    "status": run.status,
+                    "started_at": run.started_at.isoformat() if run.started_at else None,
+                    "completed_at": run.completed_at.isoformat() if run.completed_at else None,
+                    "triggered_by": run.triggered_by,
+                    "total_jobs": run.total_jobs,
+                    "completed_jobs": run.completed_jobs,
+                    "failed_jobs": run.failed_jobs,
+                    "log_entry_count": log_count,
+                    "activity_log": activity_log,
+                },
+                headers={
+                    "Content-Disposition": f'attachment; filename="{batch_run_id}_log.json"'
+                }
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching batch run logs: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error fetching batch run logs: {str(e)}"
+        )

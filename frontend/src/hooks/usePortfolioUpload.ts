@@ -1,11 +1,11 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { onboardingService } from '@/services/onboardingService'
 import { setPortfolioState, usePortfolioStore } from '@/stores/portfolioStore'
 
-export type UploadState = 'idle' | 'uploading' | 'processing' | 'success' | 'validation_error' | 'error'
+export type UploadState = 'idle' | 'uploading' | 'validation_error' | 'error'
 
 export interface ValidationError {
   row: number
@@ -15,43 +15,11 @@ export interface ValidationError {
   field?: string
 }
 
-export interface UploadResult {
-  portfolio_id: string
-  portfolio_name: string
-  positions_imported: number
-  positions_failed: number
-  total_positions: number
-}
-
-export interface ChecklistState {
-  portfolio_created: boolean
-  positions_imported: boolean
-  symbol_extraction: boolean
-  security_enrichment: boolean
-  price_bootstrap: boolean
-  market_data_collection: boolean
-  pnl_calculation: boolean
-  position_values: boolean
-  market_beta: boolean
-  ir_beta: boolean
-  factor_spread: boolean
-  factor_ridge: boolean
-  sector_analysis: boolean
-  volatility: boolean
-  correlations: boolean
-}
-
 interface UsePortfolioUploadReturn {
   uploadState: UploadState
-  batchStatus: string
-  currentSpinnerItem: string | null
-  checklist: ChecklistState
-  result: UploadResult | null
   error: string | null
   validationErrors: ValidationError[] | null
   handleUpload: (portfolioName: string, accountName: string, accountType: string, equityBalance: number, file: File) => Promise<void>
-  handleContinueToDashboard: () => void
-  handleAddAnother: () => void
   handleRetry: () => void
   handleChooseDifferentFile: () => void
   // Session management
@@ -60,64 +28,30 @@ interface UsePortfolioUploadReturn {
 }
 
 /**
- * Hook for handling portfolio CSV upload and batch processing
- * Now with session management for multi-portfolio onboarding
+ * Hook for handling portfolio CSV upload
+ * After successful upload and triggering calculations, redirects to /onboarding/progress
+ * for real-time status tracking (Phase 7.3)
  */
 export function usePortfolioUpload(): UsePortfolioUploadReturn {
   const router = useRouter()
   const [uploadState, setUploadState] = useState<UploadState>('idle')
-  const [batchStatus, setBatchStatus] = useState<string>('idle')
-  const [currentSpinnerItem, setCurrentSpinnerItem] = useState<string | null>(null)
-
-  // Session management from store
-  const {
-    onboardingSession,
-    startOnboardingSession,
-    addToOnboardingSession,
-    updateSessionPortfolioStatus,
-    completeOnboardingSession,
-    resetForNextUpload,
-    setBatchRunning,
-    isInOnboardingSession
-  } = usePortfolioStore()
-  const [checklist, setChecklist] = useState<ChecklistState>({
-    portfolio_created: false,
-    positions_imported: false,
-    symbol_extraction: false,
-    security_enrichment: false,
-    price_bootstrap: false,
-    market_data_collection: false,
-    pnl_calculation: false,
-    position_values: false,
-    market_beta: false,
-    ir_beta: false,
-    factor_spread: false,
-    factor_ridge: false,
-    sector_analysis: false,
-    volatility: false,
-    correlations: false,
-  })
-  const [result, setResult] = useState<UploadResult | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [validationErrors, setValidationErrors] = useState<ValidationError[] | null>(null)
 
-  // Refs for cleanup and tracking
-  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  // Session management from store
+  const {
+    startOnboardingSession,
+    addToOnboardingSession,
+    setBatchRunning,
+    isInOnboardingSession
+  } = usePortfolioStore()
+
+  // Refs for retry functionality
   const currentFileRef = useRef<File | null>(null)
   const currentPortfolioNameRef = useRef<string>('')
   const currentAccountNameRef = useRef<string>('')
   const currentAccountTypeRef = useRef<string>('')
   const currentEquityBalanceRef = useRef<number>(0)
-  const currentUploadPortfolioIdRef = useRef<string | null>(null)
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current)
-      }
-    }
-  }, [])
 
   const handleUpload = async (portfolioName: string, accountName: string, accountType: string, equityBalance: number, file: File) => {
     // Store for retry
@@ -131,34 +65,28 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
     setError(null)
     setValidationErrors(null)
 
-    // Mark batch as running in session (blocks "Add Another" button)
+    // Mark batch as running in session
     if (isInOnboardingSession()) {
       setBatchRunning(true)
     }
 
+    // Track if portfolio was created (for error handling)
+    let createdPortfolioId: string | null = null
+
     try {
-      // PHASE 2A: CSV Upload (10-30 seconds)
+      // PHASE 1: CSV Upload and Portfolio Creation
       const formData = new FormData()
       formData.append('portfolio_name', portfolioName)
       formData.append('account_name', accountName)
       formData.append('account_type', accountType)
       formData.append('equity_balance', equityBalance.toString())
-      formData.append('csv_file', file)  // Backend expects 'csv_file', not 'file'
+      formData.append('csv_file', file)
 
       const uploadResponse = await onboardingService.createPortfolio(formData)
-
-      // Track current upload for error handling
-      currentUploadPortfolioIdRef.current = uploadResponse.portfolio_id
+      createdPortfolioId = uploadResponse.portfolio_id
 
       // Store portfolio ID in Zustand
       setPortfolioState(uploadResponse.portfolio_id, uploadResponse.portfolio_name)
-      setResult({
-        portfolio_id: uploadResponse.portfolio_id,
-        portfolio_name: uploadResponse.portfolio_name,
-        positions_imported: uploadResponse.positions_imported,
-        positions_failed: uploadResponse.positions_failed,
-        total_positions: uploadResponse.total_positions,
-      })
 
       // Add to onboarding session with 'processing' status
       if (isInOnboardingSession()) {
@@ -170,109 +98,33 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
         }, 'processing')
       }
 
-      // Mark first two items complete
-      setChecklist((prev) => ({
-        ...prev,
-        portfolio_created: true,
-        positions_imported: true,
-      }))
+      // PHASE 2: Trigger batch calculations
+      await onboardingService.triggerCalculations(uploadResponse.portfolio_id)
 
-      // PHASE 2B: Batch Processing (30-60 seconds)
-      setUploadState('processing')
+      // PHASE 3: Redirect to new progress page for real-time status tracking
+      // The progress page handles polling, completion, errors, and log downloads
+      router.push(`/onboarding/progress?portfolioId=${uploadResponse.portfolio_id}`)
 
-      const calcResponse = await onboardingService.triggerCalculations(uploadResponse.portfolio_id)
-      setBatchStatus(calcResponse.status)
+    } catch (err: unknown) {
+      // P0 FIX: If portfolio was created but triggerCalculations failed,
+      // redirect to progress page anyway - it will show error/retry options.
+      // This prevents the 409 "portfolio already exists" loop on retry.
+      if (createdPortfolioId) {
+        console.warn('Portfolio created but triggerCalculations failed, redirecting to progress page')
+        router.push(`/onboarding/progress?portfolioId=${createdPortfolioId}`)
+        return
+      }
 
-      // Start polling for batch status
-      pollIntervalRef.current = setInterval(async () => {
-        try {
-          const status = await onboardingService.getBatchStatus(
-            uploadResponse.portfolio_id,
-            calcResponse.batch_run_id
-          )
+      // Unblock session on error (only if we're NOT redirecting)
+      if (isInOnboardingSession()) {
+        setBatchRunning(false)
+      }
 
-          setBatchStatus(status.status)
-
-          // Rotate spinner through items to show activity
-          // Don't flip items to ✅ until entire batch completes
-          const elapsed = status.elapsed_seconds || 0
-          const checklistItems = [
-            'symbol_extraction',
-            'security_enrichment',
-            'price_bootstrap',
-            'market_data_collection',
-            'pnl_calculation',
-            'position_values',
-            'market_beta',
-            'ir_beta',
-            'factor_spread',
-            'factor_ridge',
-            'sector_analysis',
-            'volatility',
-            'correlations',
-          ]
-          // Rotate through items every 3 seconds
-          const currentItemIndex = Math.floor(elapsed / 3) % checklistItems.length
-          setCurrentSpinnerItem(checklistItems[currentItemIndex])
-
-          // Check if complete
-          if (status.status === 'completed') {
-            if (pollIntervalRef.current) {
-              clearInterval(pollIntervalRef.current)
-            }
-            // NOW flip all items to ✅
-            setChecklist({
-              portfolio_created: true,
-              positions_imported: true,
-              symbol_extraction: true,
-              security_enrichment: true,
-              price_bootstrap: true,
-              market_data_collection: true,
-              pnl_calculation: true,
-              position_values: true,
-              market_beta: true,
-              ir_beta: true,
-              factor_spread: true,
-              factor_ridge: true,
-              sector_analysis: true,
-              volatility: true,
-              correlations: true,
-            })
-            setUploadState('success')
-
-            // Update session status to success and unblock "Add Another"
-            if (isInOnboardingSession()) {
-              updateSessionPortfolioStatus(uploadResponse.portfolio_id, 'success', {
-                positionsCount: uploadResponse.positions_imported
-              })
-              setBatchRunning(false)
-            }
-            // Clear current upload tracking on success
-            currentUploadPortfolioIdRef.current = null
-            // DO NOT auto-navigate - wait for user to click "Continue to Dashboard" button
-          }
-        } catch (error) {
-          if (pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current)
-          }
-          setUploadState('error')
-          setError(getErrorMessage(error))
-
-          // Update session status to failed and unblock "Add Another"
-          if (isInOnboardingSession()) {
-            updateSessionPortfolioStatus(uploadResponse.portfolio_id, 'failed', {
-              error: getErrorMessage(error)
-            })
-            setBatchRunning(false)
-          }
-        }
-      }, 3000) // Poll every 3 seconds
-    } catch (err: any) {
       // Check if it's a validation error (CSV format issues)
-      // Try multiple paths for backward compatibility with different FastAPI response structures
-      const nestedErrors = err?.data?.error?.details?.error?.details?.errors  // Current onboarding endpoint
-      const detailErrors = err?.data?.detail?.errors  // FastAPI default validation errors
-      const shallowErrors = err?.data?.error?.details?.errors  // Older onboarding format
+      const errorObj = err as { data?: { error?: { details?: { error?: { details?: { errors?: unknown[] } }, errors?: unknown[] } }, detail?: { errors?: unknown[] } } }
+      const nestedErrors = errorObj?.data?.error?.details?.error?.details?.errors
+      const detailErrors = errorObj?.data?.detail?.errors
+      const shallowErrors = errorObj?.data?.error?.details?.errors
 
       // Pick the first non-empty error array we find
       const rawErrors = (nestedErrors && Array.isArray(nestedErrors) && nestedErrors.length > 0)
@@ -286,76 +138,25 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
       const errorMessage = getErrorMessage(err)
 
       if (rawErrors) {
-        // Backend now returns errors in flat format: { row, symbol, code, message, field }
-        const validationErrors: ValidationError[] = rawErrors.map((error: any) => ({
-          row: error.row,
-          symbol: error.symbol,
-          error_code: error.code || error.error_code || 'UNKNOWN',
-          message: error.message,
-          field: error.field,
-        }))
+        // Backend returns errors in format: { row, symbol, code, message, field }
+        const parsedErrors: ValidationError[] = rawErrors.map((error: unknown) => {
+          const e = error as { row?: number; symbol?: string; code?: string; error_code?: string; message?: string; field?: string }
+          return {
+            row: e.row ?? 0,
+            symbol: e.symbol,
+            error_code: e.code || e.error_code || 'UNKNOWN',
+            message: e.message ?? 'Unknown error',
+            field: e.field,
+          }
+        })
 
-        setValidationErrors(validationErrors)
+        setValidationErrors(parsedErrors)
         setError('CSV validation failed. Please fix the errors below.')
-        setUploadState('validation_error')  // Set validation_error state for CSV issues
+        setUploadState('validation_error')
       } else {
-        // Processing or network errors
         setError(errorMessage)
-        setUploadState('error')  // Set error state for processing/network issues
+        setUploadState('error')
       }
-
-      // Update session: mark portfolio as failed if it was added, unblock session
-      if (isInOnboardingSession()) {
-        // If portfolio was created but triggerCalculations failed, update status
-        if (currentUploadPortfolioIdRef.current) {
-          updateSessionPortfolioStatus(currentUploadPortfolioIdRef.current, 'failed', {
-            error: errorMessage
-          })
-        }
-        setBatchRunning(false)
-      }
-      // Clear current upload tracking
-      currentUploadPortfolioIdRef.current = null
-    }
-  }
-
-  const handleContinueToDashboard = () => {
-    // Complete the onboarding session if active
-    if (isInOnboardingSession()) {
-      completeOnboardingSession()
-    }
-    router.push('/command-center')
-  }
-
-  const handleAddAnother = () => {
-    // Reset local state for next upload
-    setUploadState('idle')
-    setError(null)
-    setValidationErrors(null)
-    setResult(null)
-    setCurrentSpinnerItem(null)
-    setChecklist({
-      portfolio_created: false,
-      positions_imported: false,
-      symbol_extraction: false,
-      security_enrichment: false,
-      price_bootstrap: false,
-      market_data_collection: false,
-      pnl_calculation: false,
-      position_values: false,
-      market_beta: false,
-      ir_beta: false,
-      factor_spread: false,
-      factor_ridge: false,
-      sector_analysis: false,
-      volatility: false,
-      correlations: false,
-    })
-    currentFileRef.current = null
-
-    // Reset session state for next upload (keeps session active)
-    if (isInOnboardingSession()) {
-      resetForNextUpload()
     }
   }
 
@@ -367,29 +168,10 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
   }, [isInOnboardingSession, startOnboardingSession])
 
   const handleRetry = () => {
-    // Reset all state before retry
+    // Reset state and retry with stored values
     setUploadState('idle')
     setError(null)
     setValidationErrors(null)
-    setResult(null)
-    setCurrentSpinnerItem(null)
-    setChecklist({
-      portfolio_created: false,
-      positions_imported: false,
-      symbol_extraction: false,
-      security_enrichment: false,
-      price_bootstrap: false,
-      market_data_collection: false,
-      pnl_calculation: false,
-      position_values: false,
-      market_beta: false,
-      ir_beta: false,
-      factor_spread: false,
-      factor_ridge: false,
-      sector_analysis: false,
-      volatility: false,
-      correlations: false,
-    })
 
     if (currentFileRef.current) {
       handleUpload(
@@ -403,43 +185,18 @@ export function usePortfolioUpload(): UsePortfolioUploadReturn {
   }
 
   const handleChooseDifferentFile = () => {
-    // Reset all state when choosing different file
+    // Reset state to show upload form again
     setUploadState('idle')
     setError(null)
     setValidationErrors(null)
-    setResult(null)
-    setCurrentSpinnerItem(null)
-    setChecklist({
-      portfolio_created: false,
-      positions_imported: false,
-      symbol_extraction: false,
-      security_enrichment: false,
-      price_bootstrap: false,
-      market_data_collection: false,
-      pnl_calculation: false,
-      position_values: false,
-      market_beta: false,
-      ir_beta: false,
-      factor_spread: false,
-      factor_ridge: false,
-      sector_analysis: false,
-      volatility: false,
-      correlations: false,
-    })
     currentFileRef.current = null
   }
 
   return {
     uploadState,
-    batchStatus,
-    currentSpinnerItem,
-    checklist,
-    result,
     error,
     validationErrors,
     handleUpload,
-    handleContinueToDashboard,
-    handleAddAnother,
     handleRetry,
     handleChooseDifferentFile,
     // Session management

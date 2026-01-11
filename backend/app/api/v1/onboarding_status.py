@@ -1,5 +1,5 @@
 """
-Onboarding Status API Endpoint (Phase 7.1)
+Onboarding Status API Endpoint (Phase 7.1 + 7.2)
 
 Provides real-time batch processing status for onboarding portfolios.
 This endpoint allows the frontend to poll for progress updates during
@@ -13,13 +13,18 @@ Key design decisions:
 
 Endpoints:
 - GET /api/v1/onboarding/status/{portfolio_id} - Get batch processing status
+- GET /api/v1/onboarding/status/{portfolio_id}/logs - Download complete activity log
 
 Created: 2026-01-09 (Phase 7.1)
+Updated: 2026-01-10 (Phase 7.2 - Log download endpoint)
 """
 from typing import Optional, List, Dict, Any
 from uuid import UUID
+from datetime import datetime
+import json
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi.responses import PlainTextResponse, JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from pydantic import BaseModel
@@ -29,6 +34,7 @@ from app.core.clerk_auth import get_current_user_clerk
 from app.models.users import User, Portfolio
 from app.batch.batch_run_tracker import batch_run_tracker
 from app.core.logging import get_logger
+from app.core.datetime_utils import utc_now
 
 logger = get_logger(__name__)
 
@@ -200,8 +206,8 @@ async def get_onboarding_status(
         for entry in status_data.get("activity_log", [])
     ]
 
-    # Get phase details from tracker
-    phase_progress = batch_run_tracker.get_phase_progress()
+    # Get phase details from tracker (portfolio-scoped to prevent cross-portfolio leaks)
+    phase_progress = batch_run_tracker.get_phase_progress_for_portfolio(portfolio_id)
     phases = None
     if phase_progress.get("phases"):
         phases = [
@@ -227,3 +233,289 @@ async def get_onboarding_status(
         activity_log=activity_log,
         phases=phases
     )
+
+
+# ==============================================================================
+# Log Download Endpoint (Phase 7.2)
+# ==============================================================================
+
+def _format_duration(seconds: int) -> str:
+    """Format seconds as human-readable duration (e.g., '14m 32s')."""
+    if seconds < 60:
+        return f"{seconds}s"
+    minutes = seconds // 60
+    remaining_seconds = seconds % 60
+    if minutes < 60:
+        return f"{minutes}m {remaining_seconds}s"
+    hours = minutes // 60
+    remaining_minutes = minutes % 60
+    return f"{hours}h {remaining_minutes}m {remaining_seconds}s"
+
+
+def _build_txt_log(
+    portfolio_id: str,
+    portfolio_name: str,
+    status_data: Dict[str, Any],
+    activity_log: List[Dict[str, Any]]
+) -> str:
+    """Build formatted TXT log file content."""
+    lines = []
+
+    # Header
+    lines.append("=" * 80)
+    lines.append("SIGMASIGHT PORTFOLIO SETUP LOG")
+    lines.append("=" * 80)
+    lines.append(f"Portfolio ID: {portfolio_id}")
+    lines.append(f"Portfolio Name: {portfolio_name}")
+    lines.append(f"Started: {status_data.get('started_at', 'N/A')}")
+
+    final_status = status_data.get("status", "unknown")
+    elapsed = status_data.get("elapsed_seconds", 0)
+    lines.append(f"Total Duration: {_format_duration(elapsed)}")
+    lines.append(f"Final Status: {final_status}")
+    lines.append("")
+
+    # Summary
+    lines.append("=" * 80)
+    lines.append("SUMMARY")
+    lines.append("=" * 80)
+
+    overall = status_data.get("overall_progress", {})
+    phases_completed = overall.get("phases_completed", 0)
+    phases_total = overall.get("phases_total", 0)
+    lines.append(f"Phases Completed: {phases_completed}/{phases_total}")
+    lines.append("")
+
+    # Phase Details
+    lines.append("=" * 80)
+    lines.append("PHASE DETAILS")
+    lines.append("=" * 80)
+
+    phases = status_data.get("phases", [])
+    if phases:
+        for phase in phases:
+            phase_name = phase.get("phase_name", "Unknown")
+            phase_status = phase.get("status", "unknown")
+            duration = phase.get("duration_seconds")
+            current = phase.get("current", 0)
+            total = phase.get("total", 0)
+            unit = phase.get("unit", "items")
+
+            lines.append(f"Phase: {phase_name}")
+            lines.append(f"  Status: {phase_status}")
+            if duration is not None:
+                lines.append(f"  Duration: {_format_duration(duration)}")
+            if total > 0:
+                lines.append(f"  Progress: {current}/{total} {unit}")
+            lines.append("")
+    else:
+        lines.append("No phase data available.")
+        lines.append("")
+
+    # Activity Log
+    lines.append("=" * 80)
+    lines.append("ACTIVITY LOG")
+    lines.append("=" * 80)
+
+    if activity_log:
+        for entry in activity_log:
+            timestamp = entry.get("timestamp", "")
+            # Format timestamp for readability
+            if timestamp:
+                try:
+                    dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+                    timestamp = dt.strftime("%Y-%m-%d %H:%M:%S")
+                except (ValueError, AttributeError):
+                    pass
+
+            level = entry.get("level", "INFO").upper()
+            message = entry.get("message", "")
+            lines.append(f"{timestamp} [{level}] {message}")
+    else:
+        lines.append("No activity log entries available.")
+
+    lines.append("")
+    lines.append("=" * 80)
+    lines.append("END OF LOG")
+    lines.append("=" * 80)
+
+    return "\n".join(lines)
+
+
+@router.get(
+    "/status/{portfolio_id}/logs",
+    summary="Download portfolio onboarding logs",
+    description="""
+Download the complete activity log for a portfolio's onboarding batch process.
+
+This endpoint provides a downloadable log file useful for:
+- Debugging issues during onboarding
+- Support tickets
+- User peace of mind ("I can see everything that happened")
+
+**Formats:**
+- `txt`: Human-readable text file (default)
+- `json`: Machine-readable JSON
+
+**Authentication:** Requires Clerk JWT. User must own the portfolio.
+"""
+)
+async def download_onboarding_logs(
+    portfolio_id: str,
+    output_format: str = Query(default="txt", alias="format", description="Output format: 'txt' or 'json'"),
+    current_user: User = Depends(get_current_user_clerk),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Download complete activity log for portfolio setup.
+
+    Returns the full log as either a text file or JSON, depending on format parameter.
+    """
+    # Validate portfolio_id format
+    try:
+        portfolio_uuid = UUID(portfolio_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "invalid_portfolio_id", "message": "Invalid portfolio ID format"}
+        )
+
+    # Verify user owns this portfolio
+    portfolio_result = await db.execute(
+        select(Portfolio).where(
+            Portfolio.id == portfolio_uuid,
+            Portfolio.user_id == current_user.id
+        )
+    )
+    portfolio = portfolio_result.scalar_one_or_none()
+
+    if not portfolio:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "portfolio_not_found",
+                "message": "Portfolio not found or you don't have access"
+            }
+        )
+
+    # Get status from batch_run_tracker
+    status_data = batch_run_tracker.get_onboarding_status(portfolio_id)
+
+    # Get full activity log (up to 5000 entries)
+    # Phase 7.3: Use async version with database fallback
+    # Security Fix: Pass portfolio_id to ensure we only get this portfolio's logs
+    activity_log = await batch_run_tracker.get_full_activity_log_async(portfolio_id=portfolio_id)
+
+    # If no status in memory but logs exist in DB, fetch actual status from DB
+    if status_data is None:
+        if activity_log:
+            # Logs found in database - fetch actual batch status from DB
+            db_status = await batch_run_tracker.get_batch_status_from_db_async(portfolio_id)
+
+            if db_status:
+                # Use actual status from BatchRunHistory
+                # Calculate elapsed seconds from started_at if available
+                elapsed = 0
+                if db_status.get("started_at") and db_status.get("completed_at"):
+                    from datetime import datetime
+                    started = datetime.fromisoformat(db_status["started_at"].replace("Z", "+00:00"))
+                    completed = datetime.fromisoformat(db_status["completed_at"].replace("Z", "+00:00"))
+                    elapsed = int((completed - started).total_seconds())
+
+                # Determine percent complete based on status
+                percent = 100 if db_status["status"] == "completed" else (
+                    0 if db_status["status"] == "failed" else 50
+                )
+
+                # Derive phase counts from phase_durations if available
+                # Note: completed_jobs/total_jobs are job counters (dates/portfolios), NOT phase counts
+                phase_durations = db_status.get("phase_durations", {})
+                phases_completed = len(phase_durations) if phase_durations else 0
+                # Standard batch has 6 phases, but we don't know exact total from DB
+                # Set to 0 to avoid misleading the UI
+                phases_total = 0
+
+                status_data = {
+                    "portfolio_id": portfolio_id,
+                    "status": db_status["status"],  # Actual status: completed, failed, partial
+                    "started_at": db_status.get("started_at"),
+                    "elapsed_seconds": elapsed,
+                    "overall_progress": {
+                        "current_phase": None,
+                        "current_phase_name": None,
+                        "phases_completed": phases_completed,
+                        "phases_total": phases_total,
+                        "percent_complete": percent
+                    },
+                    "current_phase_progress": None,
+                    "activity_log": []
+                }
+            else:
+                # Fallback if DB status query fails (shouldn't happen if logs exist)
+                status_data = {
+                    "portfolio_id": portfolio_id,
+                    "status": "unknown",  # Don't assume completed
+                    "started_at": None,
+                    "elapsed_seconds": 0,
+                    "overall_progress": {
+                        "current_phase": None,
+                        "current_phase_name": None,
+                        "phases_completed": 0,
+                        "phases_total": 0,
+                        "percent_complete": 0
+                    },
+                    "current_phase_progress": None,
+                    "activity_log": []
+                }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "no_logs_available",
+                    "message": "No onboarding logs available for this portfolio"
+                }
+            )
+
+    # Build phase details from status (portfolio-scoped to prevent cross-portfolio leaks)
+    phase_progress = batch_run_tracker.get_phase_progress_for_portfolio(portfolio_id)
+    status_data["phases"] = phase_progress.get("phases", [])
+
+    # Generate timestamp for filename
+    timestamp = utc_now().strftime("%Y%m%d_%H%M%S")
+    filename_base = f"portfolio_setup_log_{portfolio_id[:8]}_{timestamp}"
+
+    if output_format.lower() == "json":
+        # JSON format
+        json_response = {
+            "portfolio_id": portfolio_id,
+            "portfolio_name": portfolio.name,
+            "started_at": status_data.get("started_at"),
+            "elapsed_seconds": status_data.get("elapsed_seconds", 0),
+            "final_status": status_data.get("status", "unknown"),
+            "overall_progress": status_data.get("overall_progress", {}),
+            "phases": status_data.get("phases", []),
+            "activity_log": activity_log,
+            "generated_at": utc_now().isoformat()
+        }
+
+        return JSONResponse(
+            content=json_response,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename_base}.json"'
+            }
+        )
+    else:
+        # TXT format (default)
+        txt_content = _build_txt_log(
+            portfolio_id=portfolio_id,
+            portfolio_name=portfolio.name,
+            status_data=status_data,
+            activity_log=activity_log
+        )
+
+        return PlainTextResponse(
+            content=txt_content,
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename_base}.txt"'
+            }
+        )
