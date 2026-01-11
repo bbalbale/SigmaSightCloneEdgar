@@ -485,6 +485,10 @@ class BatchRunTracker:
         Only updates if new log count >= existing count, preventing older
         fire-and-forget tasks from overwriting newer logs.
 
+        Phase 7.3.1 Fix 2: If no record exists (UPDATE rowcount=0), creates
+        a minimal BatchRunHistory record to ensure logs are not lost when
+        batch fails before batch_history_service creates the record.
+
         Updates BatchRunHistory.activity_log with current full_activity_log.
         """
         if not self._current:
@@ -507,8 +511,9 @@ class BatchRunTracker:
         try:
             from app.database import AsyncSessionLocal
             from app.models.admin import BatchRunHistory
-            from sqlalchemy import update, or_, func, text
+            from sqlalchemy import update, or_, func, text, select
             from sqlalchemy.dialects.postgresql import JSONB
+            from datetime import datetime
 
             async with AsyncSessionLocal() as db:
                 # Conditional UPDATE: only write if new log count >= existing
@@ -538,11 +543,42 @@ class BatchRunTracker:
                 result = await db.execute(stmt)
 
                 if result.rowcount == 0:
-                    # Either no record exists, or condition not met (newer logs already exist)
-                    logger.debug(
-                        f"Log persistence skipped for {batch_run_id} - "
-                        f"either no record exists or newer logs already saved"
+                    # Check if record exists (might have newer logs) or doesn't exist at all
+                    check_stmt = select(BatchRunHistory.id).where(
+                        BatchRunHistory.batch_run_id == batch_run_id
                     )
+                    check_result = await db.execute(check_stmt)
+                    exists = check_result.scalar_one_or_none()
+
+                    if exists:
+                        # Record exists with newer logs - skip
+                        logger.debug(
+                            f"Log persistence skipped for {batch_run_id} - "
+                            f"newer logs already saved"
+                        )
+                    else:
+                        # Record doesn't exist yet - create minimal record with logs
+                        # This ensures logs are saved even if batch fails early
+                        logger.info(
+                            f"Creating BatchRunHistory record for {batch_run_id} - "
+                            f"record not yet created by batch_history_service"
+                        )
+                        new_record = BatchRunHistory(
+                            batch_run_id=batch_run_id,
+                            triggered_by=self._current.triggered_by or "unknown",
+                            started_at=self._current.started_at or datetime.utcnow(),
+                            status="running",
+                            total_jobs=self._current.total_jobs,
+                            completed_jobs=self._current.completed_jobs,
+                            failed_jobs=self._current.failed_jobs,
+                            phase_durations={},
+                            activity_log=logs_data,
+                            portfolio_id=UUID(portfolio_id) if portfolio_id else None,
+                        )
+                        db.add(new_record)
+                        logger.debug(
+                            f"Created BatchRunHistory with {new_log_count} log entries for {batch_run_id}"
+                        )
                 else:
                     logger.debug(
                         f"Persisted {new_log_count} log entries for batch {batch_run_id}"

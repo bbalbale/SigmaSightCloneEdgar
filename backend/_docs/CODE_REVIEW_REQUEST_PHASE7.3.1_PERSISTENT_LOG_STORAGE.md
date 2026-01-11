@@ -314,6 +314,61 @@ Older writes with fewer entries are now safely rejected.
 
 ---
 
+## Code Review Fixes Applied (January 11, 2026 - Round 2)
+
+### Fix 4: DB Fallback Phase Counter Mapping - RESOLVED ✅
+
+**Problem**: DB fallback was mapping `completed_jobs`/`total_jobs` (job counters for dates/portfolios) to `phases_completed`/`phases_total`. This misled the UI about phase progress.
+
+**Solution**:
+- Now derives `phases_completed` from `len(phase_durations)` when available
+- Sets `phases_total` to 0 to avoid misleading the UI (we don't know exact total from DB)
+- Added comment explaining the distinction between job counts and phase counts
+
+```python
+# Derive phase counts from phase_durations if available
+# Note: completed_jobs/total_jobs are job counters (dates/portfolios), NOT phase counts
+phase_durations = db_status.get("phase_durations", {})
+phases_completed = len(phase_durations) if phase_durations else 0
+phases_total = 0  # Set to 0 to avoid misleading the UI
+```
+
+### Fix 5: Early Phase Failure Log Persistence - RESOLVED ✅
+
+**Problem**: When `persist_logs_to_db` runs before `batch_history_service.record_batch_start` creates the BatchRunHistory record (rowcount=0), logs were skipped. If batch fails before next phase, all logs are lost.
+
+**Solution**: Added fallback INSERT when UPDATE finds no record:
+1. Try UPDATE first (existing behavior)
+2. If rowcount=0, check if record exists (might have newer logs)
+3. If record doesn't exist, INSERT a new minimal BatchRunHistory with logs
+
+```python
+if result.rowcount == 0:
+    # Check if record exists or doesn't exist at all
+    exists = await db.execute(select(...).where(batch_run_id=...))
+
+    if exists:
+        # Record has newer logs - skip
+        pass
+    else:
+        # Create minimal record with logs
+        new_record = BatchRunHistory(
+            batch_run_id=batch_run_id,
+            triggered_by=self._current.triggered_by or "unknown",
+            started_at=self._current.started_at,
+            status="running",
+            activity_log=logs_data,
+            ...
+        )
+        db.add(new_record)
+```
+
+This ensures logs are persisted even if:
+- BatchRunHistory record creation is delayed (fire-and-forget scheduling)
+- Batch fails during first phase before `record_batch_start` completes
+
+---
+
 ## Questions for Reviewers
 
 1. **JSONB vs separate table**: Is storing logs as JSONB in `BatchRunHistory` the right approach? Alternative would be a separate `batch_run_logs` table with one row per entry.

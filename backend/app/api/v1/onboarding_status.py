@@ -427,6 +427,14 @@ async def download_onboarding_logs(
                     0 if db_status["status"] == "failed" else 50
                 )
 
+                # Derive phase counts from phase_durations if available
+                # Note: completed_jobs/total_jobs are job counters (dates/portfolios), NOT phase counts
+                phase_durations = db_status.get("phase_durations", {})
+                phases_completed = len(phase_durations) if phase_durations else 0
+                # Standard batch has 6 phases, but we don't know exact total from DB
+                # Set to 0 to avoid misleading the UI
+                phases_total = 0
+
                 status_data = {
                     "portfolio_id": portfolio_id,
                     "status": db_status["status"],  # Actual status: completed, failed, partial
@@ -435,8 +443,8 @@ async def download_onboarding_logs(
                     "overall_progress": {
                         "current_phase": None,
                         "current_phase_name": None,
-                        "phases_completed": db_status.get("completed_jobs", 0),
-                        "phases_total": db_status.get("total_jobs", 0),
+                        "phases_completed": phases_completed,
+                        "phases_total": phases_total,
                         "percent_complete": percent
                     },
                     "current_phase_progress": None,
