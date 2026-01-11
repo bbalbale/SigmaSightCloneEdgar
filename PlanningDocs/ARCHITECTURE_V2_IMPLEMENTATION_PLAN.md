@@ -1822,6 +1822,319 @@ If we outgrow Railway constraints, consider:
 
 ---
 
+## Part 13: Railway Cron Refactoring
+
+**Context**: The Railway cron job and scheduler configuration must be updated to use
+the new symbol-driven architecture instead of the portfolio-driven approach.
+
+### 13.1 Current Cron Architecture (Portfolio-Driven)
+
+**File: `scripts/automation/railway_daily_batch.py`**
+```python
+# Current: Calls batch_orchestrator which processes per-portfolio
+await batch_orchestrator.run_daily_batch_with_backfill()
+```
+
+**File: `app/batch/scheduler_config.py`**
+```python
+# Current schedule (all times ET):
+# 4:00 PM - Daily batch (per-portfolio processing)
+# 6:00 PM - Daily correlations (per-portfolio)
+# 7:00 PM - Company profile sync
+# 7:30 PM - Market data verification
+# 8:00 PM - Feedback learning
+# 8:30 PM - Admin metrics batch
+```
+
+**Problem**: Daily batch scales with O(portfolios × symbols) - 30+ minutes for 3 portfolios.
+
+### 13.2 New Cron Architecture (Symbol-Driven)
+
+**New Flow**:
+```
+Railway Cron (9:00 PM ET - after market close + settlement)
+    ↓
+railway_daily_batch.py (REFACTORED)
+    ↓
+symbol_batch_runner.run_daily_symbol_batch()
+    ↓
+Process ALL symbols ONCE:
+  - Phase 1: Daily price collection (2-3 min)
+  - Phase 2: Market Beta calculation (3-4 min)
+  - Phase 3: IR Beta calculation (3-4 min)
+  - Phase 4: Ridge factor analysis (3-4 min)
+  - Phase 5: Spread factor analysis (3-4 min)
+  - Phase 6: Portfolio cache invalidation (1 min)
+    ↓
+~12-15 minutes FIXED (regardless of user count)
+```
+
+**Key Change**: Portfolio analytics are NO LONGER scheduled. They're computed on-demand
+with caching when users request them.
+
+### 13.3 New Schedule Configuration
+
+| Time (ET) | Job | Status | Notes |
+|-----------|-----|--------|-------|
+| 9:00 PM | Symbol batch | **NEW** | Replaces portfolio batch |
+| ~~6:00 PM~~ | ~~Daily correlations~~ | **REMOVE** | Now part of symbol batch |
+| 9:30 PM | Company profile sync | **KEEP** | Still needed |
+| 10:00 PM | Market data verification | **KEEP** | Still needed |
+| 10:30 PM | Feedback learning | **KEEP** | Still needed |
+| 11:00 PM | Admin metrics batch | **KEEP** | Still needed |
+
+**Why 9:00 PM?**
+- Market closes at 4:00 PM ET
+- After-hours trading ends ~8:00 PM ET
+- 9:00 PM ensures all daily data is settled
+- Completes by 9:15 PM, leaving time for other jobs
+
+### 13.4 Refactored `railway_daily_batch.py`
+
+```python
+#!/usr/bin/env python3
+"""
+Railway Daily Symbol Batch - Architecture V2
+
+Runs after market close to update ALL symbol data.
+Portfolio analytics are computed on-demand (not scheduled).
+
+Usage:
+  uv run python scripts/automation/railway_daily_batch.py
+"""
+
+import os
+import asyncio
+import sys
+import datetime
+
+# Fix Railway DATABASE_URL format
+if 'DATABASE_URL' in os.environ:
+    db_url = os.environ['DATABASE_URL']
+    if db_url.startswith('postgresql://'):
+        os.environ['DATABASE_URL'] = db_url.replace('postgresql://', 'postgresql+asyncpg://', 1)
+
+sys.path.insert(0, '/app')
+sys.path.insert(0, '.')
+
+from app.core.logging import get_logger
+from app.batch.symbol_batch_runner import symbol_batch_runner  # NEW
+from app.database import AsyncSessionLocal
+from app.db.seed_factors import seed_factors
+
+logger = get_logger(__name__)
+
+
+async def ensure_factor_definitions():
+    """Ensure factor definitions exist before running batch."""
+    logger.info("Verifying factor definitions...")
+    async with AsyncSessionLocal() as db:
+        await seed_factors(db)
+        await db.commit()
+    logger.info("✅ Factor definitions verified/seeded")
+
+
+async def main():
+    """Main entry point for daily symbol batch job."""
+    job_start = datetime.datetime.now()
+
+    print("╔══════════════════════════════════════════════════════════════╗")
+    print("║     SIGMASIGHT DAILY SYMBOL BATCH - ARCHITECTURE V2          ║")
+    print("╚══════════════════════════════════════════════════════════════╝")
+    print(f"Timestamp: {job_start.strftime('%Y-%m-%d %H:%M:%S %Z')}")
+
+    try:
+        await ensure_factor_definitions()
+
+        # NEW: Run symbol batch (decoupled from portfolios)
+        # This updates ALL symbols in the universe, regardless of portfolios
+        logger.info("Starting symbol batch runner...")
+        results = await symbol_batch_runner.run_daily_symbol_batch()
+
+        job_end = datetime.datetime.now()
+        total_duration = (job_end - job_start).total_seconds()
+
+        print("=" * 60)
+        print("DAILY SYMBOL BATCH COMPLETE")
+        print("=" * 60)
+        print(f"Symbols Processed: {results.get('symbols_total', 0)}")
+        print(f"Total Runtime: {total_duration:.1f}s ({total_duration/60:.1f} minutes)")
+        print(f"Phases: {list(results.get('phases', {}).keys())}")
+        print("=" * 60)
+
+        if results.get('success', True):
+            print("✅ Symbol batch completed successfully")
+            sys.exit(0)
+        else:
+            print(f"⚠️ Symbol batch completed with issues")
+            sys.exit(1)
+
+    except Exception as e:
+        print(f"❌ FATAL ERROR: Symbol batch failed: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### 13.5 Refactored `scheduler_config.py`
+
+**Key Changes**:
+
+```python
+class BatchScheduler:
+
+    def initialize_jobs(self):
+        """Initialize scheduled batch jobs - Architecture V2."""
+
+        self.scheduler.remove_all_jobs()
+
+        # NEW: Daily symbol batch - runs at 9:00 PM ET
+        self.scheduler.add_job(
+            func=self._run_daily_symbol_batch,  # NEW METHOD
+            trigger='cron',
+            hour=21,  # 9:00 PM ET
+            minute=0,
+            id='daily_symbol_batch',
+            name='Daily Symbol Batch (Architecture V2)',
+            replace_existing=True
+        )
+
+        # REMOVED: Daily correlations (now part of symbol batch)
+        # self.scheduler.add_job(
+        #     func=self._run_daily_correlations,  # DEPRECATED
+        #     ...
+        # )
+
+        # KEEP: Company profile sync - moved to 9:30 PM
+        self.scheduler.add_job(
+            func=self._sync_company_profiles,
+            trigger='cron',
+            hour=21,
+            minute=30,
+            id='company_profile_sync',
+            name='Daily Company Profile Sync',
+            replace_existing=True
+        )
+
+        # KEEP: Market data verification - moved to 10:00 PM
+        self.scheduler.add_job(
+            func=self._verify_market_data,
+            trigger='cron',
+            hour=22,
+            minute=0,
+            id='market_data_verification',
+            name='Daily Market Data Quality Check',
+            replace_existing=True
+        )
+
+        # KEEP: Other jobs (feedback learning, admin metrics)...
+
+    async def _run_daily_symbol_batch(self):
+        """Execute the daily symbol batch (Architecture V2)."""
+        from app.batch.symbol_batch_runner import symbol_batch_runner
+
+        logger.info("Starting scheduled daily symbol batch")
+
+        try:
+            result = await symbol_batch_runner.run_daily_symbol_batch()
+
+            logger.info(
+                f"Symbol batch completed: {result.get('symbols_total', 0)} symbols, "
+                f"phases: {list(result.get('phases', {}).keys())}"
+            )
+
+            if result.get('errors'):
+                await self._send_batch_alert(
+                    f"Symbol batch: {len(result['errors'])} errors",
+                    result
+                )
+
+        except Exception as e:
+            logger.error(f"Symbol batch failed: {str(e)}")
+            await self._send_batch_alert(f"Symbol batch failed: {str(e)}", None)
+            raise
+
+    # DEPRECATED: Remove these methods
+    # async def _run_daily_batch(self):  # Old portfolio-driven batch
+    # async def _run_daily_correlations(self):  # Now in symbol batch
+```
+
+### 13.6 Backward Compatibility
+
+**Admin Operations Still Use batch_orchestrator**:
+
+The old `batch_orchestrator` is NOT deleted. It's still needed for:
+- Admin-triggered portfolio recalculations
+- Force rerun of specific portfolios
+- Debugging and repair operations
+
+```python
+# Admin endpoint still works:
+POST /api/v1/admin/batch/run
+    ↓
+batch_orchestrator.run_daily_batch_sequence(portfolio_ids=[...])
+```
+
+**New Admin Endpoint for Symbol Batch**:
+
+```python
+# NEW: Admin can trigger symbol batch manually
+POST /api/v1/admin/symbol-batch/run
+    ↓
+symbol_batch_runner.run_daily_symbol_batch()
+```
+
+### 13.7 Migration Checklist
+
+| Step | File | Action |
+|------|------|--------|
+| 1 | `symbol_batch_runner.py` | Create new file (see Part 4.2) |
+| 2 | `railway_daily_batch.py` | Replace `batch_orchestrator` with `symbol_batch_runner` |
+| 3 | `scheduler_config.py` | Update schedule, add `_run_daily_symbol_batch()` |
+| 4 | `scheduler_config.py` | Remove `_run_daily_correlations()` |
+| 5 | `admin_batch.py` | Add `/admin/symbol-batch/run` endpoint |
+| 6 | Railway dashboard | Update cron schedule if needed |
+
+### 13.8 Testing the New Cron
+
+**Local Testing**:
+```bash
+# Test symbol batch directly
+cd backend
+uv run python -c "
+import asyncio
+from app.batch.symbol_batch_runner import symbol_batch_runner
+
+async def test():
+    result = await symbol_batch_runner.run_daily_symbol_batch(
+        symbols=['AAPL', 'MSFT', 'GOOGL']  # Test subset
+    )
+    print(result)
+
+asyncio.run(test())
+"
+```
+
+**Railway Testing**:
+```bash
+# Trigger via Railway CLI
+railway run python scripts/automation/railway_daily_batch.py
+```
+
+### 13.9 Rollback Plan
+
+If issues arise, revert to portfolio-driven batch:
+
+1. Update `railway_daily_batch.py` to call `batch_orchestrator` again
+2. Revert `scheduler_config.py` to old schedule
+3. No database changes needed (additive schema only)
+
+---
+
 ## Appendix A: File Reference
 
 ### Current Files to Modify
@@ -1837,6 +2150,9 @@ If we outgrow Railway constraints, consider:
 | `onboarding_status.py` | SIMPLIFY - Remove 9-phase tracking, use simple ready/pending/error status |
 | `batch_trigger_service.py` | Remove onboarding-specific batch logic |
 | `onboarding_service.py` | Add symbol check integration |
+| `railway_daily_batch.py` | **MAJOR** - Replace batch_orchestrator with symbol_batch_runner (see Part 13) |
+| `scheduler_config.py` | **MAJOR** - New schedule, add `_run_daily_symbol_batch()`, remove correlations job |
+| `admin_batch.py` | Add `/admin/symbol-batch/run` endpoint for manual triggers |
 
 ### New Files to Create
 
