@@ -401,18 +401,38 @@ async def download_onboarding_logs(
     # Get status from batch_run_tracker
     status_data = batch_run_tracker.get_onboarding_status(portfolio_id)
 
-    if status_data is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={
-                "error": "no_logs_available",
-                "message": "No onboarding logs available for this portfolio"
-            }
-        )
-
     # Get full activity log (up to 5000 entries)
+    # Phase 7.3: Use async version with database fallback
     # Security Fix: Pass portfolio_id to ensure we only get this portfolio's logs
-    activity_log = batch_run_tracker.get_full_activity_log(portfolio_id=portfolio_id)
+    activity_log = await batch_run_tracker.get_full_activity_log_async(portfolio_id=portfolio_id)
+
+    # If no status in memory but logs exist in DB, create minimal status
+    if status_data is None:
+        if activity_log:
+            # Logs found in database - create minimal status for response
+            status_data = {
+                "portfolio_id": portfolio_id,
+                "status": "completed",  # Assume completed if we have DB logs
+                "started_at": None,
+                "elapsed_seconds": 0,
+                "overall_progress": {
+                    "current_phase": None,
+                    "current_phase_name": None,
+                    "phases_completed": 0,
+                    "phases_total": 0,
+                    "percent_complete": 100
+                },
+                "current_phase_progress": None,
+                "activity_log": []
+            }
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={
+                    "error": "no_logs_available",
+                    "message": "No onboarding logs available for this portfolio"
+                }
+            )
 
     # Build phase details from status (portfolio-scoped to prevent cross-portfolio leaks)
     phase_progress = batch_run_tracker.get_phase_progress_for_portfolio(portfolio_id)

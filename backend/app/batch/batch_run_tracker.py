@@ -6,12 +6,19 @@ Phase 7.1 Enhancement (2026-01-09):
 - Added activity_log for real-time status updates during onboarding
 - Added portfolio_id tracking for per-portfolio status queries
 - Added phase progress tracking with phase names and progress counters
+
+Phase 7.3 Enhancement (2026-01-11):
+- Added persistent log storage to database (BatchRunHistory.activity_log)
+- Logs are persisted at each phase completion for crash recovery
+- TTL increased to 2 hours for longer user sessions
+- Added database fallback for get_full_activity_log
 """
 import copy
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, List, Dict, Any
+from uuid import UUID
 
 from app.core.datetime_utils import utc_now
 
@@ -25,8 +32,8 @@ MAX_ACTIVITY_LOG_ENTRIES = 50
 MAX_FULL_LOG_ENTRIES = 5000
 
 # How long to retain completed run status (seconds)
-# Increased from 60s to 300s (5 min) per code review - user may stay on success screen
-COMPLETED_RUN_TTL_SECONDS = 300
+# Phase 7.3: Increased from 300s (5 min) to 7200s (2 hours) for longer user sessions
+COMPLETED_RUN_TTL_SECONDS = 7200
 
 
 @dataclass
@@ -265,6 +272,9 @@ class BatchRunTracker:
         Security Fix: Only returns logs for the specified portfolio_id to prevent
         cross-portfolio data leaks when multiple batches are running.
 
+        Note: This is the synchronous version for backward compatibility.
+        For database fallback, use get_full_activity_log_async().
+
         Args:
             portfolio_id: Portfolio ID to get logs for (required for security)
 
@@ -287,6 +297,56 @@ class BatchRunTracker:
             self._cleanup_old_completed()
             if portfolio_id in self._completed_runs:
                 return self._completed_runs[portfolio_id].full_activity_log
+
+        return []
+
+    async def get_full_activity_log_async(self, portfolio_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get complete activity log with database fallback (up to 5000 entries).
+
+        Phase 7.3 Enhancement: Falls back to database if logs not in memory.
+        This allows log retrieval even after TTL expiry or service restart.
+
+        Security Fix: Only returns logs for the specified portfolio_id to prevent
+        cross-portfolio data leaks when multiple batches are running.
+
+        Args:
+            portfolio_id: Portfolio ID to get logs for (required for security)
+
+        Returns:
+            List of all activity log entries as dicts
+        """
+        # First try in-memory (most recent, most accurate)
+        in_memory_logs = self.get_full_activity_log(portfolio_id)
+        if in_memory_logs:
+            return in_memory_logs
+
+        # Fall back to database if not in memory
+        if portfolio_id:
+            try:
+                from app.database import AsyncSessionLocal
+                from app.models.admin import BatchRunHistory
+                from sqlalchemy import select
+
+                async with AsyncSessionLocal() as db:
+                    # Find most recent batch run for this portfolio
+                    stmt = (
+                        select(BatchRunHistory.activity_log)
+                        .where(BatchRunHistory.portfolio_id == UUID(portfolio_id))
+                        .order_by(BatchRunHistory.started_at.desc())
+                        .limit(1)
+                    )
+                    result = await db.execute(stmt)
+                    row = result.scalar_one_or_none()
+
+                    if row and isinstance(row, list):
+                        logger.debug(
+                            f"Retrieved {len(row)} log entries from database for portfolio {portfolio_id}"
+                        )
+                        return row
+
+            except Exception as e:
+                logger.warning(f"Failed to retrieve logs from database: {e}")
 
         return []
 
@@ -361,6 +421,66 @@ class BatchRunTracker:
             if total is not None:
                 phase.total = total
 
+    async def persist_logs_to_db(self) -> None:
+        """
+        Persist current activity logs to database for crash recovery.
+
+        Phase 7.3 Enhancement: Called at each phase completion to ensure logs
+        are saved even if a later phase fails or the service crashes.
+
+        Updates BatchRunHistory.activity_log with current full_activity_log.
+        """
+        if not self._current:
+            return
+
+        batch_run_id = self._current.batch_run_id
+        portfolio_id = self._current.portfolio_id
+
+        # Convert logs to serializable format
+        logs_data = [
+            {
+                "timestamp": entry.timestamp.isoformat(),
+                "message": entry.message,
+                "level": entry.level
+            }
+            for entry in self._current.full_activity_log
+        ]
+
+        try:
+            from app.database import AsyncSessionLocal
+            from app.models.admin import BatchRunHistory
+            from sqlalchemy import select, update
+
+            async with AsyncSessionLocal() as db:
+                # Try to update existing record first
+                stmt = (
+                    update(BatchRunHistory)
+                    .where(BatchRunHistory.batch_run_id == batch_run_id)
+                    .values(
+                        activity_log=logs_data,
+                        portfolio_id=UUID(portfolio_id) if portfolio_id else None
+                    )
+                )
+                result = await db.execute(stmt)
+
+                if result.rowcount == 0:
+                    # No existing record - will be created by batch orchestrator
+                    # Just log a warning, don't fail
+                    logger.debug(
+                        f"No BatchRunHistory record found for {batch_run_id} - "
+                        "logs will be persisted when record is created"
+                    )
+                else:
+                    logger.debug(
+                        f"Persisted {len(logs_data)} log entries for batch {batch_run_id}"
+                    )
+
+                await db.commit()
+
+        except Exception as e:
+            # Don't fail the batch if log persistence fails
+            logger.warning(f"Failed to persist logs to database: {e}")
+
     def complete_phase(
         self,
         phase_id: str,
@@ -391,6 +511,18 @@ class BatchRunTracker:
             if summary:
                 level = "info" if success else "warning"
                 self.add_activity(f"{phase.phase_name}: {summary}", level)
+
+            # Phase 7.3: Persist logs to database after each phase completion
+            # This ensures logs are saved even if a later phase fails
+            import asyncio
+            try:
+                # Check if we're in an async context
+                loop = asyncio.get_running_loop()
+                # We're in async context, create a task
+                asyncio.create_task(self.persist_logs_to_db())
+            except RuntimeError:
+                # No running loop, run synchronously
+                asyncio.run(self.persist_logs_to_db())
 
     def get_phase_progress(self) -> Dict[str, Any]:
         """

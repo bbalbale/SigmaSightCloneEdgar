@@ -93,12 +93,100 @@ ORDER BY p.created_at DESC;
 |------|-------------|------------|
 | ~~Phase 7 Frontend~~ | ~~Real-time status UI during onboarding~~ | ✅ **IMPLEMENTED** (Phase 7.3) |
 | ~~Log download button~~ | ~~Download full activity log as txt~~ | ✅ **IMPLEMENTED** (Phase 7.3) |
+| **Phase 7.4 - Expose 9 Phases** | Show all 9 batch phases in UI | See `TESTSCOTTY_BATCH_STATUS_UI.md` Section 11 |
+
+### Phase 7.4 Progress Tracker (UI - 9 Phases Display)
+| Task | Status | Notes |
+|------|--------|-------|
+| Backend: Add phase tracking for phase_0 (Company Profile Sync) | ⏳ Pending | |
+| Backend: Add phase tracking for phase_2 (Fundamental Data) | ⏳ Pending | |
+| Backend: Split phase_2_6 into phases 3, 4, 5, 6 | ⏳ Pending | |
+| Backend: Test all 9 phases appear in status API | ⏳ Pending | |
+| Frontend: Change to static "9 processing phases" text | ⏳ Pending | |
+| Frontend: Remove "This typically takes..." sentence | ⏳ Pending | |
+| Frontend: Add phase list with status indicators | ⏳ Pending | |
+| E2E: Full onboarding test with 9 phases | ⏳ Pending | |
+
+### Phase 7.5 Progress Tracker (Market Data Optimization) ⭐ HIGH PRIORITY
+**Problem**: Phase 1 takes ~25 minutes due to date-by-date fetching with SQ failures
+**Solution**: Fetch once (Phase 1A), verify per-date (Phase 1B)
+**Design Doc**: `TESTSCOTTY_BATCH_STATUS_UI.md` Section 12
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Add `_unavailable_symbols` instance variable | ⏳ Pending | MarketDataCollector class |
+| Implement `_get_per_symbol_date_coverage()` | ⏳ Pending | Helper for coverage stats |
+| Implement `collect_market_data_bulk()` | ⏳ Pending | Phase 1A - bulk fetch |
+| Implement `verify_date_coverage()` | ⏳ Pending | Phase 1B - DB only |
+| Update `_execute_batch_phases()` | ⏳ Pending | Use new 1A/1B flow |
+| Update phase tracking for 1A/1B | ⏳ Pending | batch_run_tracker calls |
+| Test with June 2025 dates (135 days) | ⏳ Pending | Target: < 5 min |
+| Test with Jan 2026 dates (7 days) | ⏳ Pending | Target: < 1 min |
+
+**Expected Impact**:
+- Phase 1 time: ~25 min → ~1-2 min (12-25x faster)
+- API calls: ~540 → ~4-10 (50-100x fewer)
+- Total onboarding: ~30-40 min → ~10-15 min
 
 ### Priority 3 - Deferred/Nice-to-Have
 | Task | Description | Why Deferred |
 |------|-------------|--------------|
 | Phase 3 fire-and-forget | Await db writes properly | Superseded by Phase 6; only causes log warnings |
 | Automated tests | Add tests for batch processing | Time constraints |
+
+### Known Issues - Needs Investigation
+
+#### Issue: Clerk Token Expiration During Long Batch Runs
+**Reported**: January 11, 2026
+**Severity**: Medium (user experience issue)
+**Status**: ⏳ Needs Investigation
+
+**Symptom**:
+During long-running batch processes (25+ minutes), the frontend continuously logs errors:
+```
+Clerk JWT token has expired
+Clerk token verification failed (method: bearer)
+Core database session error: 401: Could not validate credentials
+```
+
+**Root Cause**:
+- Clerk JWT tokens have short expiration (typically 60 seconds)
+- Frontend polling continues with expired token
+- Backend rejects each request with 401
+- Error loop continues every 2 seconds until user action
+
+**Impact**:
+- Backend logs filled with auth errors
+- Frontend may show stale status
+- User must manually log out/in to recover
+
+**Potential Solutions** (to investigate):
+1. **Frontend: Token refresh during polling**
+   - Check if Clerk's automatic token refresh is working
+   - May need to call `getToken()` before each poll request
+   - Location: `frontend/src/hooks/usePortfolioUpload.ts` or `onboardingService.ts`
+
+2. **Frontend: Handle 401 gracefully**
+   - Stop polling on 401 error
+   - Show "Session expired - please log in again" message
+   - Redirect to login page
+
+3. **Frontend: Extend polling session**
+   - Before starting batch, refresh token
+   - Set up background token refresh interval
+
+4. **Backend: Return different error code**
+   - Distinguish "token expired" from "invalid token"
+   - Allow frontend to handle appropriately
+
+**Files to investigate**:
+- `frontend/src/hooks/usePortfolioUpload.ts` - Polling logic
+- `frontend/src/services/onboardingService.ts` - API calls
+- `frontend/src/lib/clerkTokenStore.ts` - Token management
+- `backend/app/core/auth.py` - Token validation
+
+**Workaround** (current):
+User must log out and log back in to refresh token after batch completes.
 
 ---
 
@@ -2263,6 +2351,284 @@ Before pushing to remote:
 - [x] Phase 5 & 6 verified on Railway (testscotty4)
 - [ ] All verification queries pass on Railway
 - [ ] No regressions in existing functionality
+
+---
+
+## A13. Phase 1.5 Factor Coverage Diagnostic Guide
+
+**Created**: January 11, 2026
+**Issue**: Ridge/Spread factor coverage showing 0% during batch processing
+
+### Background: What Phase 1.5 Does
+
+Phase 1.5 calculates factor betas (Ridge and Spread) for all portfolio symbols. It runs **ONCE** after Phase 1 (market data collection) completes, using the `final_date` (last trading date in the batch range).
+
+**Required Factor ETFs** (must have market data):
+- Ridge factors: VTV, VUG, MTUM, QUAL, IWM, USMV (6 ETFs)
+- Spread factors: VUG, VTV, MTUM, QUAL, IWM, SPY (adds SPY)
+- Total unique: VTV, VUG, MTUM, QUAL, IWM, USMV, SPY, TLT (8 ETFs)
+
+### Symptom
+
+During batch processing, logs show:
+```
+WARNING - Ridge factor coverage is low (0/17 = 0.0%)
+```
+
+This warning comes from per-position factor lookups during Phases 3-6, indicating Phase 1.5 either:
+1. Failed silently (error caught, batch continued)
+2. Couldn't calculate any factors (missing factor ETF data)
+3. Factors calculated but stored with wrong date/method keys
+
+### Code Location
+
+Phase 1.5 implementation: `backend/app/batch/batch_orchestrator.py` lines 490-554
+
+```python
+# Phase 1.5 error handling (lines 544-553)
+except Exception as e:
+    logger.error(f"Phase 1.5 (Symbol Factors) error: {e}")
+    import traceback
+    logger.error(f"Traceback: {traceback.format_exc()}")
+    # Continues to Phase 2-6 even if symbol factors fail
+```
+
+### Diagnostic Commands
+
+#### 1. Watch Phase 1.5 Logs in Real-Time
+
+Run batch and immediately watch for Phase 1.5 logs:
+```bash
+# From terminal during batch run
+railway logs --follow | grep -i "phase.*1\.5\|symbol.*factor\|ridge\|factor.*error\|spread.*factor"
+```
+
+Expected success output:
+```
+Phase 1.5: Calculating symbol factors for X scoped symbols (date=YYYY-MM-DD)
+Phase 1.5 complete: X symbols, Ridge: Y calc / Z cached, Spread: A calc / B cached
+```
+
+Error output (if failing):
+```
+Phase 1.5 (Symbol Factors) error: <error message>
+Traceback: <stack trace>
+```
+
+#### 2. Check Factor ETF Market Data Exists
+
+```bash
+railway run python -c "
+import asyncio
+from app.database import get_async_session
+from sqlalchemy import select, func
+from app.models.market_data import MarketDataCache
+
+async def check():
+    async with get_async_session() as db:
+        factor_etfs = ['VTV', 'VUG', 'MTUM', 'QUAL', 'IWM', 'SPY', 'USMV', 'TLT']
+        print('Factor ETF Market Data Coverage:')
+        print('-' * 40)
+        for etf in factor_etfs:
+            result = await db.execute(
+                select(func.count(MarketDataCache.id))
+                .where(MarketDataCache.symbol == etf)
+            )
+            count = result.scalar()
+            status = '✅' if count > 200 else '⚠️' if count > 0 else '❌'
+            print(f'{status} {etf}: {count} records')
+
+asyncio.run(check())
+"
+```
+
+Expected output (for 1-year lookback):
+```
+Factor ETF Market Data Coverage:
+----------------------------------------
+✅ VTV: 252 records
+✅ VUG: 252 records
+✅ MTUM: 252 records
+✅ QUAL: 252 records
+✅ IWM: 252 records
+✅ SPY: 252 records
+✅ USMV: 252 records
+✅ TLT: 252 records
+```
+
+#### 3. Check Symbol Factor Exposures Table
+
+```bash
+railway run python -c "
+import asyncio
+from app.database import get_async_session
+from sqlalchemy import select, func
+from app.models.symbol_analytics import SymbolFactorExposure
+
+async def check():
+    async with get_async_session() as db:
+        # Total count
+        result = await db.execute(select(func.count(SymbolFactorExposure.id)))
+        total = result.scalar()
+        print(f'Total symbol factor records: {total}')
+
+        # Count by method
+        result = await db.execute(
+            select(
+                SymbolFactorExposure.calculation_method,
+                func.count(SymbolFactorExposure.id)
+            ).group_by(SymbolFactorExposure.calculation_method)
+        )
+        print('\nBy calculation method:')
+        for method, count in result.fetchall():
+            print(f'  {method}: {count}')
+
+        # Recent dates
+        result = await db.execute(
+            select(SymbolFactorExposure.calculation_date)
+            .distinct()
+            .order_by(SymbolFactorExposure.calculation_date.desc())
+            .limit(5)
+        )
+        print('\nMost recent calculation dates:')
+        for (dt,) in result.fetchall():
+            print(f'  {dt}')
+
+asyncio.run(check())
+"
+```
+
+#### 4. Check Specific Portfolio Factor Coverage
+
+```bash
+railway run python -c "
+import asyncio
+from app.database import get_async_session
+from sqlalchemy import select, func
+from app.models.positions import Position
+from app.models.symbol_analytics import SymbolFactorExposure
+from datetime import date
+
+PORTFOLIO_ID = '<YOUR_PORTFOLIO_ID>'
+
+async def check():
+    async with get_async_session() as db:
+        # Get portfolio symbols
+        result = await db.execute(
+            select(Position.symbol)
+            .where(Position.portfolio_id == PORTFOLIO_ID)
+            .where(Position.investment_class == 'PUBLIC')
+        )
+        symbols = [row[0] for row in result.fetchall()]
+        print(f'Portfolio has {len(symbols)} PUBLIC symbols: {symbols}')
+
+        # Check factor coverage for each
+        print('\nFactor coverage by symbol:')
+        for symbol in symbols:
+            result = await db.execute(
+                select(func.count(SymbolFactorExposure.id))
+                .where(SymbolFactorExposure.symbol == symbol)
+            )
+            count = result.scalar()
+            status = '✅' if count >= 10 else '⚠️' if count > 0 else '❌'
+            print(f'  {status} {symbol}: {count} factor records')
+
+asyncio.run(check())
+"
+```
+
+### Common Causes & Fixes
+
+#### Cause 1: Factor ETFs Missing Market Data
+
+**Diagnosis**: Diagnostic #2 shows ❌ for one or more factor ETFs
+
+**Fix**: Factor ETFs are included in scoped mode automatically. If missing, check Phase 1 logs for fetch failures.
+
+#### Cause 2: Phase 1.5 Error (Silent Failure)
+
+**Diagnosis**: Diagnostic #1 shows error traceback
+
+**Fix**: Address the specific error (usually data format or API issues)
+
+Common errors:
+- `"No factor ETF returns available"` → Factor ETFs missing data (see Cause 1)
+- `"Insufficient historical data"` → Need 252+ days of price history
+- Database connection errors → Railway connection pool exhaustion
+
+#### Cause 3: Date Mismatch
+
+**Diagnosis**: Diagnostic #3 shows factors calculated but for wrong date
+
+**Fix**: Re-run batch with `force_rerun=True` to recalculate:
+```bash
+curl -X POST "https://sigmasight-be-production.up.railway.app/api/v1/admin/batch/run" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" \
+  -d '{"portfolio_id": "<ID>", "force_rerun": true}'
+```
+
+### Test Files for Debugging
+
+**Quick test file** (minimal symbols, recent entry date):
+- `backend/test_portfolios/Tech-Focused-2.csv`
+- 16 positions, entry date 2026-01-05
+- No SQ (delisted symbol that causes failures)
+- Expected Phase 1 time: 15-30 seconds (vs 25 min for old test file)
+
+### Related Documentation
+
+- Factor calculation architecture: `backend/app/calculations/symbol_factors.py`
+- Ridge factors: `backend/app/calculations/factors_ridge.py`
+- Spread factors: `backend/app/calculations/factors_spread.py`
+- Batch orchestrator Phase 1.5: `backend/app/batch/batch_orchestrator.py` lines 490-554
+
+---
+
+## A14. Phase 7.5 Risk Assessment (Market Data Optimization)
+
+**Created**: January 11, 2026
+**Status**: DEFERRED - Not recommended for immediate implementation
+
+### Summary
+
+Phase 7.5 proposes replacing date-by-date market data fetching with bulk "fetch once, verify per-date" approach. While this would improve performance (~25 min → ~30 sec), it carries significant risk.
+
+### Risk Level: MEDIUM-HIGH
+
+### Risk Factors
+
+| Factor | Risk | Reason |
+|--------|------|--------|
+| Core data pipeline change | HIGH | Affects ALL downstream calculations |
+| Provider fallback complexity | MEDIUM | Bulk APIs have different error modes |
+| Cache invalidation | MEDIUM | Date alignment bugs hard to detect |
+| Regression risk | HIGH | 3 demo portfolios + production data |
+
+### Potential Failure Modes
+
+| Failure | Impact | Detectability |
+|---------|--------|---------------|
+| API rate limit mid-batch | Batch fails | ✅ Easy |
+| Partial data fetch | Wrong P&L/factors | ⚠️ Medium |
+| Date alignment bug | Subtle calculation errors | ❌ Hard |
+| Provider fallback not triggered | Missing symbol data | ⚠️ Medium |
+
+### Recommendation
+
+**Do not prioritize Phase 7.5.** Current date-by-date approach is slow but correct.
+
+**Priority order:**
+1. Fix Phase 1.5 factor coverage (functional bug)
+2. Verify end-to-end batch correctness
+3. Consider Phase 7.5 later with feature flag
+
+### If Implementing Later
+
+1. Add as optional mode behind feature flag
+2. Test on Tech-Focused-2.csv first
+3. Compare results against demo portfolio baseline
+4. Staged rollout with verification at each step
 
 ---
 

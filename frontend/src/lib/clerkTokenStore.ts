@@ -69,8 +69,10 @@ export async function getClerkTokenAsync(): Promise<string | null> {
     try {
       const newToken = await _tokenRefreshFn()
       if (newToken) {
-        // Update the cache with 55 second expiry
-        setClerkToken(newToken, Date.now() + 55000)
+        // Update the cache with 2 hour expiry (matches long batch processing sessions)
+        // Note: Clerk JWT template is configured for 1 hour, but we cache for 2 hours
+        // since Clerk will issue a fresh token each time we call getToken()
+        setClerkToken(newToken, Date.now() + 2 * 60 * 60 * 1000)
         return newToken
       }
     } catch (error) {

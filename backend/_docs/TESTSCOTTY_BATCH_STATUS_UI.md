@@ -707,3 +707,508 @@ CREATE INDEX ix_onboarding_logs_portfolio_attempt ON onboarding_logs(portfolio_i
 - Existing endpoint: `backend/app/api/v1/onboarding_status.py`
 - Batch tracker: `backend/app/batch/batch_run_tracker.py`
 - Batch orchestrator: `backend/app/batch/batch_orchestrator.py`
+
+---
+
+## 11. Phase 7.4: Expose All 9 Processing Phases
+
+**Created**: 2026-01-11
+**Status**: Planned
+
+### 11.1 Problem Statement
+
+The current implementation only tracks 4 of the 9 batch processing phases via `start_phase()`/`complete_phase()`:
+- `phase_1` - Market Data Collection ✅ Tracked
+- `phase_1_5` - Factor Analysis ✅ Tracked
+- `phase_1_75` - Symbol Metrics ✅ Tracked
+- `phase_2_6` - Bundled (P&L + Snapshots + Market Values + Tags + Risk) ✅ Tracked
+
+The frontend currently shows "Analyzing your portfolio with 1 processing phases" because `phases_total` is dynamically derived from registered phases.
+
+### 11.2 Target State
+
+Expose all 9 distinct processing phases with user-friendly names:
+
+| Phase ID | Phase Name | Unit | Notes |
+|----------|------------|------|-------|
+| `phase_0` | Company Profile Sync | symbols | Sync company profiles for all symbols |
+| `phase_1` | Market Data Collection | symbols | Fetch 1-year historical prices |
+| `phase_1_5` | Factor Analysis | symbols | Calculate factor exposures |
+| `phase_1_75` | Symbol Metrics | symbols | Calculate betas, volatility |
+| `phase_2` | Fundamental Data Collection | symbols | Fetch fundamental data |
+| `phase_3` | P&L Calculation & Snapshots | dates | Calculate P&L, create snapshots |
+| `phase_4` | Position Market Value Updates | positions | Update current market values |
+| `phase_5` | Sector Tag Restoration | positions | Restore sector tags |
+| `phase_6` | Risk Analytics | items | Final risk calculations |
+
+### 11.3 Backend Changes
+
+**File**: `backend/app/batch/batch_orchestrator.py`
+
+Add `start_phase()`/`complete_phase()` calls for each phase:
+
+```python
+# Phase 0: Company Profile Sync
+batch_run_tracker.start_phase("phase_0", "Company Profile Sync", total=len(symbols), unit="symbols")
+# ... existing sync logic ...
+batch_run_tracker.complete_phase("phase_0", success=True, summary=f"Synced {count} profiles")
+
+# Phase 2: Fundamental Data Collection (currently not tracked)
+batch_run_tracker.start_phase("phase_2", "Fundamental Data Collection", total=len(symbols), unit="symbols")
+# ... existing logic ...
+batch_run_tracker.complete_phase("phase_2", success=True, summary=f"Collected {count} fundamentals")
+
+# Phase 3: P&L Calculation & Snapshots (currently bundled in phase_2_6)
+batch_run_tracker.start_phase("phase_3", "P&L Calculation & Snapshots", total=len(dates), unit="dates")
+# ... existing logic ...
+batch_run_tracker.complete_phase("phase_3", success=True, summary=f"Created {count} snapshots")
+
+# Phase 4: Position Market Value Updates (currently bundled in phase_2_6)
+batch_run_tracker.start_phase("phase_4", "Position Market Value Updates", total=len(positions), unit="positions")
+# ... existing logic ...
+batch_run_tracker.complete_phase("phase_4", success=True, summary=f"Updated {count} positions")
+
+# Phase 5: Sector Tag Restoration (currently bundled in phase_2_6)
+batch_run_tracker.start_phase("phase_5", "Sector Tag Restoration", total=len(positions), unit="positions")
+# ... existing logic ...
+batch_run_tracker.complete_phase("phase_5", success=True, summary=f"Restored {count} tags")
+
+# Phase 6: Risk Analytics (currently bundled in phase_2_6)
+batch_run_tracker.start_phase("phase_6", "Risk Analytics", total=0, unit="items")
+# ... existing logic ...
+batch_run_tracker.complete_phase("phase_6", success=True, summary="Risk analytics complete")
+```
+
+### 11.4 Frontend UI Changes
+
+**File**: `frontend/src/components/onboarding/OnboardingProgress.tsx`
+
+1. **Change header text** from dynamic to static:
+   ```
+   Before: "Analyzing your portfolio with {phases_total} processing phases."
+   After:  "Analyzing your portfolio in 9 processing phases."
+   ```
+
+2. **Remove "This typically takes..." sentence** entirely
+
+3. **Add phase list** below the header (visible during processing):
+   ```
+   1. Company Profile Sync
+   2. Market Data Collection
+   3. Factor Analysis
+   4. Symbol Metrics
+   5. Fundamental Data Collection
+   6. P&L Calculation & Snapshots
+   7. Position Market Value Updates
+   8. Sector Tag Restoration
+   9. Risk Analytics
+   ```
+
+4. **Phase list styling**:
+   - Show checkmark ✓ for completed phases
+   - Show spinner for running phase
+   - Show dimmed/pending for future phases
+   - Show X for failed phases
+
+### 11.5 Implementation Order
+
+1. **Backend first**: Add `start_phase()`/`complete_phase()` calls to batch_orchestrator.py
+2. **Test backend**: Verify all 9 phases appear in `/api/v1/onboarding/status/{portfolio_id}` response
+3. **Frontend second**: Update OnboardingProgress.tsx with static text and phase list
+4. **E2E test**: Run full onboarding flow and verify all phases display correctly
+
+### 11.6 Acceptance Criteria
+
+- [ ] Backend: All 9 phases tracked via `batch_run_tracker`
+- [ ] API: `/status/{portfolio_id}` returns `phases_total: 9`
+- [ ] Frontend: Header shows "Analyzing your portfolio in 9 processing phases."
+- [ ] Frontend: "This typically takes..." sentence removed
+- [ ] Frontend: All 9 phases listed with appropriate status indicators
+- [ ] Frontend: Phase status updates in real-time during polling
+
+---
+
+## 12. Phase 7.5: Market Data Collection Optimization
+
+**Created**: 2026-01-11
+**Status**: Planned
+**Priority**: High (blocking onboarding performance)
+
+### 12.1 Problem Statement
+
+Current market data collection runs **date-by-date**, causing severe performance issues:
+
+**Test Case**: `Tech-Focused-Professional.csv`
+- 17 positions + 17 factor ETFs = 33 symbols
+- Entry dates: June 30, 2025
+- Processing dates: June 30, 2025 → Jan 11, 2026 = ~135 trading days
+
+**Current Behavior**:
+```
+For EACH of 135 dates:
+  1. Query DB for cache status (2 queries)
+  2. Find 4 symbols "need data"
+  3. YFinance API call → 4 succeed, SQ fails
+  4. YahooQuery API call for SQ → fails
+  5. Polygon API call for SQ → 10s rate limit wait → fails
+  6. FMP API call for SQ → fails
+  7. Store ~1004 records
+  8. Repeat for next date...
+
+Result: 135 dates × ~11 seconds = ~25 minutes for Phase 1 alone
+```
+
+**Root Causes**:
+1. **Redundant API calls**: Same symbols fetched on each date iteration
+2. **No failure memory**: SQ fails 135 times instead of once
+3. **Overlapping date ranges**: 365-day lookback fetched repeatedly with 99% overlap
+4. **Rate limit amplification**: Each SQ failure triggers 10s Polygon wait
+
+### 12.2 Solution: Fetch Once, Verify Per-Date
+
+Restructure Phase 1 into two sub-phases:
+
+**Phase 1A: Bulk Historical Fetch (once)**
+- Fetch ALL market data for the full date range in one pass
+- Track which symbols are unavailable (delisted, etc.)
+- One attempt per symbol, not 135
+
+**Phase 1B: Per-Date Verification (DB only)**
+- Quick cache verification for each calculation date
+- No API calls - data already fetched
+- Sub-second per date
+
+### 12.3 Architecture Comparison
+
+**Current (Inefficient)**:
+```
+┌────────────────────────────────────────────────────────┐
+│ For EACH of 135 dates:                                 │
+│   → Cache check queries (2 DB calls)                   │
+│   → API calls for missing symbols (4 providers)        │
+│   → Store fetched data                                 │
+│   → 10s rate limit wait if any symbol fails            │
+└────────────────────────────────────────────────────────┘
+Time: ~25 minutes
+API calls: Up to 540 (135 × 4 providers)
+```
+
+**Proposed (Optimized)**:
+```
+┌────────────────────────────────────────────────────────┐
+│ Phase 1A: Bulk Fetch (ONCE)                            │
+│   → Get per-symbol coverage from DB                    │
+│   → Identify gaps per symbol                           │
+│   → Single bulk fetch per symbol for missing ranges    │
+│   → Track unavailable symbols (SQ, etc.)               │
+└────────────────────────────────────────────────────────┘
+Time: ~30-60 seconds
+
+┌────────────────────────────────────────────────────────┐
+│ Phase 1B: Verify Per-Date (DB only)                    │
+│   → Quick count query per date                         │
+│   → No API calls                                       │
+│   → Exclude known unavailable symbols                  │
+└────────────────────────────────────────────────────────┘
+Time: ~15 seconds (135 × 0.1s)
+
+Total: ~1-2 minutes (vs ~25 minutes)
+```
+
+### 12.4 Implementation Details
+
+#### 12.4.1 New Method: `collect_market_data_bulk()`
+
+**File**: `backend/app/batch/market_data_collector.py`
+
+```python
+async def collect_market_data_bulk(
+    self,
+    symbols: Set[str],
+    start_date: date,
+    end_date: date,
+    db: AsyncSession,
+) -> Dict[str, Any]:
+    """
+    Phase 1A: Fetch ALL market data for date range in one pass.
+
+    Args:
+        symbols: All symbols needed (positions + factor ETFs)
+        start_date: Earliest date needed (from position entry_dates)
+        end_date: Latest date needed (today or target date)
+        db: Database session
+
+    Returns:
+        Summary with cached/fetched/unavailable counts
+    """
+    logger.info(f"Phase 1A: Bulk market data fetch for {len(symbols)} symbols")
+    logger.info(f"  Date range: {start_date} to {end_date}")
+
+    # Step 1: Get per-symbol coverage
+    symbol_coverage = await self._get_per_symbol_date_coverage(
+        db, symbols, start_date, end_date
+    )
+
+    # Step 2: Categorize symbols
+    fully_cached = set()
+    needs_gap_fill = {}  # symbol -> list of (gap_start, gap_end)
+    needs_full_fetch = set()
+
+    trading_days_needed = self._count_trading_days(start_date, end_date)
+
+    for symbol in symbols:
+        coverage = symbol_coverage.get(symbol, {'count': 0, 'min_date': None, 'max_date': None})
+
+        if coverage['count'] >= trading_days_needed * 0.95:  # 95% coverage
+            fully_cached.add(symbol)
+        elif coverage['count'] >= 50:
+            # Has partial data - identify gaps
+            gaps = await self._identify_date_gaps(
+                db, symbol, start_date, end_date, coverage
+            )
+            if gaps:
+                needs_gap_fill[symbol] = gaps
+            else:
+                fully_cached.add(symbol)
+        else:
+            needs_full_fetch.add(symbol)
+
+    logger.info(f"  Fully cached: {len(fully_cached)} symbols")
+    logger.info(f"  Need gap fill: {len(needs_gap_fill)} symbols")
+    logger.info(f"  Need full fetch: {len(needs_full_fetch)} symbols")
+
+    # Step 3: Fetch data for symbols that need it
+    unavailable_symbols = set()
+    fetched_count = 0
+
+    # Full fetch for symbols with no/minimal data
+    if needs_full_fetch:
+        logger.info(f"  Fetching full history for {len(needs_full_fetch)} symbols...")
+        fetched, failed = await self._fetch_symbols_bulk(
+            list(needs_full_fetch), start_date, end_date, db
+        )
+        fetched_count += fetched
+        unavailable_symbols.update(failed)
+
+    # Gap fill for symbols with partial data
+    if needs_gap_fill:
+        logger.info(f"  Filling gaps for {len(needs_gap_fill)} symbols...")
+        for symbol, gaps in needs_gap_fill.items():
+            for gap_start, gap_end in gaps:
+                fetched, failed = await self._fetch_symbols_bulk(
+                    [symbol], gap_start, gap_end, db
+                )
+                fetched_count += fetched
+                if failed:
+                    unavailable_symbols.add(symbol)
+                    break  # Don't try other gaps if symbol fails
+
+    # Step 4: Store unavailable symbols for Phase 1B
+    self._unavailable_symbols = unavailable_symbols
+
+    logger.info(f"Phase 1A complete:")
+    logger.info(f"  Symbols cached: {len(fully_cached)}")
+    logger.info(f"  Symbols fetched: {fetched_count}")
+    logger.info(f"  Symbols unavailable: {len(unavailable_symbols)} - {list(unavailable_symbols)}")
+
+    return {
+        'fully_cached': len(fully_cached),
+        'fetched': fetched_count,
+        'unavailable': list(unavailable_symbols),
+        'unavailable_symbols': unavailable_symbols,  # Set for Phase 1B
+    }
+```
+
+#### 12.4.2 New Method: `verify_date_coverage()`
+
+```python
+async def verify_date_coverage(
+    self,
+    calc_date: date,
+    symbols: Set[str],
+    db: AsyncSession,
+) -> Dict[str, Any]:
+    """
+    Phase 1B: Quick DB verification - no API calls.
+
+    Args:
+        calc_date: Date to verify
+        symbols: All symbols (will exclude unavailable)
+        db: Database session
+
+    Returns:
+        Coverage report for this date
+    """
+    # Exclude known unavailable symbols
+    check_symbols = symbols - getattr(self, '_unavailable_symbols', set())
+
+    if not check_symbols:
+        return {
+            'date': calc_date,
+            'coverage_pct': 100.0,
+            'symbols_with_data': 0,
+            'symbols_checked': 0,
+        }
+
+    # Single efficient query
+    count_query = select(func.count(func.distinct(MarketDataCache.symbol))).where(
+        and_(
+            MarketDataCache.symbol.in_(list(check_symbols)),
+            MarketDataCache.date == calc_date,
+            MarketDataCache.close > 0
+        )
+    )
+
+    result = await db.execute(count_query)
+    symbols_with_data = result.scalar() or 0
+
+    coverage_pct = (symbols_with_data / len(check_symbols) * 100) if check_symbols else 100.0
+
+    return {
+        'date': calc_date,
+        'coverage_pct': coverage_pct,
+        'symbols_with_data': symbols_with_data,
+        'symbols_checked': len(check_symbols),
+    }
+```
+
+#### 12.4.3 Updated Orchestrator Flow
+
+**File**: `backend/app/batch/batch_orchestrator.py`
+
+```python
+# In _execute_batch_phases(), replace Phase 1 loop with:
+
+# Phase 1A: Bulk fetch (ONCE)
+logger.info(f"Phase 1A: Bulk market data collection")
+batch_run_tracker.start_phase("phase_1a", "Market Data Collection", total=len(symbols), unit="symbols")
+
+bulk_result = await market_data_collector.collect_market_data_bulk(
+    symbols=all_symbols,
+    start_date=missing_dates[0],
+    end_date=missing_dates[-1],
+    db=db,
+)
+
+batch_run_tracker.complete_phase(
+    "phase_1a",
+    success=True,
+    summary=f"Fetched {bulk_result['fetched']} symbols, {len(bulk_result['unavailable'])} unavailable"
+)
+
+# Phase 1B: Verify per-date (DB only)
+logger.info(f"Phase 1B: Verifying {len(missing_dates)} dates")
+batch_run_tracker.start_phase("phase_1b", "Data Verification", total=len(missing_dates), unit="dates")
+
+for i, calc_date in enumerate(missing_dates, 1):
+    batch_run_tracker.update_phase_progress("phase_1b", i)
+
+    coverage = await market_data_collector.verify_date_coverage(
+        calc_date=calc_date,
+        symbols=all_symbols,
+        db=db,
+    )
+
+    if coverage['coverage_pct'] < 80:
+        logger.warning(f"  {calc_date}: Low coverage {coverage['coverage_pct']:.1f}%")
+
+batch_run_tracker.complete_phase("phase_1b", success=True, summary=f"Verified {len(missing_dates)} dates")
+```
+
+### 12.5 Helper Methods
+
+```python
+async def _get_per_symbol_date_coverage(
+    self,
+    db: AsyncSession,
+    symbols: Set[str],
+    start_date: date,
+    end_date: date,
+) -> Dict[str, Dict]:
+    """Get date coverage statistics per symbol."""
+    query = select(
+        MarketDataCache.symbol,
+        func.count(MarketDataCache.id).label('count'),
+        func.min(MarketDataCache.date).label('min_date'),
+        func.max(MarketDataCache.date).label('max_date'),
+    ).where(
+        and_(
+            MarketDataCache.symbol.in_(list(symbols)),
+            MarketDataCache.date >= start_date,
+            MarketDataCache.date <= end_date,
+            MarketDataCache.close > 0
+        )
+    ).group_by(MarketDataCache.symbol)
+
+    result = await db.execute(query)
+
+    return {
+        row.symbol: {
+            'count': row.count,
+            'min_date': row.min_date,
+            'max_date': row.max_date,
+        }
+        for row in result.fetchall()
+    }
+
+
+async def _fetch_symbols_bulk(
+    self,
+    symbols: List[str],
+    start_date: date,
+    end_date: date,
+    db: AsyncSession,
+) -> Tuple[int, Set[str]]:
+    """
+    Fetch data for symbols using provider priority chain.
+    Returns (fetched_count, failed_symbols).
+    """
+    fetched_data, provider_counts = await self._fetch_with_priority_chain(
+        symbols, start_date, end_date
+    )
+
+    if fetched_data:
+        await self._store_in_cache(db, fetched_data)
+
+    failed_symbols = set(symbols) - set(fetched_data.keys())
+
+    return len(fetched_data), failed_symbols
+```
+
+### 12.6 Performance Impact
+
+| Metric | Current | Optimized | Improvement |
+|--------|---------|-----------|-------------|
+| **Phase 1 time** | ~25 min | ~1-2 min | **12-25x faster** |
+| **API calls** | ~540 | ~4-10 | **50-100x fewer** |
+| **DB queries** | ~270 | ~140 | **2x fewer** |
+| **Rate limit waits** | ~22 min | ~10 sec | **130x less** |
+| **Total onboarding** | ~30-40 min | ~10-15 min | **2-3x faster** |
+
+### 12.7 Implementation Order
+
+1. **Add `_unavailable_symbols` instance variable** to `MarketDataCollector`
+2. **Implement `_get_per_symbol_date_coverage()`** helper
+3. **Implement `collect_market_data_bulk()`** (Phase 1A)
+4. **Implement `verify_date_coverage()`** (Phase 1B)
+5. **Update `batch_orchestrator._execute_batch_phases()`** to use new flow
+6. **Update phase tracking** for 1A/1B split
+7. **Test with Tech-Focused-Professional.csv** (June 2025 dates)
+8. **Test with quick CSV** (Jan 2026 dates) for comparison
+
+### 12.8 Acceptance Criteria
+
+- [ ] Phase 1A fetches each symbol at most once per batch run
+- [ ] Failed symbols (SQ, delisted, etc.) tracked and excluded from retries
+- [ ] Phase 1B does NO API calls, only DB verification
+- [ ] Total Phase 1 time < 5 minutes for 6-month backfill
+- [ ] Total Phase 1 time < 1 minute for 2-week backfill
+- [ ] Activity log shows clear 1A/1B separation
+- [ ] Unavailable symbols logged once, not 135 times
+
+### 12.9 Rollback Plan
+
+If issues arise, the optimization can be disabled by:
+1. Setting `USE_BULK_FETCH = False` in market_data_collector.py
+2. Falling back to current date-by-date behavior
+3. No database schema changes required
