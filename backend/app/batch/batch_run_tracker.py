@@ -171,6 +171,39 @@ class BatchRunTracker:
                     exc_info=True
                 )
 
+        # Phase 7.3.1 Fix: Persist logs BEFORE clearing _current
+        # Capture data now since _current will be None after this
+        if self._current:
+            batch_run_id = self._current.batch_run_id
+            portfolio_id = self._current.portfolio_id
+            logs_data = [
+                {
+                    "timestamp": entry.timestamp.isoformat(),
+                    "message": entry.message,
+                    "level": entry.level
+                }
+                for entry in self._current.full_activity_log
+            ]
+            triggered_by = self._current.triggered_by
+            started_at = self._current.started_at
+            total_jobs = self._current.total_jobs
+            completed_jobs = self._current.completed_jobs
+            failed_jobs = self._current.failed_jobs
+
+            # Schedule persistence with captured data (won't depend on _current)
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                asyncio.create_task(self._persist_logs_with_data(
+                    batch_run_id, portfolio_id, logs_data,
+                    triggered_by, started_at, total_jobs, completed_jobs, failed_jobs
+                ))
+            except RuntimeError:
+                asyncio.run(self._persist_logs_with_data(
+                    batch_run_id, portfolio_id, logs_data,
+                    triggered_by, started_at, total_jobs, completed_jobs, failed_jobs
+                ))
+
         self._current = None
         self._cleanup_old_completed()
 
@@ -588,6 +621,99 @@ class BatchRunTracker:
 
         except Exception as e:
             # Don't fail the batch if log persistence fails
+            logger.warning(f"Failed to persist logs to database: {e}")
+
+    async def _persist_logs_with_data(
+        self,
+        batch_run_id: str,
+        portfolio_id: Optional[str],
+        logs_data: List[Dict[str, Any]],
+        triggered_by: Optional[str],
+        started_at: Optional[datetime],
+        total_jobs: int,
+        completed_jobs: int,
+        failed_jobs: int
+    ) -> None:
+        """
+        Persist logs with pre-captured data (doesn't rely on self._current).
+
+        Phase 7.3.1 Fix: This method is used in complete() to avoid race conditions
+        where _current is cleared before fire-and-forget persist tasks run.
+        """
+        new_log_count = len(logs_data)
+
+        try:
+            from app.database import AsyncSessionLocal
+            from app.models.admin import BatchRunHistory
+            from sqlalchemy import update, or_, func, text, select
+            from datetime import datetime as dt
+
+            async with AsyncSessionLocal() as db:
+                # Conditional UPDATE: only write if new log count >= existing
+                stmt = (
+                    update(BatchRunHistory)
+                    .where(BatchRunHistory.batch_run_id == batch_run_id)
+                    .where(
+                        or_(
+                            BatchRunHistory.activity_log.is_(None),
+                            func.jsonb_array_length(
+                                func.coalesce(
+                                    BatchRunHistory.activity_log,
+                                    text("'[]'::jsonb")
+                                )
+                            ) <= new_log_count
+                        )
+                    )
+                    .values(
+                        activity_log=logs_data,
+                        portfolio_id=UUID(portfolio_id) if portfolio_id else None
+                    )
+                )
+                result = await db.execute(stmt)
+
+                if result.rowcount == 0:
+                    # Check if record exists or doesn't exist at all
+                    check_stmt = select(BatchRunHistory.id).where(
+                        BatchRunHistory.batch_run_id == batch_run_id
+                    )
+                    check_result = await db.execute(check_stmt)
+                    exists = check_result.scalar_one_or_none()
+
+                    if exists:
+                        logger.debug(
+                            f"Log persistence skipped for {batch_run_id} - "
+                            f"newer logs already saved"
+                        )
+                    else:
+                        # Create minimal record with logs
+                        logger.info(
+                            f"Creating BatchRunHistory record for {batch_run_id} - "
+                            f"record not yet created by batch_history_service"
+                        )
+                        new_record = BatchRunHistory(
+                            batch_run_id=batch_run_id,
+                            triggered_by=triggered_by or "unknown",
+                            started_at=started_at or dt.utcnow(),
+                            status="running",
+                            total_jobs=total_jobs,
+                            completed_jobs=completed_jobs,
+                            failed_jobs=failed_jobs,
+                            phase_durations={},
+                            activity_log=logs_data,
+                            portfolio_id=UUID(portfolio_id) if portfolio_id else None,
+                        )
+                        db.add(new_record)
+                        logger.debug(
+                            f"Created BatchRunHistory with {new_log_count} log entries for {batch_run_id}"
+                        )
+                else:
+                    logger.debug(
+                        f"Persisted {new_log_count} log entries for batch {batch_run_id}"
+                    )
+
+                await db.commit()
+
+        except Exception as e:
             logger.warning(f"Failed to persist logs to database: {e}")
 
     def complete_phase(
