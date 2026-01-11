@@ -140,7 +140,7 @@ STEP 2: Batch fetch today's prices from YFinance
 STEP 3: Update symbol_prices_daily table
         (batch insert, ~30 sec)
 
-STEP 4: For each symbol (parallelized, 50 workers):
+STEP 4: For each symbol (parallelized, 10 concurrent tasks*):
         a. Load 90 days of returns
         b. Calculate Market Beta (OLS vs SPY)
         c. Calculate IR Beta (OLS vs TLT)
@@ -148,12 +148,14 @@ STEP 4: For each symbol (parallelized, 50 workers):
         e. Load 180 days of returns
         f. Calculate Spread factors (4 factors)
         g. UPSERT into symbol_factor_exposures
-        (~5 min total with parallelization)
+        (~8-12 min total with Railway constraints)
 
 STEP 5: Update symbol_daily_metrics (denormalized view)
         (~1 min)
 
-TOTAL: ~8-10 minutes, FIXED regardless of user count
+TOTAL: ~12-15 minutes, FIXED regardless of user count
+
+* See Part 12: Railway Deployment Constraints for concurrency limits
 ```
 
 ### 2.3 New Portfolio Analytics Flow
@@ -573,8 +575,8 @@ class SymbolBatchRunner:
         success_count = 0
         fail_count = 0
 
-        # Process in parallel batches
-        for batch in self._batch_symbols(symbols, batch_size=50):
+        # Process in parallel batches (Railway limit: 10 concurrent)
+        for batch in self._batch_symbols(symbols, batch_size=10):
             tasks = [
                 self._calc_and_store_market_beta(
                     symbol, calculation_date, spy_returns
@@ -1004,17 +1006,20 @@ async def run_comprehensive_stress_test(...):
 
 ## Part 7: Performance Projections
 
-### 7.1 Symbol Batch (Daily)
+### 7.1 Symbol Batch (Daily) - Railway Deployment
 
-| Step | Current | New | Notes |
-|------|---------|-----|-------|
-| Market Data | Variable (portfolio-driven) | 2 min | Batch YFinance call |
-| Market Beta | Per-portfolio | 2 min | 5,000 symbols, parallel |
-| IR Beta | Per-portfolio | 2 min | 5,000 symbols, parallel |
-| Ridge Factors | Per-portfolio | 3 min | Already optimized |
-| Spread Factors | Per-portfolio | 3 min | Already optimized |
+| Step | Current | New (Railway) | Notes |
+|------|---------|---------------|-------|
+| Market Data | Variable (portfolio-driven) | 2-3 min | Batch YFinance call |
+| Market Beta | Per-portfolio | 3-4 min | 5,000 symbols, 10 concurrent |
+| IR Beta | Per-portfolio | 3-4 min | 5,000 symbols, 10 concurrent |
+| Ridge Factors | Per-portfolio | 3-4 min | Already optimized |
+| Spread Factors | Per-portfolio | 3-4 min | Already optimized |
 | Metrics | Per-portfolio | 1 min | Denormalized update |
-| **TOTAL** | 30+ min | ~8-10 min | **FIXED COST** |
+| **TOTAL** | 30+ min | **~12-15 min** | **FIXED COST** |
+
+**Note**: Performance projections adjusted for Railway constraints (10 concurrent tasks max).
+See Part 12 for Railway-specific limits.
 
 ### 7.2 Portfolio Analytics (Per Request)
 
@@ -1026,11 +1031,14 @@ async def run_comprehensive_stress_test(...):
 
 ### 7.3 Scaling
 
-| Users | Current Time | New Time |
-|-------|--------------|----------|
-| 100 | 3-10 min | 8-10 min |
-| 1,000 | 10-30 min | 8-10 min |
-| 10,000 | Hours | 8-10 min |
+| Users | Current Time | New Time (Railway) |
+|-------|--------------|---------------------|
+| 100 | 3-10 min | 12-15 min |
+| 1,000 | 10-30 min | 12-15 min |
+| 10,000 | Hours | 12-15 min |
+
+**Key Insight**: Symbol batch time is now **O(symbols)** not **O(users × symbols)**.
+With Railway constraints, batch takes slightly longer but scales infinitely with users.
 
 ---
 
@@ -1668,6 +1676,152 @@ for symbol in pending:
 
 ---
 
+## Part 12: Railway Deployment Constraints
+
+**Context**: SigmaSight runs on Railway with resource limits that affect concurrency design.
+
+### 12.1 Railway Resource Limits
+
+| Resource | Hobby Plan | Pro Plan | Our Limit |
+|----------|------------|----------|-----------|
+| vCPU | 8 | 32 | 8 (Hobby) |
+| RAM | 8 GB | 32 GB | 8 GB |
+| DB Connections | ~20-50 | ~100 | 20-30 |
+| Dyno timeout | 30 min | 30 min | 30 min |
+
+### 12.2 External API Rate Limits
+
+| Service | Rate Limit | Practical Limit |
+|---------|------------|-----------------|
+| YFinance | ~2,000 req/hour | ~33 req/min |
+| Polygon | 5 req/min (free) | Use sparingly |
+| FMP | 250 req/day (free) | Backup only |
+
+### 12.3 Concurrency Design
+
+**CRITICAL**: Original plan specified 50 concurrent workers. This is **not feasible** on Railway.
+
+**Recommended Limits**:
+
+| Operation | Concurrent Tasks | Reason |
+|-----------|------------------|--------|
+| Symbol beta calculation | 10 | DB connection pool + memory |
+| Price fetching | 5 | YFinance rate limits |
+| Symbol onboarding | 3 | Rare, but may run during batch |
+
+**Code Pattern**:
+
+```python
+# ✅ CORRECT - Railway-safe concurrency
+RAILWAY_BATCH_SIZE = 10  # Conservative limit
+
+for batch in self._batch_symbols(symbols, batch_size=RAILWAY_BATCH_SIZE):
+    tasks = [self._calculate_beta(s) for s in batch]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Rate limiting for YFinance
+    await asyncio.sleep(0.5)  # 2 batches/sec max = 20 symbols/sec
+
+# ❌ WRONG - Will exhaust resources
+for batch in self._batch_symbols(symbols, batch_size=50):  # Too many!
+    tasks = [self._calculate_beta(s) for s in batch]
+```
+
+### 12.4 Database Connection Pooling
+
+**SQLAlchemy AsyncSession Configuration**:
+
+```python
+# app/database.py - Railway-optimized settings
+engine = create_async_engine(
+    DATABASE_URL,
+    pool_size=10,           # Conservative pool
+    max_overflow=5,         # Allow 15 total connections
+    pool_timeout=30,        # Wait for connection
+    pool_recycle=1800,      # Recycle every 30 min
+)
+```
+
+**Connection Budget**:
+- Pool size: 10
+- Max overflow: 5
+- Total max: 15 connections
+- Reserve for API requests: 5
+- **Available for batch: 10 concurrent**
+
+### 12.5 Memory Considerations
+
+| Component | Est. Memory | Notes |
+|-----------|-------------|-------|
+| FastAPI + workers | 500 MB | Base overhead |
+| 10 concurrent calculations | 200 MB | ~20 MB each |
+| Price data cache (90 days) | 500 MB | ~100 bytes × 5,000 symbols × 90 days |
+| Symbol universe | 100 MB | Metadata for 10,000 symbols |
+| **Total Estimated** | **1.3 GB** | Well under 8 GB limit |
+
+### 12.6 Timeout Handling
+
+Railway has a 30-minute request timeout. The symbol batch runs as a background task,
+but we still need to handle timeouts gracefully:
+
+```python
+# Symbol batch with timeout handling
+async def run_daily_symbol_batch(self, target_date: date):
+    try:
+        async with asyncio.timeout(1500):  # 25 min timeout (safety margin)
+            return await self._run_batch_phases(target_date)
+    except asyncio.TimeoutError:
+        logger.error("Symbol batch timed out - will resume on next run")
+        batch_run_tracker.complete(success=False)
+        raise
+```
+
+### 12.7 Recommended Settings Summary
+
+```python
+# backend/app/core/railway_config.py (NEW FILE)
+
+# Concurrency limits for Railway deployment
+RAILWAY_BATCH_SIZE = 10                # Concurrent symbol calculations
+RAILWAY_PRICE_FETCH_BATCH = 5          # Concurrent YFinance calls
+RAILWAY_ONBOARDING_CONCURRENT = 3      # Concurrent new symbol jobs
+
+# Rate limiting
+YFINANCE_RATE_LIMIT_DELAY = 0.5        # Seconds between batches
+BATCH_TIMEOUT_SECONDS = 1500           # 25 min safety margin
+
+# Database pooling
+DB_POOL_SIZE = 10
+DB_MAX_OVERFLOW = 5
+
+# Cache settings
+PORTFOLIO_CACHE_TTL_HOURS = 24
+SYMBOL_DATA_RETENTION_DAYS = 400       # 1 year + buffer
+```
+
+### 12.8 Scaling Beyond Railway
+
+If we outgrow Railway constraints, consider:
+
+1. **Railway Pro Plan**: 32 vCPU, 32 GB RAM, ~100 DB connections
+   - Increase batch_size to 30-40
+   - Still use rate limiting for external APIs
+
+2. **Dedicated Workers**: Separate Railway service for batch processing
+   - Main service handles API requests
+   - Worker service runs daily batch
+
+3. **Redis Queue**: Add Redis for job queuing
+   - Celery or RQ for distributed processing
+   - Better failure recovery
+
+4. **AWS/GCP Migration**: For 50,000+ users
+   - ECS/GKE for auto-scaling
+   - RDS/Cloud SQL for managed Postgres
+   - True horizontal scaling
+
+---
+
 ## Appendix A: File Reference
 
 ### Current Files to Modify
@@ -1694,6 +1848,7 @@ for symbol in pending:
 | `portfolio_cache_service.py` | Cache management |
 | `symbol_price_service.py` | Price data management |
 | `onboarding_helpers.py` | Symbol check and queue helpers |
+| `railway_config.py` | Railway deployment constraints and limits (see Part 12) |
 
 ### Database Migrations
 
