@@ -441,11 +441,11 @@ class AdminApiService {
   }
 
   /**
-   * Get batch run log entry count (without downloading)
+   * Get batch run log entry count (lightweight - does not download full logs)
    */
   async getBatchLogCount(batchRunId: string): Promise<number> {
     const response = await adminFetch<{ log_entry_count: number }>(
-      `/api/v1/admin/batch/history/${encodeURIComponent(batchRunId)}/logs?format=json`
+      `/api/v1/admin/batch/history/${encodeURIComponent(batchRunId)}/logs?count_only=true`
     )
     return response.log_entry_count || 0
   }

@@ -736,6 +736,7 @@ async def get_batch_run_details(
 async def get_batch_run_logs(
     batch_run_id: str,
     format: str = Query("json", description="Output format: 'json' or 'txt'"),
+    count_only: bool = Query(False, description="Return only log entry count (lightweight)"),
     admin_user: CurrentAdmin = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db)
 ):
@@ -750,9 +751,18 @@ async def get_batch_run_logs(
 
     **Query Parameters:**
     - format: Output format - 'json' (default) or 'txt'
+    - count_only: If true, returns only the log entry count without full logs (lightweight)
     """
     from app.models.admin import BatchRunHistory
     from fastapi.responses import PlainTextResponse, JSONResponse
+
+    # Validate format parameter
+    format_lower = format.lower()
+    if format_lower not in ("json", "txt"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid format '{format}'. Supported formats: 'json', 'txt'"
+        )
 
     try:
         result = await db.execute(
@@ -771,7 +781,16 @@ async def get_batch_run_logs(
         activity_log = run.activity_log or []
         log_count = len(activity_log)
 
-        if format.lower() == "txt":
+        # Lightweight count-only response
+        if count_only:
+            return JSONResponse(
+                content={
+                    "batch_run_id": batch_run_id,
+                    "log_entry_count": log_count,
+                }
+            )
+
+        if format_lower == "txt":
             # Build TXT format
             lines = []
             lines.append("=" * 80)
@@ -809,7 +828,7 @@ async def get_batch_run_logs(
                 }
             )
         else:
-            # JSON format (default)
+            # JSON format (validated to be 'json' at this point)
             return JSONResponse(
                 content={
                     "batch_run_id": batch_run_id,

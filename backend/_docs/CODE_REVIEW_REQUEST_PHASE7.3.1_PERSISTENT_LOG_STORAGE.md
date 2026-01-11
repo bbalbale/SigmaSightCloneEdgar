@@ -545,3 +545,80 @@ curl -H "Authorization: Bearer <ADMIN_TOKEN>" \
 - No database migration required (uses existing `activity_log` column)
 - Backend and frontend must be deployed together
 - Existing batch runs without `activity_log` will show "No activity log entries available"
+
+---
+
+## Code Review Fixes Applied (January 11, 2026 - Round 3)
+
+### Fix 6: Lightweight Log Count Endpoint - RESOLVED ✅
+
+**Problem**: `getBatchLogCount()` fetched the full JSON log payload just to read `log_entry_count`. This defeated the purpose of a lightweight count check and transferred thousands of log entries unnecessarily for a simple count request.
+
+**Files**:
+- `backend/app/api/v1/endpoints/admin_batch.py:739`
+- `frontend/src/services/adminApiService.ts:446-451`
+
+**Solution**: Added `count_only` query parameter to the logs endpoint:
+
+```python
+@router.get("/history/{batch_run_id}/logs")
+async def get_batch_run_logs(
+    batch_run_id: str,
+    format: str = Query("json", description="Output format: 'json' or 'txt'"),
+    count_only: bool = Query(False, description="Return only log entry count (lightweight)"),
+    ...
+):
+    # Lightweight count-only response
+    if count_only:
+        return JSONResponse(
+            content={
+                "batch_run_id": batch_run_id,
+                "log_entry_count": log_count,
+            }
+        )
+```
+
+Frontend updated to use the lightweight endpoint:
+
+```typescript
+async getBatchLogCount(batchRunId: string): Promise<number> {
+  const response = await adminFetch<{ log_entry_count: number }>(
+    `/api/v1/admin/batch/history/${encodeURIComponent(batchRunId)}/logs?count_only=true`
+  )
+  return response.log_entry_count || 0
+}
+```
+
+### Fix 7: Format Parameter Validation - RESOLVED ✅
+
+**Problem**: The `format` parameter was not validated - any non-txt value fell through to JSON. While functionally okay, this was inconsistent with the API contract (which documents only 'json' and 'txt') and could mask client bugs passing invalid format values.
+
+**File**: `backend/app/api/v1/endpoints/admin_batch.py:759-765`
+
+**Solution**: Added explicit format validation before processing:
+
+```python
+# Validate format parameter
+format_lower = format.lower()
+if format_lower not in ("json", "txt"):
+    raise HTTPException(
+        status_code=400,
+        detail=f"Invalid format '{format}'. Supported formats: 'json', 'txt'"
+    )
+```
+
+Now the endpoint returns 400 Bad Request for unsupported format values, making the API contract explicit and helping surface client bugs early.
+
+---
+
+### Summary of All Fixes
+
+| Fix | Severity | Issue | Resolution |
+|-----|----------|-------|------------|
+| 1 | Medium | DB fallback hardcoded "completed" status | Fetch actual status from DB |
+| 2 | Medium | Fire-and-forget race condition | Conditional UPDATE with jsonb_array_length |
+| 3 | Low | DB fallback returns most recent run | Documented as future enhancement |
+| 4 | Medium | Wrong phase counter mapping | Derive from phase_durations |
+| 5 | Medium | Early phase failure loses logs | Fallback INSERT when no record |
+| 6 | Medium | Count endpoint fetches full logs | Added count_only parameter |
+| 7 | Low | Format not validated | Return 400 for invalid formats |
