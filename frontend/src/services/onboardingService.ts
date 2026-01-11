@@ -91,7 +91,7 @@ export interface PhaseDetail {
 
 export interface OnboardingStatusResponse {
   portfolio_id: string;
-  status: 'running' | 'completed' | 'failed' | 'not_found';
+  status: 'running' | 'completed' | 'partial' | 'failed' | 'not_found';
   started_at: string | null;
   elapsed_seconds: number;
   overall_progress: OverallProgress | null;

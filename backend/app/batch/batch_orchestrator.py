@@ -739,7 +739,8 @@ class BatchOrchestrator:
                     calculation_date=calc_date,
                     portfolio_ids=portfolios_to_process,
                     run_sector_analysis=(calc_date == target_date),
-                    price_cache=price_cache
+                    price_cache=price_cache,
+                    is_final_date=(i == len(missing_dates)),  # Phase 7.4.1: Run phases 0,2,5 on final date
                 )
 
                 results.append(result)
@@ -1392,6 +1393,7 @@ class BatchOrchestrator:
         portfolio_ids: Optional[List[str]] = None,
         run_sector_analysis: bool = True,
         price_cache: Optional[PriceCache] = None,
+        is_final_date: bool = False,
     ) -> Dict[str, Any]:
         """
         Run Phases 0, 2-6 for a single date (Phase 1 already completed).
@@ -1405,6 +1407,7 @@ class BatchOrchestrator:
             portfolio_ids: Specific portfolios (None = all)
             run_sector_analysis: Whether to run sector analysis
             price_cache: Populated price cache
+            is_final_date: Whether this is the last date in the batch (Phase 7.4.1)
 
         Returns:
             Summary of batch run
@@ -1429,7 +1432,8 @@ class BatchOrchestrator:
         phase4_result: Dict[str, Any] = {}
 
         # OPTIMIZATION: Company profiles and fundamentals only needed on current/final date
-        is_historical = calculation_date < date.today()
+        # Phase 7.4.1 Fix: Also run on final date of batch to ensure onboarding gets these phases
+        is_historical = calculation_date < date.today() and not is_final_date
 
         # Phase 0: Company Profile Sync (BEFORE all calculations)
         # Only run on final/current date to get fresh beta values, sector, industry

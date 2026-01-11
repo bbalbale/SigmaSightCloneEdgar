@@ -6,13 +6,11 @@ import { useOnboardingStatus } from '@/hooks/useOnboardingStatus'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { onboardingService } from '@/services/onboardingService'
 import { OnboardingProgress } from '@/components/onboarding/OnboardingProgress'
-import { OnboardingComplete } from '@/components/onboarding/OnboardingComplete'
-import { OnboardingError } from '@/components/onboarding/OnboardingError'
 import { OnboardingStatusUnavailable } from '@/components/onboarding/OnboardingStatusUnavailable'
 import { Loader2 } from 'lucide-react'
 
 /**
- * Onboarding Progress Page (Phase 7.2)
+ * Onboarding Progress Page (Phase 7.6 - Unified Progress/Completion)
  *
  * Route: /onboarding/progress?portfolioId=xxx
  *
@@ -20,7 +18,10 @@ import { Loader2 } from 'lucide-react'
  * Polls the status endpoint every 2 seconds and displays:
  * - Phase-by-phase progress with completion percentages
  * - Activity log with per-symbol/per-date granularity
- * - Completion/Error screens with download log option
+ * - Same screen transitions to completion/error state without page change
+ *
+ * Phase 7.6: OnboardingProgress now handles all states (running, completed, partial, failed)
+ * in a unified view that preserves context during state transitions.
  */
 export default function OnboardingProgressPage() {
   const router = useRouter()
@@ -50,10 +51,6 @@ export default function OnboardingProgressPage() {
   })
 
   // Navigation handlers
-  const handleContinueToDashboard = useCallback(() => {
-    router.push('/command-center')
-  }, [router])
-
   const handleRetry = useCallback(() => {
     // Navigate back to upload page to retry
     router.push('/onboarding/upload')
@@ -113,28 +110,14 @@ export default function OnboardingProgressPage() {
     )
   }
 
-  // Status completed
-  if (status?.status === 'completed') {
-    return (
-      <OnboardingComplete
-        status={status}
-        portfolioName={portfolioName}
-        onContinue={handleContinueToDashboard}
-      />
-    )
-  }
-
-  // Status failed
-  if (status?.status === 'failed') {
-    return (
-      <OnboardingError
-        status={status}
-        onRetry={handleRetry}
-        onContinue={handleContinueToDashboard}
-      />
-    )
-  }
-
-  // Running or loading
-  return <OnboardingProgress status={status} isLoading={isLoading} />
+  // Phase 7.6: Unified OnboardingProgress handles all states
+  // (running, completed, partial, failed)
+  return (
+    <OnboardingProgress
+      status={status}
+      isLoading={isLoading}
+      portfolioName={portfolioName}
+      onRetry={handleRetry}
+    />
+  )
 }

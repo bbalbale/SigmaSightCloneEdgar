@@ -32,7 +32,7 @@ const MIN_NOT_FOUND_COUNT = 5  // At least 5 consecutive not_found responses
  * Hook for polling onboarding batch processing status
  *
  * Polls the status endpoint every 2 seconds during active processing.
- * Automatically stops polling when status is "completed" or "failed".
+ * Automatically stops polling when status is terminal: "completed", "partial", or "failed".
  * Tracks consecutive "not_found" responses for UI handling.
  * Includes grace period before showing "Status Unavailable" to handle race conditions.
  */
@@ -73,8 +73,8 @@ export function useOnboardingStatus(options: UseOnboardingStatusOptions): UseOnb
 
       setIsLoading(false)
 
-      // Stop polling if completed or failed
-      if (response.status === 'completed' || response.status === 'failed') {
+      // Stop polling if terminal state (completed, partial, or failed)
+      if (response.status === 'completed' || response.status === 'partial' || response.status === 'failed') {
         if (pollIntervalRef.current) {
           clearInterval(pollIntervalRef.current)
           pollIntervalRef.current = null
@@ -97,7 +97,7 @@ export function useOnboardingStatus(options: UseOnboardingStatusOptions): UseOnb
 
     fetchStatus()
 
-    // Restart polling if it was stopped (e.g., after completed/failed status)
+    // Restart polling if it was stopped (e.g., after completed/partial/failed status)
     if (!pollIntervalRef.current && enabled && portfolioId) {
       pollIntervalRef.current = setInterval(fetchStatus, pollInterval)
     }

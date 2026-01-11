@@ -32,7 +32,7 @@ export default function OnboardingUploadPage() {
 
   // Start onboarding session on mount (only for normal onboarding, not from Settings)
   // Note: Session is NOT cleared on unmount - it persists through redirect to progress page
-  // Session is cleared by: OnboardingComplete (success), logout, or starting a new session
+  // Session is cleared by: OnboardingProgress (on terminal state), logout, or starting a new session
   useEffect(() => {
     initSession()
   }, [initSession])

@@ -1212,3 +1212,286 @@ If issues arise, the optimization can be disabled by:
 1. Setting `USE_BULK_FETCH = False` in market_data_collector.py
 2. Falling back to current date-by-date behavior
 3. No database schema changes required
+
+---
+
+## 13. Phase 7.6: Unified Progress/Completion Screen
+
+**Created**: 2026-01-11
+**Status**: Proposed
+**Priority**: Medium (UX improvement)
+
+### 13.1 Problem Statement
+
+The current onboarding flow has two completely different screens:
+1. **Progress Screen** (`OnboardingProgress.tsx`) - Shows rich information during processing:
+   - 9 phases with real-time progress bars
+   - Activity log with detailed messages
+   - Elapsed time and percentage complete
+
+2. **Completion Screen** (`OnboardingComplete.tsx`) - Shows minimal summary:
+   - Simple checkmark icon
+   - "6/6 phases completed" text
+   - Total time
+   - Download Log + Dashboard buttons
+
+**UX Problem**: When the batch completes, all the rich progress information is discarded. Users lose visibility into what phases ran, how long each took, and the activity log history. This is a jarring transition that removes useful context.
+
+### 13.2 Proposed Solution
+
+**Keep the same layout** but change the **state** when batch completes. The `OnboardingProgress` component handles both running and completed states.
+
+### 13.3 UI State Comparison
+
+| Element | During Processing | On Completion |
+|---------|------------------|---------------|
+| **Icon** | 🚀 Rocket (animated) | ✅ Green checkmark |
+| **Title** | "Setting Up Your Portfolio" | "Portfolio Setup Complete!" |
+| **Subtitle** | "Analyzing your portfolio in 9 processing phases." | "Your portfolio '{name}' is ready." |
+| **Phase List** | Live progress bars, spinners | All green checkmarks with durations |
+| **Activity Log** | Live updates (auto-scroll) | Retained, scrollable (no auto-scroll) |
+| **Footer Left** | "Elapsed: 12s" | "Total time: 17s" |
+| **Footer Right** | "Overall: 60% complete" | "9/9 phases completed" |
+| **Buttons** | None | "Download Log" + "View Portfolio Dashboard →" |
+
+### 13.4 Visual Mockup - Completion State
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                                                                     │
+│   ✅ Portfolio Setup Complete!                                      │
+│                                                                     │
+│   Your portfolio "Tech 4" is ready.                                 │
+│                                                                     │
+│   ══════════════════════════════════════════════════════════════    │
+│                                                                     │
+│   PHASE PROGRESS                                                    │
+│                                                                     │
+│   ✅ Market Data Collection                                   0s    │
+│   ✅ Factor Analysis                                          2s    │
+│   ✅ Symbol Metrics                                           0s    │
+│   ✅ Company Profile Sync                                     3s    │
+│   ✅ Fundamental Data Collection                              1s    │
+│   ✅ P&L Calculation & Snapshots                             15s    │
+│   ✅ Position Market Value Updates                           15s    │
+│   ✅ Sector Tag Restoration                                   0s    │
+│   ✅ Risk Analytics                                          15s    │
+│                                                                     │
+│   ══════════════════════════════════════════════════════════════    │
+│                                                                     │
+│   📋 ACTIVITY LOG                                                   │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │ 10:38:28  Starting Market Data Collection...                │   │
+│   │ 10:38:28  Market Data Collection: 0 symbols fetched         │   │
+│   │ 10:38:29  Starting Factor Analysis...                       │   │
+│   │ 10:38:31  Factor Analysis: 24 symbols analyzed              │   │
+│   │ ...                                                         │   │
+│   │ 10:38:46  Batch complete: 5/5 dates processed in 17s        │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│   ══════════════════════════════════════════════════════════════    │
+│                                                                     │
+│   ⏱️  Total time: 17s                       ✅ 9/9 phases completed │
+│                                                                     │
+│   ══════════════════════════════════════════════════════════════    │
+│                                                                     │
+│            [ 📥 Download Log ]    [ View Portfolio Dashboard → ]    │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+### 13.5 Implementation Details
+
+#### 13.5.1 Component Changes
+
+**File**: `frontend/src/components/onboarding/OnboardingProgress.tsx`
+
+Add `isComplete` prop or derive from `status.status === 'completed'`:
+
+```typescript
+interface OnboardingProgressProps {
+  status: OnboardingStatusResponse | null
+  isLoading?: boolean
+}
+
+export function OnboardingProgress({ status, isLoading = false }: OnboardingProgressProps) {
+  const isComplete = status?.status === 'completed'
+  const isFailed = status?.status === 'failed'
+
+  // Conditional rendering based on state
+  const icon = isComplete ? <CheckCircle /> : isFailed ? <XCircle /> : <Rocket />
+  const title = isComplete ? 'Portfolio Setup Complete!' :
+                isFailed ? 'Setup Interrupted' :
+                'Setting Up Your Portfolio'
+  // ... etc
+}
+```
+
+#### 13.5.2 New Button Section
+
+Add button section at bottom, only visible when complete or failed:
+
+```typescript
+{(isComplete || isFailed) && (
+  <div className="flex gap-4 justify-center mt-6">
+    <DownloadLogButton portfolioId={status.portfolio_id} />
+    <Button onClick={() => router.push('/command-center')}>
+      View Portfolio Dashboard →
+    </Button>
+  </div>
+)}
+```
+
+#### 13.5.3 Page Integration Change
+
+**File**: `frontend/app/onboarding/progress/page.tsx`
+
+Remove the conditional rendering that switches to `OnboardingComplete`:
+
+```typescript
+// BEFORE:
+if (status?.status === 'completed') {
+  return <OnboardingComplete status={status} />
+}
+return <OnboardingProgress status={status} />
+
+// AFTER:
+return <OnboardingProgress status={status} />
+// OnboardingProgress now handles all states internally
+```
+
+#### 13.5.4 Deprecate OnboardingComplete
+
+After implementation, `OnboardingComplete.tsx` can be deprecated or removed since its functionality is absorbed into `OnboardingProgress.tsx`.
+
+### 13.6 Benefits
+
+1. **Seamless transition** - No jarring screen change when batch completes
+2. **Preserved context** - Users see exactly what phases ran and their durations
+3. **Activity log retained** - Can scroll through history without downloading
+4. **Consistent layout** - Same structure, different state
+5. **Better debugging** - Users can review activity log before deciding to download
+
+### 13.7 All Terminal States
+
+The backend returns these statuses: `running`, `completed`, `partial`, `failed`, `not_found`.
+
+The unified screen must handle ALL terminal states:
+
+#### 13.7.1 Completed State
+| Element | Value |
+|---------|-------|
+| **Icon** | ✅ Green checkmark |
+| **Title** | "Portfolio Setup Complete!" |
+| **Subtitle** | "Your portfolio '{name}' is ready." |
+| **Phase List** | All phases ✅ with durations |
+| **Activity Log** | Retained, scrollable |
+| **Footer** | "Total time: Xs" + "9/9 phases completed" |
+| **Buttons** | "Download Log" + "View Portfolio Dashboard →" |
+
+#### 13.7.2 Partial State (Some dates failed)
+| Element | Value |
+|---------|-------|
+| **Icon** | ⚠️ Yellow warning |
+| **Title** | "Portfolio Setup Completed with Warnings" |
+| **Subtitle** | "Your portfolio is ready, but some data may be incomplete." |
+| **Phase List** | Completed phases ✅, warning phases ⚠️ |
+| **Activity Log** | Retained with warnings visible |
+| **Footer** | "Total time: Xs" + "X/9 phases completed" |
+| **Buttons** | "Download Log" + "View Portfolio Dashboard →" |
+
+#### 13.7.3 Failed State
+| Element | Value |
+|---------|-------|
+| **Icon** | ❌ Red X |
+| **Title** | "Setup Interrupted" |
+| **Subtitle** | "We encountered an issue. Some features may have limited data." |
+| **Phase List** | Completed phases ✅, failed phase ❌, skipped phases ⏳ |
+| **Activity Log** | Retained with error messages visible |
+| **Footer** | "Completed: X/9 phases" |
+| **Buttons** | "Download Log" + "Retry Setup" + "View Portfolio Anyway →" |
+
+#### 13.7.4 State Mapping Logic
+
+```typescript
+// Derive UI state from backend status
+const getUIState = (status: string): 'running' | 'completed' | 'partial' | 'failed' => {
+  switch (status) {
+    case 'completed':
+      return 'completed'
+    case 'partial':
+      return 'partial'  // Distinct state, not "completed"
+    case 'failed':
+      return 'failed'
+    case 'running':
+    case 'not_found':
+    default:
+      return 'running'  // Keep polling
+  }
+}
+
+// Stop polling when terminal
+const isTerminal = (status: string): boolean => {
+  return ['completed', 'partial', 'failed'].includes(status)
+}
+```
+
+### 13.8 Implementation Checklist
+
+- [ ] Modify `OnboardingProgress.tsx` to handle `completed` state
+- [ ] Modify `OnboardingProgress.tsx` to handle `partial` state (Code Review Finding)
+- [ ] Modify `OnboardingProgress.tsx` to handle `failed` state
+- [ ] Add `getUIState()` and `isTerminal()` helper functions
+- [ ] Add button section (Download Log + Dashboard) for terminal states
+- [ ] Update `progress/page.tsx` to remove conditional routing to OnboardingComplete
+- [ ] Update footer stats to show completion summary when done
+- [ ] Disable activity log auto-scroll when terminal (allow manual scrolling)
+- [ ] Test transition from running → completed
+- [ ] Test transition from running → partial
+- [ ] Test transition from running → failed
+- [ ] Follow deprecation strategy for `OnboardingComplete.tsx` (see 13.10)
+
+### 13.9 OnboardingComplete.tsx Deprecation Strategy (Code Review Finding)
+
+**Issue**: Removing `OnboardingComplete.tsx` immediately could break other routes or imports.
+
+**Strategy**: Phased deprecation over 2 releases.
+
+#### Phase 1: This Release
+1. Keep `OnboardingComplete.tsx` file but add deprecation notice:
+   ```typescript
+   /**
+    * @deprecated Use OnboardingProgress with completed state instead.
+    * This component will be removed in a future release.
+    * See Phase 7.6 in TESTSCOTTY_BATCH_STATUS_UI.md
+    */
+   ```
+2. Update `progress/page.tsx` to use unified `OnboardingProgress`
+3. Search codebase for other references:
+   ```bash
+   grep -r "OnboardingComplete" frontend/
+   ```
+4. Document any found references in this section
+
+#### Phase 2: Next Release
+1. Remove `OnboardingComplete.tsx` file
+2. Remove any remaining imports
+3. Update documentation
+
+#### Reference Check (to be filled during implementation)
+- [ ] `frontend/app/onboarding/progress/page.tsx` - Primary usage (will be updated)
+- [ ] Other routes: (list any found)
+- [ ] Admin flows: (list any found)
+- [ ] Deep links: (list any found)
+
+### 13.10 Acceptance Criteria
+
+- [ ] Same layout maintained during and after processing
+- [ ] All 9 phases visible on completion with their durations
+- [ ] Activity log preserved and scrollable on completion
+- [ ] Download Log and Dashboard buttons appear on terminal states
+- [ ] Footer shows "Total time" and "X/X phases completed" on completion
+- [ ] No jarring screen transition when batch completes
+- [ ] `partial` status shows distinct warning state (not treated as completed)
+- [ ] `failed` status shows distinct error state with retry option
+- [ ] Polling stops correctly for all terminal states (completed, partial, failed)

@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * @deprecated Phase 7.6: Use OnboardingProgress with failed state instead.
+ * This component will be removed in a future release.
+ *
+ * OnboardingProgress now handles all states (running, completed, partial, failed)
+ * in a unified view that preserves context during state transitions.
+ *
+ * See Section 13 in TESTSCOTTY_BATCH_STATUS_UI.md for details.
+ */
+
 import { AlertTriangle, CheckCircle, XCircle, ArrowRight, RotateCcw } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -13,9 +23,9 @@ export interface OnboardingErrorProps {
 }
 
 /**
- * Error/failure screen shown when batch processing fails
- *
- * Shows what completed, what failed, and options to retry or continue anyway.
+ * @deprecated Phase 7.6: Use OnboardingProgress with failed state instead.
+ * Error/failure screen shown when batch processing fails.
+ * This component is deprecated and will be removed in a future release.
  */
 export function OnboardingError({
   status,

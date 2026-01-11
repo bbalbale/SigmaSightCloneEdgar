@@ -12,6 +12,8 @@ export interface ActivityLogProps {
   }>
   maxHeight?: string
   className?: string
+  /** Whether to auto-scroll to bottom when new entries arrive. Defaults to true. */
+  autoScroll?: boolean
 }
 
 /**
@@ -24,6 +26,7 @@ export function ActivityLog({
   entries,
   maxHeight = '250px',
   className,
+  autoScroll = true,
 }: ActivityLogProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [isUserScrolled, setIsUserScrolled] = useState(false)
@@ -40,12 +43,12 @@ export function ActivityLog({
     setShowScrollIndicator(!isAtBottom)
   }
 
-  // Auto-scroll to bottom when new entries arrive (if user hasn't scrolled up)
+  // Auto-scroll to bottom when new entries arrive (if user hasn't scrolled up and autoScroll is enabled)
   useEffect(() => {
-    if (!containerRef.current || isUserScrolled) return
+    if (!containerRef.current || isUserScrolled || !autoScroll) return
 
     containerRef.current.scrollTop = containerRef.current.scrollHeight
-  }, [entries, isUserScrolled])
+  }, [entries, isUserScrolled, autoScroll])
 
   // Scroll to bottom when indicator is clicked
   const scrollToBottom = () => {

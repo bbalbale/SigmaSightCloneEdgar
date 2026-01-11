@@ -1,5 +1,15 @@
 'use client'
 
+/**
+ * @deprecated Phase 7.6: Use OnboardingProgress with completed state instead.
+ * This component will be removed in a future release.
+ *
+ * OnboardingProgress now handles all states (running, completed, partial, failed)
+ * in a unified view that preserves context during state transitions.
+ *
+ * See Section 13 in TESTSCOTTY_BATCH_STATUS_UI.md for details.
+ */
+
 import { useEffect } from 'react'
 import { CheckCircle, ArrowRight } from 'lucide-react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,7 +42,9 @@ export interface OnboardingCompleteProps {
 }
 
 /**
- * Completion screen shown after batch processing finishes successfully
+ * @deprecated Phase 7.6: Use OnboardingProgress with completed state instead.
+ * Completion screen shown after batch processing finishes successfully.
+ * This component is deprecated and will be removed in a future release.
  */
 export function OnboardingComplete({
   status,
