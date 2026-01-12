@@ -1,8 +1,8 @@
 # 03: Database Schema Changes
 
-## Design Principle: Reuse Existing Tables
+## Design Principle: Reuse Existing Tables, Minimize New Tables
 
-**We have existing tables that already serve most of our needs.** The V2 architecture reuses them rather than creating duplicates.
+**We have existing tables that already serve most of our needs.** The V2 architecture reuses them rather than creating duplicates. For transient operations like symbol onboarding, we use in-memory tracking instead of database tables.
 
 ---
 
@@ -107,29 +107,7 @@ class SymbolDailyMetrics(Base):
 
 ## New Tables
 
-### `symbol_onboarding_queue` (NEW)
-
-Async job queue for new symbol processing during user onboarding.
-
-```sql
-CREATE TABLE symbol_onboarding_queue (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    symbol VARCHAR(20) NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending',  -- pending, processing, completed, failed
-    requested_by UUID REFERENCES users(id),
-    priority VARCHAR(10) DEFAULT 'normal',  -- high, normal, low
-    error_message TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    started_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ
-);
-
-CREATE INDEX idx_queue_status ON symbol_onboarding_queue(status, priority, created_at);
-
--- Prevent duplicate pending/processing jobs for same symbol
-CREATE UNIQUE INDEX idx_queue_pending_symbol ON symbol_onboarding_queue(symbol)
-    WHERE status IN ('pending', 'processing');
-```
+**None required.** All V2 functionality uses existing tables plus in-memory tracking.
 
 ---
 
@@ -140,73 +118,28 @@ CREATE UNIQUE INDEX idx_queue_pending_symbol ON symbol_onboarding_queue(symbol)
 | `symbol_prices_daily` | `market_data_cache` already has this data |
 | `symbol_factor_exposures` (new) | Already exists in `symbol_analytics.py` |
 | `portfolio_analytics_cache` | Using in-memory cache instead (~65MB) |
+| `symbol_onboarding_queue` | Using in-memory queue instead (transient, goes stale after processing) |
 
 ---
 
 ## Migration Plan
 
-**Single Migration File**:
+**Single Migration File** (columns only, no new tables):
 
 ```python
-# migrations_core/versions/xxx_add_v2_batch_tables.py
+# migrations_core/versions/xxx_add_v2_symbol_tracking.py
 
 def upgrade():
-    # 1. Create symbol_onboarding_queue (NEW)
-    op.create_table(
-        'symbol_onboarding_queue',
-        sa.Column('id', sa.UUID, primary_key=True, server_default=sa.text('gen_random_uuid()')),
-        sa.Column('symbol', sa.String(20), nullable=False),
-        sa.Column('status', sa.String(20), server_default='pending'),
-        sa.Column('requested_by', sa.UUID, sa.ForeignKey('users.id')),
-        sa.Column('priority', sa.String(10), server_default='normal'),
-        sa.Column('error_message', sa.Text),
-        sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.func.now()),
-        sa.Column('started_at', sa.DateTime(timezone=True)),
-        sa.Column('completed_at', sa.DateTime(timezone=True))
-    )
-
-    # 2. Add tracking columns to symbol_universe
+    # Add tracking columns to symbol_universe
     op.add_column('symbol_universe', sa.Column('added_source', sa.String(50)))
     op.add_column('symbol_universe', sa.Column('last_price_date', sa.Date))
     op.add_column('symbol_universe', sa.Column('last_factor_date', sa.Date))
 
-    # 3. Create indexes
-    op.create_index('idx_queue_status', 'symbol_onboarding_queue', ['status', 'priority', 'created_at'])
-
 
 def downgrade():
-    op.drop_table('symbol_onboarding_queue')
     op.drop_column('symbol_universe', 'added_source')
     op.drop_column('symbol_universe', 'last_price_date')
     op.drop_column('symbol_universe', 'last_factor_date')
-```
-
----
-
-## Model Definitions
-
-Only one new model needed:
-
-```python
-# app/models/symbol_onboarding.py
-
-from sqlalchemy import Column, String, DateTime, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func, text
-from app.database import Base
-
-class SymbolOnboardingQueue(Base):
-    __tablename__ = 'symbol_onboarding_queue'
-
-    id = Column(UUID(as_uuid=True), primary_key=True, server_default=text('gen_random_uuid()'))
-    symbol = Column(String(20), nullable=False)
-    status = Column(String(20), server_default='pending')
-    requested_by = Column(UUID(as_uuid=True), ForeignKey('users.id'))
-    priority = Column(String(10), server_default='normal')
-    error_message = Column(Text)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    started_at = Column(DateTime(timezone=True))
-    completed_at = Column(DateTime(timezone=True))
 ```
 
 ---

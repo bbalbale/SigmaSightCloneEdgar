@@ -189,73 +189,60 @@ async def upsert_symbol_price(symbol: str, date: date, price: Decimal):
 
 ### Symbol Onboarding
 
-**Rule**: Deduplicate at queue time.
+**Rule**: Deduplicate at queue time using in-memory queue.
 
 ```python
-async def queue_symbol_onboarding(symbol: str, requested_by: UUID) -> bool:
+async def enqueue_symbol(symbol: str, requested_by: Optional[UUID] = None) -> bool:
     """
-    Queue symbol for onboarding.
+    Add symbol to in-memory onboarding queue.
 
     Idempotent: If symbol already queued/processing, returns False.
     """
-    # Check if already queued or processing
-    existing = await db.execute(
-        select(SymbolOnboardingQueue)
-        .where(
-            SymbolOnboardingQueue.symbol == symbol.upper(),
-            SymbolOnboardingQueue.status.in_(['pending', 'processing'])
-        )
-    )
+    symbol = symbol.upper()
 
-    if existing.scalar_one_or_none():
+    # Check if already in queue (in-memory check)
+    if symbol in symbol_onboarding_queue._jobs:
         logger.info(f"Symbol {symbol} already in queue, skipping")
         return False
 
-    # Check if already in universe
-    in_universe = await db.execute(
-        select(SymbolUniverse)
-        .where(
-            SymbolUniverse.symbol == symbol.upper(),
-            SymbolUniverse.status == 'active'
+    # Check if already in universe (database check)
+    async with get_async_session() as db:
+        in_universe = await db.execute(
+            select(SymbolUniverse)
+            .where(
+                SymbolUniverse.symbol == symbol,
+                SymbolUniverse.is_active == True
+            )
         )
-    )
 
-    if in_universe.scalar_one_or_none():
-        logger.info(f"Symbol {symbol} already in universe, skipping")
-        return False
+        if in_universe.scalar_one_or_none():
+            logger.info(f"Symbol {symbol} already in universe, skipping")
+            return False
 
-    # Add to queue
-    job = SymbolOnboardingQueue(
-        symbol=symbol.upper(),
-        status='pending',
-        requested_by=requested_by
-    )
-    db.add(job)
-    await db.commit()
-    return True
+    # Add to in-memory queue
+    return await symbol_onboarding_queue.enqueue(symbol, requested_by)
 ```
 
 ---
 
 ## Queue Backpressure
 
+Backpressure is built into the in-memory queue:
+
 ```python
-async def queue_symbol_onboarding(symbol: str, requested_by: UUID) -> bool:
-    """Queue with backpressure check."""
+class SymbolOnboardingQueue:
+    def __init__(self, max_queue_depth: int = 50, max_concurrent: int = 3):
+        self.max_queue_depth = max_queue_depth
+        self._semaphore = asyncio.Semaphore(max_concurrent)
 
-    # Check queue depth
-    queue_depth = await db.execute(
-        select(func.count(SymbolOnboardingQueue.id))
-        .where(SymbolOnboardingQueue.status.in_(['pending', 'processing']))
-    )
+    async def enqueue(self, symbol: str, ...) -> bool:
+        # Check queue depth
+        pending_count = sum(1 for j in self._jobs.values()
+                          if j.status in ('pending', 'processing'))
+        if pending_count >= self.max_queue_depth:
+            raise QueueFullError(f"Queue full ({self.max_queue_depth} max)")
 
-    if queue_depth.scalar() >= settings.symbol_onboarding_max_queue:
-        raise QueueFullError(
-            f"Symbol onboarding queue is full ({settings.symbol_onboarding_max_queue}). "
-            "Try again later."
-        )
-
-    # ... rest of queue logic ...
+        # Add to queue...
 ```
 
 ---
@@ -269,4 +256,4 @@ async def queue_symbol_onboarding(symbol: str, requested_by: UUID) -> bool:
 | Price fetch (Polygon) | 1 | Upsert | 4/min |
 | Factor calculation | 10 | Upsert | N/A (local) |
 | Portfolio refresh | 10 | Skip if exists | N/A |
-| Symbol onboarding | 3 | Dedupe at queue | N/A |
+| Symbol onboarding | 3 | In-memory dedupe | N/A |

@@ -138,37 +138,24 @@ class CacheStatusResponse(BaseModel):
 
 ```python
 @router.get("/admin/onboarding/queue")
-async def get_onboarding_queue(
-    db: AsyncSession = Depends(get_db)
-) -> OnboardingQueueStatus:
-    """Get symbol onboarding queue status."""
+async def get_onboarding_queue() -> OnboardingQueueStatus:
+    """Get symbol onboarding queue status from in-memory queue."""
+    from app.batch.symbol_onboarding import symbol_onboarding_queue
 
-    # Count by status
-    counts = await db.execute(
-        select(
-            SymbolOnboardingQueue.status,
-            func.count(SymbolOnboardingQueue.id)
-        )
-        .group_by(SymbolOnboardingQueue.status)
-    )
-    status_counts = {row[0]: row[1] for row in counts.all()}
+    # Get all jobs from in-memory queue
+    jobs = symbol_onboarding_queue._jobs
 
-    # Get pending symbols
-    pending = await db.execute(
-        select(SymbolOnboardingQueue.symbol, SymbolOnboardingQueue.created_at)
-        .where(SymbolOnboardingQueue.status.in_(['pending', 'processing']))
-        .order_by(SymbolOnboardingQueue.created_at)
-        .limit(20)
-    )
+    pending = [j for j in jobs.values() if j.status == 'pending']
+    processing = [j for j in jobs.values() if j.status == 'processing']
+    failed = [j for j in jobs.values() if j.status == 'failed']
 
     return OnboardingQueueStatus(
-        pending_count=status_counts.get('pending', 0),
-        processing_count=status_counts.get('processing', 0),
-        completed_today=await get_completed_today_count(db),
-        failed_today=await get_failed_today_count(db),
+        pending_count=len(pending),
+        processing_count=len(processing),
+        failed_count=len(failed),
         pending_symbols=[
-            {"symbol": r.symbol, "queued_at": r.created_at}
-            for r in pending.all()
+            {"symbol": j.symbol, "queued_at": j.started_at}
+            for j in pending[:20]
         ]
     )
 
@@ -176,10 +163,11 @@ async def get_onboarding_queue(
 class OnboardingQueueStatus(BaseModel):
     pending_count: int
     processing_count: int
-    completed_today: int
-    failed_today: int
+    failed_count: int
     pending_symbols: List[dict]
 ```
+
+**Note**: Onboarding queue is in-memory, so completed jobs are removed immediately (no stale data). Failed jobs remain until server restart or manual clear.
 
 #### 4. Data Freshness (from freshness doc)
 
