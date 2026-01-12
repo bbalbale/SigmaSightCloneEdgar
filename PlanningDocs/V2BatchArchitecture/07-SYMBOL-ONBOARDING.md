@@ -158,6 +158,114 @@ class SymbolOnboardingRunner:
         # Mark complete
         job.status = 'completed'
         job.completed_at = utc_now()
+
+        # Phase 4: Update affected portfolio snapshots
+        await update_portfolios_with_new_symbol(db, symbol)
+```
+
+---
+
+## Update Portfolio Snapshots (Fix for Partial Onboarding)
+
+When a symbol completes onboarding, we need to update any portfolio snapshots that excluded it:
+
+```python
+async def update_portfolios_with_new_symbol(db: AsyncSession, symbol: str) -> int:
+    """
+    Find portfolios that have positions in this symbol but excluded it
+    from their snapshot, and update them.
+
+    Called after symbol onboarding completes.
+    """
+    # Find portfolios with positions in this symbol
+    portfolios_with_symbol = await db.execute(
+        select(Position.portfolio_id)
+        .where(
+            Position.symbol == symbol.upper(),
+            Position.exit_date.is_(None),
+            Position.deleted_at.is_(None)
+        )
+        .distinct()
+    )
+    portfolio_ids = [row[0] for row in portfolios_with_symbol.all()]
+
+    if not portfolio_ids:
+        return 0
+
+    updated_count = 0
+    latest_price_date = await get_latest_price_date(db)
+
+    for portfolio_id in portfolio_ids:
+        # Get the most recent snapshot for this portfolio
+        latest_snapshot = await db.execute(
+            select(PortfolioSnapshot)
+            .where(PortfolioSnapshot.portfolio_id == portfolio_id)
+            .order_by(PortfolioSnapshot.snapshot_date.desc())
+            .limit(1)
+        )
+        snapshot = latest_snapshot.scalar_one_or_none()
+
+        if snapshot:
+            # Recalculate snapshot to include new symbol
+            await recalculate_snapshot_with_symbol(
+                db, snapshot, symbol, latest_price_date
+            )
+            updated_count += 1
+
+    logger.info(f"Updated {updated_count} portfolio snapshots with new symbol {symbol}")
+    return updated_count
+
+
+async def recalculate_snapshot_with_symbol(
+    db: AsyncSession,
+    snapshot: PortfolioSnapshot,
+    new_symbol: str,
+    price_date: date
+) -> None:
+    """
+    Recalculate a snapshot to include a newly onboarded symbol.
+    """
+    # Get the position for this symbol
+    position = await db.execute(
+        select(Position)
+        .where(
+            Position.portfolio_id == snapshot.portfolio_id,
+            Position.symbol == new_symbol.upper(),
+            Position.exit_date.is_(None)
+        )
+    )
+    pos = position.scalar_one_or_none()
+
+    if not pos:
+        return
+
+    # Get price for the symbol
+    price = await get_cached_price_for_date(db, new_symbol, price_date)
+
+    if not price:
+        return
+
+    # Calculate additional value from this position
+    additional_value = pos.quantity * price
+    additional_cost = pos.quantity * pos.entry_price
+
+    # Update snapshot totals
+    snapshot.total_value += additional_value
+    snapshot.total_cost += additional_cost
+    snapshot.total_pnl = snapshot.total_value - snapshot.total_cost
+    snapshot.pnl_percent = (
+        (snapshot.total_pnl / snapshot.total_cost * 100)
+        if snapshot.total_cost else Decimal('0')
+    )
+    snapshot.position_count += 1
+
+    # Update position market value
+    pos.market_value = additional_value
+    pos.last_price = price
+    pos.last_price_date = price_date
+
+    await db.commit()
+    logger.info(f"Added {new_symbol} to snapshot for portfolio {snapshot.portfolio_id}")
 ```
 
 ---

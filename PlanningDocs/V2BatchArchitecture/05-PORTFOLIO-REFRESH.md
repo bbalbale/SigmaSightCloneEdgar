@@ -19,38 +19,42 @@ async def run_portfolio_refresh():
     """
     Cron Job 2: Portfolio Daily Refresh
 
-    Runs at 9:30 PM ET, after symbol batch completes.
+    Runs at 9:30 PM ET. Waits for symbol batch if needed.
+    Backfills any missed days.
     """
     today = get_effective_trading_date()
 
-    # Step 1: Check symbol batch completion
-    if not await is_symbol_batch_complete(today):
-        logger.error(f"Symbol batch not complete for {today}, aborting")
-        # Alert ops team
-        await send_alert("Portfolio refresh aborted - symbol batch incomplete")
-        return {"status": "aborted", "reason": "symbol_batch_incomplete"}
+    # Step 1: Wait for symbol batch completion (up to 60 min)
+    symbol_batch_ready = await wait_for_symbol_batch(today, max_wait_minutes=60)
+    if not symbol_batch_ready:
+        logger.error(f"Symbol batch not complete after 60 min, aborting")
+        await send_alert("Portfolio refresh aborted - symbol batch incomplete after 60 min wait")
+        return {"status": "aborted", "reason": "symbol_batch_timeout"}
 
-    # Step 2: Find portfolios needing today's snapshot
-    portfolios = await get_portfolios_without_snapshot(today)
-    logger.info(f"Found {len(portfolios)} portfolios needing snapshots")
+    # Step 2: Find portfolios needing snapshots (including missed days)
+    portfolios_with_gaps = await get_portfolios_needing_snapshots(today)
+    logger.info(f"Found {len(portfolios_with_gaps)} portfolios needing snapshots")
 
-    if not portfolios:
+    if not portfolios_with_gaps:
         return {"status": "complete", "portfolios_processed": 0}
 
-    # Step 3: Process each portfolio
+    # Step 3: Process each portfolio (backfill all missing dates)
     success_count = 0
     fail_count = 0
+    snapshots_created = 0
 
-    for portfolio in portfolios:
+    for portfolio, missing_dates in portfolios_with_gaps:
         try:
-            # Create snapshot using today's prices (from symbol batch)
-            await create_portfolio_snapshot(portfolio.id, today)
+            for snapshot_date in missing_dates:
+                # Only create snapshot if we have price data for that date
+                if await has_price_data_for_date(snapshot_date):
+                    await create_portfolio_snapshot(portfolio.id, snapshot_date)
+                    snapshots_created += 1
+                else:
+                    logger.warning(f"No price data for {snapshot_date}, skipping")
 
-            # Update position market values
+            # Update position market values to latest
             await update_position_market_values(portfolio.id, today)
-
-            # Invalidate analytics cache
-            await invalidate_portfolio_cache(portfolio.id)
 
             success_count += 1
         except Exception as e:
@@ -61,54 +65,38 @@ async def run_portfolio_refresh():
         "status": "complete",
         "portfolios_processed": success_count,
         "portfolios_failed": fail_count,
-        "snapshot_date": today.isoformat()
+        "snapshots_created": snapshots_created,
+        "target_date": today.isoformat()
     }
 ```
 
 ---
 
-## Portfolio Query (Replaces Watermark)
+## Wait for Symbol Batch (Fix for Timing Dependency)
+
+Instead of aborting immediately if symbol batch isn't complete, we wait and retry:
 
 ```python
-async def get_portfolios_without_snapshot(target_date: date) -> List[Portfolio]:
+async def wait_for_symbol_batch(target_date: date, max_wait_minutes: int = 60) -> bool:
     """
-    Find portfolios that need a snapshot for target_date.
+    Wait for symbol batch to complete, checking every 5 minutes.
 
-    This REPLACES the complex watermark calculation.
-    Each portfolio is independent - no more "minimum date" dragging.
+    Returns True if batch completed, False if timeout.
     """
-    query = """
-        SELECT p.id, p.name, p.user_id
-        FROM portfolios p
-        WHERE p.deleted_at IS NULL
+    check_interval = 300  # 5 minutes
+    max_attempts = max_wait_minutes // 5
 
-        -- Has at least one active position
-        AND EXISTS (
-            SELECT 1 FROM positions pos
-            WHERE pos.portfolio_id = p.id
-            AND pos.exit_date IS NULL
-            AND pos.deleted_at IS NULL
-        )
+    for attempt in range(max_attempts):
+        if await is_symbol_batch_complete(target_date):
+            logger.info(f"Symbol batch complete (attempt {attempt + 1})")
+            return True
 
-        -- Does NOT have a snapshot for target_date
-        AND NOT EXISTS (
-            SELECT 1 FROM portfolio_snapshots ps
-            WHERE ps.portfolio_id = p.id
-            AND ps.snapshot_date = :target_date
-        )
-    """
+        logger.info(f"Symbol batch not complete, waiting 5 min (attempt {attempt + 1}/{max_attempts})")
+        await asyncio.sleep(check_interval)
 
-    result = await db.execute(text(query), {"target_date": target_date})
-    return result.all()
-```
+    return False
 
-**Key benefit**: New portfolios automatically get picked up. No special handling needed.
 
----
-
-## Symbol Batch Completion Check
-
-```python
 async def is_symbol_batch_complete(target_date: date) -> bool:
     """
     Check if symbol batch completed successfully for target_date.
@@ -128,6 +116,120 @@ async def is_symbol_batch_complete(target_date: date) -> bool:
 
 ---
 
+## Backfill Missing Days (Fix for Missed Day Gap)
+
+Instead of only checking for today's snapshot, we find all missing dates:
+
+```python
+async def get_portfolios_needing_snapshots(
+    target_date: date
+) -> List[Tuple[Portfolio, List[date]]]:
+    """
+    Find portfolios with missing snapshots, including missed days.
+
+    Returns list of (portfolio, [missing_dates]) tuples.
+    Handles the case where cron failed for multiple days.
+    """
+    result = []
+
+    # Get all active portfolios
+    portfolios = await get_active_portfolios()
+
+    for portfolio in portfolios:
+        # Get the last snapshot date for this portfolio
+        last_snapshot = await get_last_snapshot_date(portfolio.id)
+
+        if last_snapshot is None:
+            # New portfolio, needs snapshot for today only
+            # (onboarding should have created initial snapshot)
+            missing_dates = [target_date]
+        else:
+            # Find all trading days between last snapshot and today
+            missing_dates = get_trading_days_between(
+                start_date=last_snapshot + timedelta(days=1),
+                end_date=target_date
+            )
+
+        if missing_dates:
+            result.append((portfolio, missing_dates))
+
+    return result
+
+
+async def get_last_snapshot_date(portfolio_id: UUID) -> Optional[date]:
+    """Get the most recent snapshot date for a portfolio."""
+    result = await db.execute(
+        select(func.max(PortfolioSnapshot.snapshot_date))
+        .where(PortfolioSnapshot.portfolio_id == portfolio_id)
+    )
+    return result.scalar()
+
+
+def get_trading_days_between(start_date: date, end_date: date) -> List[date]:
+    """
+    Get all trading days between start and end (inclusive).
+
+    Excludes weekends and US market holidays.
+    """
+    import holidays
+    us_holidays = holidays.NYSE()
+
+    trading_days = []
+    current = start_date
+
+    while current <= end_date:
+        # Skip weekends
+        if current.weekday() >= 5:
+            current += timedelta(days=1)
+            continue
+
+        # Skip holidays
+        if current in us_holidays:
+            current += timedelta(days=1)
+            continue
+
+        trading_days.append(current)
+        current += timedelta(days=1)
+
+    return trading_days
+
+
+async def has_price_data_for_date(target_date: date) -> bool:
+    """Check if we have price data for a given date."""
+    result = await db.execute(
+        select(func.count(SymbolPricesDaily.id))
+        .where(SymbolPricesDaily.price_date == target_date)
+    )
+    count = result.scalar()
+    return count > 0
+```
+
+---
+
+## Portfolio Query (Original - Still Used)
+
+```python
+async def get_active_portfolios() -> List[Portfolio]:
+    """
+    Get all active portfolios with at least one active position.
+    """
+    query = """
+        SELECT p.id, p.name, p.user_id
+        FROM portfolios p
+        WHERE p.deleted_at IS NULL
+        AND EXISTS (
+            SELECT 1 FROM positions pos
+            WHERE pos.portfolio_id = p.id
+            AND pos.exit_date IS NULL
+            AND pos.deleted_at IS NULL
+        )
+    """
+    result = await db.execute(text(query))
+    return result.all()
+```
+
+---
+
 ## Snapshot Creation
 
 ```python
@@ -141,6 +243,18 @@ async def create_portfolio_snapshot(
     Uses prices from symbol_prices_daily (populated by symbol batch).
     NEVER fetches live prices.
     """
+    # Check if snapshot already exists (idempotent)
+    existing = await db.execute(
+        select(PortfolioSnapshot)
+        .where(
+            PortfolioSnapshot.portfolio_id == portfolio_id,
+            PortfolioSnapshot.snapshot_date == snapshot_date
+        )
+    )
+    if existing.scalar_one_or_none():
+        logger.info(f"Snapshot already exists for {portfolio_id} on {snapshot_date}")
+        return existing.scalar_one()
+
     # Get all active positions
     positions = await get_active_positions(portfolio_id)
 
@@ -218,15 +332,18 @@ async def get_cached_price(symbol: str, target_date: date) -> Optional[Decimal]:
 
 **Note**: Times are in UTC on Railway. 9:00 PM ET = 01:00 UTC (EST) or 02:00 UTC (EDT).
 
+**Note**: Portfolio refresh will wait up to 60 min for symbol batch, so even if symbol batch runs long, we don't lose the day.
+
 ---
 
 ## Failure Handling
 
 | Scenario | Action |
 |----------|--------|
-| Symbol batch not complete | Abort, alert, retry next day |
+| Symbol batch not complete after 60 min | Abort, alert, portfolios backfilled next day |
 | Single portfolio fails | Log, continue with others, alert if >10% fail |
 | Price not found for symbol | Log warning, skip position, mark snapshot as partial |
+| Price data missing for entire date | Skip that date, log warning |
 | DB connection error | Retry 3x with backoff, then fail |
 
 ---
@@ -238,7 +355,8 @@ async def get_cached_price(symbol: str, target_date: date) -> Optional[Decimal]:
 record_metric("portfolio_refresh.duration_seconds", duration)
 record_metric("portfolio_refresh.portfolios_processed", success_count)
 record_metric("portfolio_refresh.portfolios_failed", fail_count)
-record_metric("portfolio_refresh.portfolios_skipped", skip_count)
+record_metric("portfolio_refresh.snapshots_created", snapshots_created)
+record_metric("portfolio_refresh.days_backfilled", days_backfilled)
 ```
 
 ---
@@ -248,7 +366,9 @@ record_metric("portfolio_refresh.portfolios_skipped", skip_count)
 This job is the "catch-all" for portfolios. But onboarding doesn't wait for it:
 
 - **User onboards at 2 PM**: Snapshot created immediately using yesterday's prices
-- **Nightly cron at 9:30 PM**: Sees portfolio already has a snapshot, skips it
+- **Nightly cron at 9:30 PM**: Sees portfolio already has today's snapshot, skips it
 - **Next day at 9:30 PM**: Creates new snapshot with new prices
 
-The query `get_portfolios_without_snapshot(today)` naturally handles this - if a portfolio already has today's snapshot (from onboarding), it's not in the result set.
+The backfill logic handles edge cases:
+- If cron fails Monday and Tuesday, Wednesday's run creates Mon + Tue + Wed snapshots
+- Only creates snapshots for dates where we have price data
