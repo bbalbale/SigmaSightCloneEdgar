@@ -140,6 +140,7 @@ async def run_symbol_batch(
         # Manual run for specific date
         result = await run_symbol_batch(date(2026, 1, 10), backfill=False)
     """
+    import sys
     start_time = datetime.now()
     job_id = str(uuid4())
 
@@ -147,6 +148,8 @@ async def run_symbol_batch(
     if target_date is None:
         target_date = get_most_recent_trading_day()
 
+    print(f"{V2_LOG_PREFIX} Starting symbol batch (job_id={job_id[:8]}, target={target_date}, backfill={backfill})")
+    sys.stdout.flush()
     logger.info(f"{V2_LOG_PREFIX} Starting symbol batch (job_id={job_id}, target={target_date}, backfill={backfill})")
 
     # Register job with tracker
@@ -159,6 +162,8 @@ async def run_symbol_batch(
     )
 
     if not batch_run_tracker.start_job_sync(job):
+        print(f"{V2_LOG_PREFIX} Symbol batch already running, aborting")
+        sys.stdout.flush()
         logger.warning(f"{V2_LOG_PREFIX} Symbol batch already running, aborting")
         return {
             "success": False,
@@ -168,12 +173,20 @@ async def run_symbol_batch(
 
     try:
         # Ensure factor definitions exist before calculating
+        print(f"{V2_LOG_PREFIX} Ensuring factor definitions...")
+        sys.stdout.flush()
         await ensure_factor_definitions()
+        print(f"{V2_LOG_PREFIX} Factor definitions ready")
+        sys.stdout.flush()
 
         if backfill:
+            print(f"{V2_LOG_PREFIX} Running with backfill...")
+            sys.stdout.flush()
             result = await _run_with_backfill(target_date, job_id)
         else:
             # Single date mode
+            print(f"{V2_LOG_PREFIX} Running single date mode for {target_date}...")
+            sys.stdout.flush()
             single_result = await _run_symbol_batch_for_date(target_date)
             await record_symbol_batch_completion(target_date, single_result, job_id)
             result = BackfillResult(
@@ -222,15 +235,23 @@ async def _run_with_backfill(target_date: date, job_id: str) -> BackfillResult:
     Returns:
         BackfillResult with all processed dates
     """
+    import sys
     start_time = datetime.now()
+
+    print(f"{V2_LOG_PREFIX} Checking last successful batch date...")
+    sys.stdout.flush()
 
     # Find last successful symbol batch date
     last_run = await get_last_symbol_batch_date()
+    print(f"{V2_LOG_PREFIX} Last successful run: {last_run}")
+    sys.stdout.flush()
 
     if last_run:
         # Get all trading days between last_run + 1 and target_date
         start_date = last_run + timedelta(days=1)
         missing_dates = get_trading_days_between(start_date, target_date)
+        print(f"{V2_LOG_PREFIX} Backfill mode: last_run={last_run}, missing_dates={len(missing_dates)}")
+        sys.stdout.flush()
         logger.info(
             f"{V2_LOG_PREFIX} Backfill mode: last_run={last_run}, "
             f"missing_dates={len(missing_dates)}"
@@ -238,6 +259,8 @@ async def _run_with_backfill(target_date: date, job_id: str) -> BackfillResult:
     else:
         # First run ever - just process target_date
         missing_dates = [target_date] if is_trading_day(target_date) else []
+        print(f"{V2_LOG_PREFIX} First run ever, processing target_date only: {missing_dates}")
+        sys.stdout.flush()
         logger.info(f"{V2_LOG_PREFIX} First run ever, processing target_date only")
 
     # Safety limit
@@ -248,6 +271,8 @@ async def _run_with_backfill(target_date: date, job_id: str) -> BackfillResult:
         missing_dates = missing_dates[-MAX_BACKFILL_DATES:]
 
     if not missing_dates:
+        print(f"{V2_LOG_PREFIX} No dates to process, already caught up")
+        sys.stdout.flush()
         logger.info(f"{V2_LOG_PREFIX} No dates to process, already caught up")
         return BackfillResult(
             success=True,
@@ -256,11 +281,16 @@ async def _run_with_backfill(target_date: date, job_id: str) -> BackfillResult:
             total_duration_seconds=0.0,
         )
 
+    print(f"{V2_LOG_PREFIX} Processing {len(missing_dates)} dates...")
+    sys.stdout.flush()
+
     # Process each missing date
     results = []
     dates_failed = 0
 
     for calc_date in missing_dates:
+        print(f"{V2_LOG_PREFIX} Processing date {calc_date} ({len(results)+1}/{len(missing_dates)})")
+        sys.stdout.flush()
         logger.info(f"{V2_LOG_PREFIX} Processing date {calc_date} ({len(results)+1}/{len(missing_dates)})")
 
         try:
@@ -313,6 +343,7 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
     Returns:
         SymbolBatchResult with phase details
     """
+    import sys
     start_time = datetime.now()
     phases = {}
     errors = []
@@ -322,14 +353,22 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
 
     try:
         # Get symbols to process
+        print(f"{V2_LOG_PREFIX} Getting symbols to process...")
+        sys.stdout.flush()
         symbols = await _get_symbols_to_process()
         symbols_processed = len(symbols)
+        print(f"{V2_LOG_PREFIX} Found {symbols_processed} symbols to process for {calc_date}")
+        sys.stdout.flush()
         logger.info(f"{V2_LOG_PREFIX} Found {symbols_processed} symbols to process for {calc_date}")
 
         # Phase 0: Company profiles (only on final date of backfill)
+        print(f"{V2_LOG_PREFIX}   Phase 0: Company profiles...")
+        sys.stdout.flush()
         phase_start = datetime.now()
         try:
             phase_0_result = await _run_phase_0_company_profiles(symbols, calc_date)
+            print(f"{V2_LOG_PREFIX}   Phase 0 complete: {phase_0_result.get('synced', 0)} synced")
+            sys.stdout.flush()
             phases["phase_0_company_profiles"] = {
                 "success": True,
                 "duration_seconds": (datetime.now() - phase_start).total_seconds(),
@@ -344,10 +383,14 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
             }
 
         # Phase 1: Market data
+        print(f"{V2_LOG_PREFIX}   Phase 1: Market data...")
+        sys.stdout.flush()
         phase_start = datetime.now()
         try:
             phase_1_result = await _run_phase_1_market_data(symbols, calc_date)
             prices_fetched = phase_1_result.get("prices_fetched", 0)
+            print(f"{V2_LOG_PREFIX}   Phase 1 complete: {prices_fetched} prices fetched")
+            sys.stdout.flush()
             phases["phase_1_market_data"] = {
                 "success": True,
                 "duration_seconds": (datetime.now() - phase_start).total_seconds(),
@@ -363,9 +406,13 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
             }
 
         # Phase 2: Fundamentals (earnings-driven)
+        print(f"{V2_LOG_PREFIX}   Phase 2: Fundamentals...")
+        sys.stdout.flush()
         phase_start = datetime.now()
         try:
             phase_2_result = await _run_phase_2_fundamentals(symbols, calc_date)
+            print(f"{V2_LOG_PREFIX}   Phase 2 complete: {phase_2_result.get('updated', 0)} updated")
+            sys.stdout.flush()
             phases["phase_2_fundamentals"] = {
                 "success": True,
                 "duration_seconds": (datetime.now() - phase_start).total_seconds(),
@@ -380,10 +427,14 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
             }
 
         # Phase 3: Factor calculations
+        print(f"{V2_LOG_PREFIX}   Phase 3: Factor calculations...")
+        sys.stdout.flush()
         phase_start = datetime.now()
         try:
             phase_3_result = await _run_phase_3_factors(symbols, calc_date)
             factors_calculated = phase_3_result.get("calculated", 0)
+            print(f"{V2_LOG_PREFIX}   Phase 3 complete: {factors_calculated} calculated")
+            sys.stdout.flush()
             phases["phase_3_factors"] = {
                 "success": True,
                 "duration_seconds": (datetime.now() - phase_start).total_seconds(),
