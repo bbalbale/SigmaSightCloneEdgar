@@ -145,7 +145,7 @@ async def simulate_batch_worker(
 
     # Endpoints that simulate batch work (DB reads)
     batch_endpoints = [
-        "/api/v1/health",  # Light - health check
+        "/health",  # Light - health check
         "/api/v1/data/prices/quotes?symbols=AAPL,GOOGL,MSFT,AMZN,NVDA",  # Medium - price lookup
     ]
 
@@ -181,7 +181,7 @@ async def simulate_api_user(
 
     # Typical user endpoints
     user_endpoints = [
-        "/api/v1/health",
+        "/health",
     ]
 
     if config.token:
@@ -204,17 +204,21 @@ async def simulate_api_user(
 
 async def run_health_check(session: aiohttp.ClientSession, config: TestConfig) -> bool:
     """Verify the server is reachable before running tests."""
-    try:
-        async with session.get(f"{config.base_url}/api/v1/health", timeout=10) as resp:
-            if resp.status == 200:
-                print(f"Health check passed: {config.base_url}")
-                return True
-            else:
-                print(f"Health check failed: HTTP {resp.status}")
-                return False
-    except Exception as e:
-        print(f"Health check failed: {e}")
-        return False
+    # Try multiple health endpoint paths (different FastAPI setups use different paths)
+    health_paths = ["/health", "/api/v1/admin/health", "/api/v1/health"]
+
+    for path in health_paths:
+        try:
+            async with session.get(f"{config.base_url}{path}", timeout=10) as resp:
+                if resp.status == 200:
+                    print(f"Health check passed: {config.base_url}{path}")
+                    return True
+        except Exception:
+            continue
+
+    print(f"Health check failed: No working health endpoint found")
+    print(f"  Tried: {', '.join(health_paths)}")
+    return False
 
 
 async def run_concurrency_test(config: TestConfig) -> TestResults:
