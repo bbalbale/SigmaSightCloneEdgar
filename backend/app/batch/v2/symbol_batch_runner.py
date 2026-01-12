@@ -4,7 +4,7 @@ V2 Symbol Batch Runner
 Nightly job that processes ALL symbols in the universe:
 1. Phase 0: Daily valuation metrics (PE, beta, 52w range, market cap) - batch via yahooquery
 2. Phase 1: Market data collection (prices from YFinance)
-3. Phase 2: Fundamental data (earnings-driven)
+3. Phase 2: SKIPPED - Fundamentals (see NextSteps.md Section 6)
 4. Phase 3: Factor calculations (betas, exposures)
 
 Key Design Decisions:
@@ -407,26 +407,16 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
                 "duration_seconds": (datetime.now() - phase_start).total_seconds(),
             }
 
-        # Phase 2: Fundamentals (earnings-driven)
-        print(f"{V2_LOG_PREFIX}   Phase 2: Fundamentals...")
+        # Phase 2: Fundamentals - SKIPPED for now
+        # See PlanningDocs/V2BatchArchitecture/NextSteps.md Section 6
+        # Fundamentals collection has numeric overflow issues and needs optimization
+        print(f"{V2_LOG_PREFIX}   Phase 2: Fundamentals... SKIPPED (see NextSteps.md)")
         sys.stdout.flush()
-        phase_start = datetime.now()
-        try:
-            phase_2_result = await _run_phase_2_fundamentals(symbols, calc_date)
-            print(f"{V2_LOG_PREFIX}   Phase 2 complete: {phase_2_result.get('updated', 0)} updated")
-            sys.stdout.flush()
-            phases["phase_2_fundamentals"] = {
-                "success": True,
-                "duration_seconds": (datetime.now() - phase_start).total_seconds(),
-                "symbols_updated": phase_2_result.get("updated", 0),
-            }
-        except Exception as e:
-            logger.warning(f"{V2_LOG_PREFIX} Phase 2 error (non-fatal): {e}")
-            phases["phase_2_fundamentals"] = {
-                "success": False,
-                "error": str(e),
-                "duration_seconds": (datetime.now() - phase_start).total_seconds(),
-            }
+        phases["phase_2_fundamentals"] = {
+            "success": True,
+            "skipped": True,
+            "reason": "Moved to NextSteps - needs optimization",
+        }
 
         # Phase 3: Factor calculations
         print(f"{V2_LOG_PREFIX}   Phase 3: Factor calculations...")

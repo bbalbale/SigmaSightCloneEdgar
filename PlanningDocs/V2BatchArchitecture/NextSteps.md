@@ -231,9 +231,73 @@ Start with **Option A** - add a quick "missing profiles" check to V2 batch. Sinc
 
 ---
 
+## 6. Fundamentals Collection (Priority: Medium)
+
+### Problem
+
+Phase 2 (fundamentals collection) is currently **skipped** in the V2 symbol batch because:
+1. **Numeric overflow errors** - Income statement values for some symbols (e.g., ARWR) exceed column precision
+2. **Slow execution** - Fetches full financial statements for all symbols
+3. **Not critical for daily operations** - Earnings data changes quarterly, not daily
+
+### What Phase 2 Collects
+
+The fundamentals collector fetches and stores:
+- **Income Statements** - Revenue, net income, EPS, margins (quarterly + annual)
+- **Balance Sheets** - Assets, liabilities, shareholders equity
+- **Cash Flow Statements** - Operating, investing, financing cash flows
+
+These are stored in separate tables:
+- `income_statements`
+- `balance_sheets`
+- `cash_flow_statements`
+
+### Current State
+
+Phase 2 is skipped in `symbol_batch_runner.py` with the message:
+```
+[V2_SYMBOL_BATCH] Phase 2: Fundamentals... SKIPPED (see NextSteps.md)
+```
+
+### Issues to Fix
+
+1. **Numeric Overflow**
+   - Error: `NumericValueOutOfRangeError` for income_statements
+   - Cause: Column precision too small for large revenue numbers
+   - Fix: Widen NUMERIC columns in migration (e.g., `NUMERIC(20,2)` → `NUMERIC(30,2)`)
+
+2. **Performance**
+   - Current: Fetches all symbols every run
+   - Better: Only fetch symbols with recent earnings (earnings-driven approach exists but may need tuning)
+
+3. **Quarterly Focus**
+   - Fundamentals don't change daily - only after earnings reports
+   - Should run weekly or after earnings, not nightly
+
+### Proposed Solution
+
+**Option A: Fix and Re-enable**
+1. Create migration to widen numeric columns
+2. Add better error handling for edge cases
+3. Re-enable Phase 2 with earnings-driven logic
+
+**Option B: Separate Cron Job**
+1. Run fundamentals collection weekly (e.g., Sunday)
+2. Trigger on-demand after earnings season
+3. Remove from nightly symbol batch
+
+### Estimated Effort
+
+- Numeric column fix: 1-2 hours
+- Performance tuning: 2-3 hours
+- Testing: 2 hours
+
+---
+
 ## Document History
 
 | Date | Author | Changes |
 |------|--------|---------|
+| 2026-01-12 | Claude | Added fundamentals collection section (Phase 2 skipped) |
 | 2026-01-12 | Claude | Added new company profile creation section |
 | 2026-01-12 | Claude | Initial creation - Smart profile refresh planning |
