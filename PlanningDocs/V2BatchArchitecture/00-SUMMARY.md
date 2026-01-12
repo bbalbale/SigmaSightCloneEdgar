@@ -115,7 +115,25 @@ Current architecture ties symbol-level data maintenance to portfolio-level analy
 | [17-API-CONTRACT-CHANGES.md](./17-API-CONTRACT-CHANGES.md) | Frontend API migration (breaking changes) |
 | [18-ANALYTICS-ENDPOINT-STRATEGY.md](./18-ANALYTICS-ENDPOINT-STRATEGY.md) | Cache vs DB for analytics endpoints |
 | [19-IMPLEMENTATION-FIXES.md](./19-IMPLEMENTATION-FIXES.md) | Cold start, private positions, race condition fixes |
-| [20-CRITICAL-INTEGRATION-GAPS.md](./20-CRITICAL-INTEGRATION-GAPS.md) | **CRITICAL**: Scheduler conflicts, tracker rewrite, P&L complexity |
+| [20-CRITICAL-INTEGRATION-GAPS.md](./20-CRITICAL-INTEGRATION-GAPS.md) | Scheduler conflicts, tracker rewrite, P&L complexity |
+| [21-IMPLEMENTATION-PLAN.md](./21-IMPLEMENTATION-PLAN.md) | **START HERE**: Step-by-step implementation guide |
+
+---
+
+## Implementation Quick Start
+
+**Start with** `21-IMPLEMENTATION-PLAN.md` - it provides:
+- 12 sequential steps with dependencies
+- Files to create/modify for each step
+- Acceptance criteria and tests
+- Week-by-week timeline
+
+```
+Phase 1: Foundation (Steps 1-4)     - Feature flag, tracker, guards, schema
+Phase 2: Symbol Batch (Steps 5-7)   - Core runner, market data, factors
+Phase 3: Portfolio + Cache (8-11)   - Refresh, onboarding, cache, frontend
+Phase 4: Testing (Step 12)          - Integration tests, rollout
+```
 
 ---
 
