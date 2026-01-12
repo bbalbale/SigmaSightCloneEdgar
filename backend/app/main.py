@@ -64,6 +64,68 @@ async def health_check():
     """Health check endpoint"""
     return {"status": "healthy"}
 
+
+@app.get("/health/live")
+async def health_liveness():
+    """
+    V2 Kubernetes liveness probe.
+
+    Always returns 200 if the app is running.
+    Used to detect if the app has crashed and needs restart.
+    """
+    return {"status": "alive"}
+
+
+@app.get("/health/ready")
+async def health_readiness():
+    """
+    V2 Kubernetes readiness probe.
+
+    Returns:
+    - 200: Cache ready OR cold start timeout exceeded (traffic can be served)
+    - 503: Cache initializing and timeout not exceeded (hold traffic)
+    """
+    from fastapi.responses import JSONResponse
+
+    if settings.BATCH_V2_ENABLED:
+        from app.cache.symbol_cache import symbol_cache
+
+        if symbol_cache.is_ready():
+            return {"status": "ready", "mode": "v2"}
+        else:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "initializing",
+                    "mode": "v2",
+                    "message": "Cache warming up, traffic will be served with DB fallback",
+                }
+            )
+
+    # V1 mode - always ready
+    return {"status": "ready", "mode": "v1"}
+
+
+@app.get("/health/status")
+async def health_status():
+    """
+    V2 Detailed health status for debugging.
+
+    Returns comprehensive health information including cache status.
+    """
+    result = {
+        "batch_v2_enabled": settings.BATCH_V2_ENABLED,
+        "status": "healthy",
+    }
+
+    if settings.BATCH_V2_ENABLED:
+        from app.cache.symbol_cache import symbol_cache
+
+        result["symbol_cache"] = symbol_cache.get_health_status()
+        result["ready"] = symbol_cache.is_ready()
+
+    return result
+
 @app.get("/health/prerequisites")
 async def health_prerequisites():
     """
@@ -99,6 +161,34 @@ async def startup_validation():
         # In production, this will prevent startup
         api_logger.error(f"Startup validation failed: {e}")
         raise
+
+
+@app.on_event("startup")
+async def initialize_v2_cache():
+    """
+    V2 Symbol Cache initialization (background, non-blocking).
+
+    Only runs when BATCH_V2_ENABLED=true.
+    Cache initializes in background - app serves traffic immediately with DB fallback.
+    """
+    if not settings.BATCH_V2_ENABLED:
+        api_logger.info("[V2_CACHE] Skipping cache init (V1 mode)")
+        return
+
+    try:
+        import asyncio
+        from app.cache.symbol_cache import symbol_cache
+
+        api_logger.info("[V2_CACHE] Starting background cache initialization...")
+
+        # Run initialization in background (non-blocking)
+        asyncio.create_task(symbol_cache.initialize_async())
+
+        api_logger.info("[V2_CACHE] Background initialization started (app serving with DB fallback)")
+
+    except Exception as e:
+        # Don't block startup on cache init failure
+        api_logger.warning(f"[V2_CACHE] Failed to start cache init (non-blocking): {e}")
 
 
 @app.on_event("startup")

@@ -201,6 +201,25 @@ class PriceCache:
 
         return price
 
+    def set_price(
+        self,
+        symbol: str,
+        price_date: date,
+        price: Decimal
+    ) -> None:
+        """
+        Set a price in the cache.
+
+        Args:
+            symbol: Stock symbol
+            price_date: Date of price
+            price: Price value to cache
+        """
+        cache_key = (symbol, price_date)
+        self._cache[cache_key] = price
+        self._loaded_dates.add(price_date)
+        self._loaded_symbols.add(symbol)
+
     def clear(self):
         """Clear all cached data."""
         self._cache.clear()

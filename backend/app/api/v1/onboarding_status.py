@@ -30,6 +30,7 @@ from sqlalchemy import select
 from pydantic import BaseModel
 
 from app.database import get_db
+from app.config import settings
 from app.core.clerk_auth import get_current_user_clerk
 from app.models.users import User, Portfolio
 from app.batch.batch_run_tracker import batch_run_tracker
@@ -90,6 +91,8 @@ class OnboardingStatusResponse(BaseModel):
     current_phase_progress: Optional[CurrentPhaseProgressResponse]
     activity_log: List[ActivityLogEntryResponse]
     phases: Optional[List[PhaseDetailResponse]]
+    # V2 mode detection
+    mode: str = "v1_batch"  # "v1_batch" (legacy) or "v2_instant" (instant onboarding)
 
 
 # ==============================================================================
@@ -158,12 +161,38 @@ async def get_onboarding_status(
             }
         )
 
+    # Determine onboarding mode
+    onboarding_mode = "v2_instant" if settings.BATCH_V2_ENABLED else "v1_batch"
+
     # Get status from batch_run_tracker
     status_data = batch_run_tracker.get_onboarding_status(portfolio_id)
 
     if status_data is None:
         # No batch running for this portfolio
         logger.debug(f"No batch running for portfolio {portfolio_id}")
+
+        # V2 mode: "not_found" means instant onboarding already completed
+        # Frontend should redirect to portfolio immediately
+        if settings.BATCH_V2_ENABLED:
+            return OnboardingStatusResponse(
+                portfolio_id=portfolio_id,
+                status="completed",  # V2: Instant = already done
+                started_at=None,
+                elapsed_seconds=0,
+                overall_progress=OverallProgressResponse(
+                    current_phase=None,
+                    current_phase_name=None,
+                    phases_completed=4,
+                    phases_total=4,
+                    percent_complete=100
+                ),
+                current_phase_progress=None,
+                activity_log=[],
+                phases=None,
+                mode=onboarding_mode
+            )
+
+        # V1 mode: "not_found" means no batch running yet
         return OnboardingStatusResponse(
             portfolio_id=portfolio_id,
             status="not_found",
@@ -172,7 +201,8 @@ async def get_onboarding_status(
             overall_progress=None,
             current_phase_progress=None,
             activity_log=[],
-            phases=None
+            phases=None,
+            mode=onboarding_mode
         )
 
     # Build response from status_data
@@ -231,7 +261,8 @@ async def get_onboarding_status(
         overall_progress=overall_progress,
         current_phase_progress=current_phase_progress,
         activity_log=activity_log,
-        phases=phases
+        phases=phases,
+        mode=onboarding_mode
     )
 
 
