@@ -2,248 +2,134 @@
 
 ## Overview
 
-V2 instant onboarding introduces **breaking API contract changes**. This document maps old endpoints to new behavior for frontend migration.
+V2 is a **backend implementation change only**. API response formats stay the same. The frontend works unchanged - everything just gets faster.
 
 ---
 
-## Onboarding Endpoints
+## Principle: No Breaking Changes
+
+| Endpoint | Response Format | Behavior Change |
+|----------|-----------------|-----------------|
+| `POST /portfolios` | **Same** | Faster (computes snapshot inline) |
+| `POST /portfolios/{id}/calculate` | **Same** | No-op (returns success immediately) |
+| `GET /onboarding/status/{id}` | **Same** | Always returns "completed" instantly |
+| `GET /analytics/*` | **Same** | Reads from cache instead of DB |
+
+---
+
+## Endpoint Details
 
 ### `POST /api/v1/portfolios` (or `/onboarding/create-portfolio`)
 
-**Current (V1) Response:**
+**Response format**: Unchanged
+
 ```json
 {
     "portfolio_id": "uuid-123"
 }
 ```
 
-**V2 Response (BREAKING CHANGE):**
-```json
-{
-    "portfolio_id": "uuid-123",
-    "status": "ready" | "partial",
-    "pending_symbols": ["XYZ", "ABC"] | null,
-    "snapshot_date": "2026-01-10"
-}
-```
+**Behavior change**:
+- V1: Creates portfolio, returns ID. Frontend must call `/calculate` next.
+- V2: Creates portfolio + instant snapshot, returns ID. Snapshot already computed.
 
-**Frontend Migration:**
-- Handle new `status` field
-- Use `pending_symbols` to show loading indicators
-- Display `snapshot_date` in confirmation
+**Frontend impact**: None. Works exactly as before, just faster.
 
 ---
 
-### `POST /api/v1/portfolios/{id}/calculate` (DEPRECATED)
+### `POST /api/v1/portfolios/{id}/calculate`
 
-**Current (V1):** Triggers full 9-phase batch processing. Required after portfolio creation.
+**Response format**: Unchanged
 
-**V2:** **DO NOT CALL.** Endpoint will be deprecated/removed.
-
-**Reason:** V2 creates portfolio snapshot inline during `POST /portfolios`. No separate calculation trigger needed.
-
-**Frontend Migration:**
-```typescript
-// BEFORE (V1)
-const portfolio = await createPortfolio(file);
-await triggerCalculations(portfolio.id);  // REMOVE THIS LINE
-
-// AFTER (V2)
-const response = await createPortfolio(file);
-// Analytics are already computed - go to dashboard
+```json
+{
+    "status": "started"
+}
 ```
+
+**Behavior change**:
+- V1: Triggers full 9-phase batch processing (15-20 min).
+- V2: **No-op**. Returns success immediately. Does nothing because snapshot was already created during `POST /portfolios`.
+
+**Frontend impact**: None. Frontend can continue calling this - it just returns instantly. Eventually can be removed as optional cleanup.
 
 ---
 
 ### `GET /api/v1/onboarding/status/{portfolio_id}`
 
-**Current (V1) Response:**
+**Response format**: Unchanged (same structure)
+
 ```json
 {
-    "status": "running" | "completed" | "failed",
-    "current_phase": "phase_2",
-    "progress_percent": 45,
-    "phases": {
-        "phase_1": {"status": "completed", "progress": 100},
-        "phase_1_5": {"status": "completed", "progress": 100},
-        "phase_2": {"status": "running", "progress": 45},
-        ...
-    },
-    "activity_log": [
-        {"timestamp": "...", "message": "Fetching market data..."},
-        ...
-    ]
+    "status": "completed",
+    "current_phase": "complete",
+    "progress_percent": 100,
+    "phases": { ... }
 }
 ```
 
-**V2 Response (SIMPLIFIED):**
-```json
-{
-    "status": "ready" | "partial",
-    "pending_symbols": [
-        {"symbol": "XYZ", "status": "processing"},
-        {"symbol": "ABC", "status": "pending"}
-    ]
-}
-```
+**Behavior change**:
+- V1: Returns phase progress over 15-20 minutes.
+- V2: Always returns "completed" immediately (because snapshot was created inline).
 
-**Changes:**
-- No more 9-phase tracking
-- No more activity log
-- Only tracks symbol onboarding (rare case)
-- Most users get `status: "ready"` immediately
-
-**Frontend Migration:**
-- Remove phase progress UI
-- Remove activity log display
-- Only show symbol status when `status === "partial"`
+**Frontend impact**: None. Progress page will show 100% complete instantly. Eventually can remove polling as optional cleanup.
 
 ---
 
-## Summary: Frontend Must Remove
+### `GET /api/v1/analytics/*` (all analytics endpoints)
 
-| Current Frontend Behavior | V2 Action |
-|---------------------------|-----------|
-| Call `triggerCalculations()` after upload | **REMOVE** - no longer needed |
-| Redirect to `/onboarding/progress` | **CHANGE** - redirect to dashboard |
-| Poll `/onboarding/status` for 15-20 min | **CHANGE** - only poll if `status === "partial"` |
-| Display 9-phase progress bars | **REMOVE** - not applicable |
-| Display activity log | **REMOVE** - not applicable |
-| Show "Estimated time: 15-20 minutes" | **REMOVE** - instant for most users |
+**Response format**: Unchanged for all endpoints:
+- `/analytics/portfolio/{id}/overview`
+- `/analytics/portfolio/{id}/correlation-matrix`
+- `/analytics/portfolio/{id}/factor-exposures`
+- `/analytics/portfolio/{id}/positions/factor-exposures`
+- `/analytics/portfolio/{id}/stress-test`
+- `/analytics/portfolio/{id}/volatility`
+- `/analytics/portfolio/{id}/sector-exposure`
+- `/analytics/portfolio/{id}/concentration`
 
----
+**Behavior change**:
+- V1: Reads from database tables.
+- V2: Reads from in-memory cache (faster).
 
-## Summary: Frontend Must Add
-
-| New Behavior | Implementation |
-|--------------|----------------|
-| Handle new `status` field in response | Check `ready` vs `partial` |
-| Show toast for partial status | "Loading data for N symbols..." |
-| Allow dashboard access immediately | Always redirect to dashboard |
-| Optional: Symbol loading indicators | Show pending symbols on dashboard |
+**Frontend impact**: None. Same data, just faster.
 
 ---
 
-## API Contract Matrix
+## Unknown Symbols (Edge Case)
 
-| Endpoint | V1 Behavior | V2 Behavior | Breaking? |
-|----------|-------------|-------------|-----------|
-| `POST /portfolios` | Returns `portfolio_id` only | Returns `portfolio_id`, `status`, `pending_symbols`, `snapshot_date` | Yes - response shape |
-| `POST /portfolios/{id}/calculate` | Triggers batch | **DEPRECATED** - do not call | Yes - removal |
-| `GET /onboarding/status/{id}` | 9-phase progress | Simple `ready`/`partial` status | Yes - response shape |
-| `GET /analytics/*` | Reads from stored rows | Computes from cache (see doc 18) | No - same response |
+When a portfolio contains symbols not in the universe (~1% of cases):
 
----
+**V2 Behavior**:
+1. `POST /portfolios` creates portfolio + snapshot for known symbols only
+2. Unknown symbols queued for background processing
+3. Dashboard shows positions - unknown symbols show "Loading..." or placeholder values
+4. Background job completes in 30-60 seconds
+5. Next page refresh shows full data
 
-## Migration Sequence
-
-### Phase 1: Backend Deploys V2 Endpoints
-
-1. Update `POST /portfolios` to return new response shape
-2. Keep `POST /calculate` functional but log deprecation warnings
-3. Simplify `GET /onboarding/status` response
-
-### Phase 2: Frontend Migrates
-
-1. Update `createPortfolio()` return type handling
-2. Remove `triggerCalculations()` call
-3. Update redirect logic based on `status`
-4. Replace progress page with simple symbol status (or remove)
-
-### Phase 3: Cleanup
-
-1. Remove `POST /calculate` endpoint
-2. Remove phase tracking from `onboarding_status.py`
-3. Remove frontend progress components
+**Frontend impact**: Minimal. Could optionally show a toast "Loading data for X new symbols..." but not required. The experience degrades gracefully.
 
 ---
 
-## Response Type Definitions
+## Optional Frontend Cleanup (Not Required)
 
-### V2 CreatePortfolioResponse
+After V2 is stable, frontend could optionally:
 
-```typescript
-interface CreatePortfolioResponse {
-    portfolio_id: string;
-    status: 'ready' | 'partial';
-    pending_symbols: string[] | null;
-    snapshot_date: string;  // ISO date
-}
-```
+1. **Remove `/calculate` call** - No longer needed
+2. **Skip progress page** - Redirect directly to dashboard
+3. **Remove polling logic** - Status is always "completed"
 
-### V2 OnboardingStatusResponse
-
-```typescript
-interface OnboardingStatusResponse {
-    status: 'ready' | 'partial';
-    pending_symbols: PendingSymbol[];
-}
-
-interface PendingSymbol {
-    symbol: string;
-    status: 'pending' | 'processing' | 'completed' | 'failed';
-    error_message?: string;
-}
-```
+These are performance optimizations, not requirements. V2 works with current frontend unchanged.
 
 ---
 
-## Backend Implementation Notes
+## Summary
 
-### `portfolios.py`
+| Aspect | V1 | V2 |
+|--------|----|----|
+| API response formats | Current | **Same** |
+| Onboarding time | 15-20 min | < 5 sec |
+| Frontend changes required | N/A | **None** |
+| Breaking changes | N/A | **None** |
 
-```python
-@router.post("/portfolios")
-async def create_portfolio(...) -> CreatePortfolioResponse:
-    # Create portfolio and positions
-    portfolio = await create_portfolio_record(...)
-
-    # Check symbol universe
-    known, unknown = await check_symbol_universe(symbols)
-
-    # Create instant snapshot (using cached prices)
-    snapshot = await create_portfolio_snapshot(
-        portfolio.id,
-        symbols_to_include=known
-    )
-
-    # Queue unknown symbols (in-memory queue)
-    if unknown:
-        for symbol in unknown:
-            await symbol_onboarding_queue.enqueue(symbol)
-        asyncio.create_task(process_onboarding_queue())
-
-    # Return V2 response
-    return CreatePortfolioResponse(
-        portfolio_id=str(portfolio.id),
-        status="ready" if not unknown else "partial",
-        pending_symbols=list(unknown) if unknown else None,
-        snapshot_date=snapshot.snapshot_date.isoformat()
-    )
-```
-
-### `onboarding_status.py`
-
-```python
-@router.get("/onboarding/status/{portfolio_id}")
-async def get_onboarding_status(portfolio_id: UUID) -> OnboardingStatusResponse:
-    # Get positions in this portfolio
-    positions = await get_positions(portfolio_id)
-    symbols = [p.symbol for p in positions]
-
-    # Check in-memory queue for pending symbols
-    pending_symbols = []
-    for symbol in symbols:
-        job = await symbol_onboarding_queue.get_status(symbol)
-        if job and job.status in ('pending', 'processing'):
-            pending_symbols.append(PendingSymbol(
-                symbol=symbol,
-                status=job.status,
-                error_message=job.error_message
-            ))
-
-    return OnboardingStatusResponse(
-        status="ready" if not pending_symbols else "partial",
-        pending_symbols=pending_symbols
-    )
-```
+**V2 is transparent to the frontend.** Everything works the same, just faster.

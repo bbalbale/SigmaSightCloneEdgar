@@ -1466,31 +1466,29 @@ async def _calculate_ridge_factors(...):
    - Check symbol universe
    - Create instant snapshot with known symbols
    - Queue unknown symbols (in-memory)
-   - Return new response format: `{portfolio_id, status, pending_symbols, snapshot_date}`
+   - Return **same response format** as before: `{portfolio_id}`
 
 5. Simplify `onboarding_status.py`:
-   - Remove 9-phase tracking
-   - Return simple `ready`/`partial` status
+   - Always return "completed" instantly (snapshot already created)
+   - Keep same response format for backwards compatibility
 
-### 5.6 Phase 6: Onboarding Flow - Frontend (Week 5-6)
+6. Make `/calculate` endpoint a no-op:
+   - Keep endpoint for backwards compatibility
+   - Return success immediately (do nothing)
 
-1. Update `usePortfolioUpload.ts`:
-   - Remove `triggerCalculations()` call
-   - Handle new response format with `status` field
-   - Redirect directly to dashboard
+### 5.6 Phase 6: Validation & Cleanup (Week 6)
 
-2. Deprecate or repurpose `onboarding/progress/page.tsx`:
-   - Option A: Remove entirely (all users go to dashboard)
-   - Option B: Repurpose for symbol-only status (rare cases)
+> **Note**: No frontend changes required. V2 is backwards-compatible.
 
-3. Replace `useOnboardingStatus.ts`:
-   - Create new `useSymbolOnboardingStatus` hook
-   - Simplified polling (5s interval)
-   - Handle `ready`/`partial` status
+1. Validate V2 works with existing frontend:
+   - Test onboarding flow end-to-end
+   - Verify progress page shows "completed" instantly
+   - Confirm dashboard loads with analytics
 
-4. Update `portfolioApi.ts`:
-   - Update response types for `createPortfolio()`
-   - Deprecate `triggerCalculations()` function
+2. Optional frontend cleanup (not required):
+   - Remove `/calculate` call (now a no-op)
+   - Skip progress page redirect
+   - Remove polling logic
 
 ### 5.7 Phase 7: Cleanup (Week 6)
 
@@ -2037,145 +2035,49 @@ Background: symbol_onboarding_worker processes all 3
 1-2 min later: Full analytics available
 ```
 
-### 10.7 Frontend Changes (REQUIRED)
+### 10.7 Frontend Changes: None Required
 
-The frontend must be updated to handle instant onboarding. This is a **breaking change** from the current 15-20 minute batch flow.
+V2 is a **backend-only change**. API response formats stay the same - the frontend works unchanged.
 
-> **See also**: `V2BatchArchitecture/17-API-CONTRACT-CHANGES.md` for complete API contract migration guide.
+> **See also**: `V2BatchArchitecture/17-API-CONTRACT-CHANGES.md` for complete API compatibility guide.
 
-#### 10.7.1 `frontend/src/hooks/usePortfolioUpload.ts`
+| Endpoint | V1 Behavior | V2 Behavior | Response Format |
+|----------|-------------|-------------|-----------------|
+| `POST /portfolios` | Creates portfolio, returns ID | Creates portfolio + instant snapshot | **Same** |
+| `POST /calculate` | Triggers 15-20 min batch | **No-op** (returns success immediately) | **Same** |
+| `GET /onboarding/status` | Returns phase progress | Returns "completed" instantly | **Same** |
 
-**Current behavior**: Calls `createPortfolio()` then `triggerCalculations()` then redirects to progress page.
+**Frontend flow unchanged:**
+1. Calls `POST /portfolios` → gets portfolio ID (same as before)
+2. Calls `POST /calculate` → gets success (but it's instant now)
+3. Polls `/onboarding/status` → sees "completed" immediately
+4. Redirects to dashboard → analytics are ready
 
-**Required changes**:
-1. Remove call to `triggerCalculations()` - no longer needed
-2. Handle new response format with `status` field
-3. Redirect directly to dashboard instead of progress page
+**The only difference the user notices is speed.** 15-20 minutes becomes < 5 seconds.
 
-```typescript
-// BEFORE (V1)
-const handleUpload = async (file: File) => {
-    const portfolio = await createPortfolio(file);
-    await triggerCalculations(portfolio.id);  // DELETE THIS
-    router.push(`/onboarding/progress?id=${portfolio.id}`);  // CHANGE THIS
-};
+#### Optional Cleanup (After V2 Stable)
 
-// AFTER (V2)
-const handleUpload = async (file: File) => {
-    const response = await createPortfolio(file);
+After V2 is validated, frontend could optionally be simplified:
 
-    if (response.status === 'ready') {
-        router.push(`/portfolio/${response.portfolio_id}`);
-    } else if (response.status === 'partial') {
-        toast.info(`${response.pending_symbols.length} symbols loading...`);
-        router.push(`/portfolio/${response.portfolio_id}`);
-    }
-};
-```
-
-#### 10.7.2 `frontend/app/onboarding/progress/page.tsx`
-
-**Current behavior**: Shows batch phase progress (Phase 1, 2, 3...) with progress bars.
-
-**Required changes**: Either deprecate entirely OR repurpose for symbol-only onboarding.
-
-**Option A: Deprecate**
-- Remove the page entirely
-- All users go directly to dashboard
-
-**Option B: Repurpose for symbol onboarding only** (Recommended)
-- Only accessible when `response.status === 'partial'`
-- Only track symbol onboarding progress (not full batch)
-- Simplified UI: "Loading data for XYZ, ABC..." with checkmarks
-- Allow user to proceed to dashboard at any time
-
-```typescript
-// Repurposed progress page
-function OnboardingProgress() {
-    const { pendingSymbols, isComplete } = useSymbolOnboardingStatus(portfolioId);
-
-    if (isComplete) {
-        router.push(`/portfolio/${portfolioId}`);
-        return null;
-    }
-
-    return (
-        <div>
-            <h2>Loading market data...</h2>
-            {pendingSymbols.map(symbol => (
-                <SymbolStatusRow key={symbol} symbol={symbol} />
-            ))}
-            <p>You can start using your portfolio now.</p>
-            <Button onClick={() => router.push(`/portfolio/${portfolioId}`)}>
-                Go to Dashboard
-            </Button>
-        </div>
-    );
-}
-```
-
-#### 10.7.3 `frontend/src/hooks/useOnboardingStatus.ts`
-
-**Current behavior**: Polls `/api/v1/onboarding/status/{id}` for batch phase progress.
-
-**Required changes**:
-1. Replace with symbol-specific status polling
-2. Handle new simplified response format
-3. Shorter polling interval (5s instead of 2s - symbols process faster)
-
-```typescript
-// BEFORE (V1) - Polls for batch phases
-const { phase, progress, isComplete } = useOnboardingStatus(portfolioId);
-
-// AFTER (V2) - Polls for symbol status only
-export function useSymbolOnboardingStatus(portfolioId: string) {
-    return useQuery({
-        queryKey: ['symbolOnboarding', portfolioId],
-        queryFn: () => fetchOnboardingStatus(portfolioId),
-        refetchInterval: (data) => data?.status === 'ready' ? false : 5000,
-    });
-}
-```
-
-#### 10.7.4 `frontend/src/services/portfolioApi.ts` (or similar)
-
-**Required changes**:
-1. Update `createPortfolio()` return type to include new fields
-2. Remove or deprecate `triggerCalculations()` function
-
-```typescript
-// Updated response type
-interface CreatePortfolioResponse {
-    portfolio_id: string;
-    status: 'ready' | 'partial';
-    pending_symbols?: string[];
-    snapshot_date: string;
-}
-
-// Remove or deprecate
-// async function triggerCalculations(portfolioId: string) { ... }
-```
+| Change | Benefit | Required? |
+|--------|---------|-----------|
+| Remove `/calculate` call | Cleaner code | No |
+| Skip progress page | Faster UX | No |
+| Remove polling logic | Cleaner code | No |
 
 ### 10.8 Files to Modify for Onboarding
 
-**Backend Files:**
+**Backend Files Only:**
 
 | File | Change Type | Description |
 |------|-------------|-------------|
-| `app/api/v1/onboarding.py` | MAJOR | Add symbol check, remove batch trigger, compute analytics inline |
-| `app/api/v1/onboarding_status.py` | SIMPLIFY | Remove 9-phase tracking, simple pending symbol status |
-| `app/services/batch_trigger_service.py` | MINOR | Remove onboarding-specific batch logic |
+| `app/api/v1/onboarding.py` | MAJOR | Add instant snapshot during portfolio creation |
+| `app/api/v1/onboarding_status.py` | SIMPLIFY | Always return "completed" |
+| `app/services/batch_trigger_service.py` | MINOR | Make `/calculate` a no-op |
 | `app/services/onboarding_service.py` | MINOR | Add symbol check integration |
 | `app/services/onboarding_helpers.py` | NEW | Helper functions for new flow |
 
-**Frontend Files:**
-
-| File | Change Type | Description |
-|------|-------------|-------------|
-| `frontend/src/hooks/usePortfolioUpload.ts` | MAJOR | Skip triggerCalculations, handle new response, direct redirect |
-| `frontend/app/onboarding/progress/page.tsx` | DEPRECATE/REPURPOSE | Remove batch UI, optionally repurpose for symbol status |
-| `frontend/src/hooks/useOnboardingStatus.ts` | REPLACE | New hook for symbol-specific polling |
-| `frontend/src/services/portfolioApi.ts` | MINOR | Update response types, deprecate triggerCalculations |
+**Frontend Files: None required.** V2 is backwards-compatible.
 
 ### 10.9 Deprecations
 
