@@ -336,13 +336,78 @@ async def get_cached_price(symbol: str, target_date: date) -> Optional[Decimal]:
 
 ---
 
+## Race Condition Fix: Check for Missing Factors
+
+> **See also**: [19-IMPLEMENTATION-FIXES.md](./19-IMPLEMENTATION-FIXES.md) Section 4 for full implementation details.
+
+### Problem
+
+When a user uploads a portfolio with a new symbol mid-day, symbol onboarding processes it. But there's a race condition:
+1. User uploads at 2 PM with new symbol XYZ
+2. Symbol onboarding starts processing XYZ
+3. Nightly symbol batch runs at 9 PM (XYZ may not be in `symbol_universe` yet)
+4. Portfolio refresh at 9:30 PM - XYZ might have prices but no factors
+
+### Solution: Check for Missing Factors Before Creating Snapshot
+
+```python
+async def run_portfolio_refresh(target_date: date) -> Dict[str, Any]:
+    # ... wait for symbol batch ...
+
+    # NEW: Wait for pending symbol onboarding to complete
+    pending_symbols = await get_pending_onboarding_symbols()
+    if pending_symbols:
+        logger.info(f"Waiting for {len(pending_symbols)} pending onboarding jobs")
+        await wait_for_onboarding_completion(pending_symbols, max_wait_seconds=120)
+
+    for portfolio in portfolios:
+        # NEW: Check for symbols missing factors
+        missing_factors = await get_symbols_missing_factors(portfolio.id, target_date)
+
+        if missing_factors:
+            logger.info(f"Portfolio {portfolio.id}: calculating factors for {len(missing_factors)} symbols")
+            await calculate_factors_for_symbols(missing_factors, target_date)
+
+        # Now all symbols have data - create snapshot
+        await create_portfolio_snapshot(portfolio.id, target_date)
+```
+
+### Private Position Handling
+
+```python
+async def create_portfolio_snapshot(portfolio_id: UUID, snapshot_date: date):
+    """
+    Create snapshot handling all investment classes.
+
+    - PUBLIC/OPTIONS: Use cached market prices
+    - PRIVATE: Use manually-entered market_value (no factor exposures)
+    """
+    for position in positions:
+        if position.investment_class == 'PRIVATE':
+            # PRIVATE: Use manual valuation
+            if position.market_value:
+                total_value += position.market_value
+            else:
+                logger.warning(f"Private position {position.id} has no market_value")
+        else:
+            # PUBLIC/OPTIONS: Get from cache
+            price = await get_cached_price(position.symbol, snapshot_date)
+            if price:
+                total_value += position.quantity * price
+```
+
+---
+
 ## Failure Handling
 
 | Scenario | Action |
 |----------|--------|
 | Symbol batch not complete after 60 min | Abort, alert, portfolios backfilled next day |
+| Pending symbol onboarding after 2 min | Continue anyway, symbols calculated inline |
+| Missing factors for symbol | Calculate inline before snapshot |
 | Single portfolio fails | Log, continue with others, alert if >10% fail |
 | Price not found for symbol | Log warning, skip position, mark snapshot as partial |
+| Private position no market_value | Log warning, exclude from snapshot |
 | Price data missing for entire date | Skip that date, log warning |
 | DB connection error | Retry 3x with backoff, then fail |
 

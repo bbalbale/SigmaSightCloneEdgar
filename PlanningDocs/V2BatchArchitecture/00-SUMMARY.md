@@ -114,6 +114,24 @@ Current architecture ties symbol-level data maintenance to portfolio-level analy
 | [16-PARALLELISM.md](./16-PARALLELISM.md) | Concurrency, rate limits, idempotency |
 | [17-API-CONTRACT-CHANGES.md](./17-API-CONTRACT-CHANGES.md) | Frontend API migration (breaking changes) |
 | [18-ANALYTICS-ENDPOINT-STRATEGY.md](./18-ANALYTICS-ENDPOINT-STRATEGY.md) | Cache vs DB for analytics endpoints |
+| [19-IMPLEMENTATION-FIXES.md](./19-IMPLEMENTATION-FIXES.md) | Cold start, private positions, race condition fixes |
+| [20-CRITICAL-INTEGRATION-GAPS.md](./20-CRITICAL-INTEGRATION-GAPS.md) | **CRITICAL**: Scheduler conflicts, tracker rewrite, P&L complexity |
+
+---
+
+## Critical Integration Points
+
+Before implementation, review `20-CRITICAL-INTEGRATION-GAPS.md` for:
+
+| Gap | Risk | Solution |
+|-----|------|----------|
+| APScheduler double-runs | Data corruption | Conditional job init based on V2 flag |
+| Batch tracker single-run | Concurrent job conflicts | Multi-job tracker rewrite |
+| P&L calculation simplification | Wrong valuations | Reuse existing PnLCalculator |
+| Analytics services read DB | Broken endpoints | Write to BOTH cache AND DB tables |
+| Symbol batch no backfill | Permanent data gaps | Add backfill mode to symbol batch |
+| In-memory onboarding queue | Lost jobs on restart | Database-backed queue |
+| Onboarding status `not_found` | Jarring UX | Frontend V2 mode detection |
 
 ---
 

@@ -289,11 +289,17 @@ async def get_cache_status() -> CacheStatusResponse:
 
 ## Cold Start & Fallback Strategy
 
+> **See also**: [19-IMPLEMENTATION-FIXES.md](./19-IMPLEMENTATION-FIXES.md) Section 1 for Railway health check configuration and readiness probe details.
+
 ### Risk: Cold Starts
 
 When the app restarts or scales, the cache is empty. Analytics must still work.
 
-**Solution**: Always fall back to database queries when cache is empty or on cache miss.
+**Solution**:
+1. Two-tier health endpoints: `/health/live` (always 200) and `/health/ready` (gates traffic)
+2. Background initialization - app starts accepting requests immediately
+3. DB fallback for all analytics until cache is ready
+4. Readiness probe returns 503 until cache is initialized OR 30s timeout
 
 ### Cache State Detection
 
