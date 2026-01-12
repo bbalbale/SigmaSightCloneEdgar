@@ -203,13 +203,10 @@ async def _process_symbol(symbol: str) -> None:
         # Phase 2: Calculate factor betas → symbol_factor_exposures
         await calculate_symbol_factors(db, symbol)
 
-        # Phase 3: Add to universe
+        # Phase 3: Add to universe (or update if exists)
         universe_entry = SymbolUniverse(
             symbol=symbol,
-            is_active=True,
-            added_source='onboarding',
-            last_price_date=date.today(),
-            last_factor_date=date.today()
+            is_active=True
         )
         db.add(universe_entry)
         await db.commit()
