@@ -330,3 +330,230 @@ The Phase 7.x onboarding progress screen (`/onboarding/progress`) is **no longer
 | 10+ unknown symbols | 3 sec + 1-2 min async |
 
 User can use dashboard immediately in all cases (with partial data if symbols pending).
+
+---
+
+## Required Code Changes (Breaking Change from V1)
+
+### Problem: Current UX Assumes Long-Running Batch
+
+The current onboarding flow is built around 15-20 minute batch processing:
+
+```
+Current V1 Flow:
+Upload CSV → POST /portfolios (fast) → POST /calculate (triggers batch)
+    → Redirect to /onboarding/progress → Poll status for 15-20 min → Dashboard
+```
+
+V2's instant snapshot invalidates this entire flow.
+
+---
+
+### Frontend Changes Required
+
+#### 1. `frontend/src/hooks/usePortfolioUpload.ts`
+
+**Current behavior**: Calls `createPortfolio()` then `triggerCalculations()` then redirects to progress page.
+
+**V2 change**: Skip `triggerCalculations()` entirely. Redirect directly to dashboard.
+
+```typescript
+// BEFORE (V1)
+const handleUpload = async (file: File) => {
+    const portfolio = await createPortfolio(file);
+    await triggerCalculations(portfolio.id);  // DELETE THIS
+    router.push(`/onboarding/progress?id=${portfolio.id}`);  // CHANGE THIS
+};
+
+// AFTER (V2)
+const handleUpload = async (file: File) => {
+    const response = await createPortfolio(file);
+
+    if (response.status === 'ready') {
+        router.push(`/portfolio/${response.portfolio_id}`);
+    } else if (response.status === 'partial') {
+        // Some symbols pending - still go to dashboard
+        toast.info(`${response.pending_symbols.length} symbols loading...`);
+        router.push(`/portfolio/${response.portfolio_id}`);
+    }
+};
+```
+
+#### 2. `frontend/app/onboarding/progress/page.tsx`
+
+**Current behavior**: Shows batch phase progress (Phase 1, 2, 3...) with progress bars.
+
+**V2 change**: Either deprecate entirely OR repurpose for symbol-only onboarding.
+
+**Option A: Deprecate**
+- Remove the page entirely
+- All users go directly to dashboard
+
+**Option B: Repurpose for symbol onboarding only**
+- Only show when `response.status === 'partial'`
+- Only track symbol onboarding progress (not full batch)
+- Simplified UI: "Loading data for XYZ, ABC..." with checkmarks
+
+```typescript
+// Repurposed progress page (Option B)
+function OnboardingProgress() {
+    const { pendingSymbols } = useSymbolOnboardingStatus(portfolioId);
+
+    if (pendingSymbols.length === 0) {
+        // All symbols ready - redirect to dashboard
+        router.push(`/portfolio/${portfolioId}`);
+        return null;
+    }
+
+    return (
+        <div>
+            <h2>Loading market data...</h2>
+            {pendingSymbols.map(symbol => (
+                <SymbolStatusRow key={symbol} symbol={symbol} />
+            ))}
+            <p>You can start using your portfolio now.</p>
+            <Button onClick={() => router.push(`/portfolio/${portfolioId}`)}>
+                Go to Dashboard →
+            </Button>
+        </div>
+    );
+}
+```
+
+#### 3. `frontend/src/hooks/useOnboardingStatus.ts`
+
+**Current behavior**: Polls `/api/v1/onboarding/status/{id}` for batch progress.
+
+**V2 change**: Replace with symbol-specific status polling.
+
+```typescript
+// BEFORE (V1) - Polls for batch phases
+const { phase, progress, isComplete } = useOnboardingStatus(portfolioId);
+
+// AFTER (V2) - Polls for symbol status only
+const { pendingSymbols, isComplete } = useSymbolOnboardingStatus(portfolioId);
+```
+
+---
+
+### Backend Changes Required
+
+#### 1. `backend/app/api/v1/portfolios.py`
+
+**Current behavior**: `POST /portfolios` creates portfolio, returns ID. Separate `POST /calculate` triggers batch.
+
+**V2 change**: `POST /portfolios` creates portfolio + instant snapshot + returns status.
+
+```python
+# BEFORE (V1)
+@router.post("/portfolios")
+async def create_portfolio(...):
+    portfolio = await create_portfolio_record(...)
+    return {"portfolio_id": str(portfolio.id)}
+
+# AFTER (V2)
+@router.post("/portfolios")
+async def create_portfolio(...):
+    portfolio = await create_portfolio_record(...)
+
+    # Check symbols
+    known, unknown = await check_symbol_universe(symbols)
+
+    # Create instant snapshot with known symbols
+    snapshot = await create_portfolio_snapshot(portfolio.id, known)
+
+    # Queue unknown symbols for async processing
+    if unknown:
+        for symbol in unknown:
+            await symbol_onboarding_queue.enqueue(symbol)
+        asyncio.create_task(process_onboarding_queue())
+
+    return {
+        "portfolio_id": str(portfolio.id),
+        "status": "ready" if not unknown else "partial",
+        "pending_symbols": list(unknown) if unknown else None,
+        "snapshot_date": snapshot.snapshot_date.isoformat()
+    }
+```
+
+#### 2. `backend/app/api/v1/onboarding.py`
+
+**Current behavior**: `POST /calculate` triggers full batch processing.
+
+**V2 change**: Deprecate or remove. No longer needed for standard onboarding.
+
+```python
+# BEFORE (V1)
+@router.post("/portfolios/{id}/calculate")
+async def trigger_calculations(id: UUID):
+    await batch_orchestrator.run_batch_sequence(portfolio_id=id)
+    return {"status": "started"}
+
+# AFTER (V2)
+# DELETE THIS ENDPOINT or keep for manual admin use only
+```
+
+#### 3. `backend/app/api/v1/onboarding_status.py`
+
+**Current behavior**: Returns batch phase progress (Phase 1: 45%, Phase 2: 0%...).
+
+**V2 change**: Return simple ready/partial/pending status.
+
+```python
+# BEFORE (V1)
+@router.get("/onboarding/status/{portfolio_id}")
+async def get_onboarding_status(portfolio_id: UUID):
+    batch_run = batch_run_tracker.get_current()
+    return {
+        "phase": batch_run.current_phase,
+        "progress": batch_run.progress_percent,
+        "phases": batch_run.phase_details
+    }
+
+# AFTER (V2)
+@router.get("/onboarding/status/{portfolio_id}")
+async def get_onboarding_status(portfolio_id: UUID):
+    # Check if portfolio has snapshot
+    snapshot = await get_latest_snapshot(portfolio_id)
+
+    # Check for pending symbols
+    positions = await get_positions(portfolio_id)
+    pending_symbols = await get_pending_symbol_onboarding(
+        [p.symbol for p in positions]
+    )
+
+    if not pending_symbols:
+        return {"status": "ready", "pending_symbols": []}
+    else:
+        return {
+            "status": "partial",
+            "pending_symbols": [
+                {"symbol": s.symbol, "status": s.status}
+                for s in pending_symbols
+            ]
+        }
+```
+
+---
+
+### Migration Strategy
+
+| Phase | Action |
+|-------|--------|
+| 1 | Deploy backend V2 endpoints alongside V1 (new response format) |
+| 2 | Update frontend to use new flow (skip triggerCalculations) |
+| 3 | Deprecate old progress page or repurpose for symbol-only |
+| 4 | Remove old batch-trigger endpoints after validation |
+
+---
+
+### Summary of File Changes
+
+| File | Change |
+|------|--------|
+| `frontend/src/hooks/usePortfolioUpload.ts` | Skip triggerCalculations, direct redirect |
+| `frontend/app/onboarding/progress/page.tsx` | Deprecate or repurpose for symbol status |
+| `frontend/src/hooks/useOnboardingStatus.ts` | Replace with symbol-specific polling |
+| `backend/app/api/v1/portfolios.py` | Add instant snapshot, return status |
+| `backend/app/api/v1/onboarding.py` | Deprecate /calculate endpoint |
+| `backend/app/api/v1/onboarding_status.py` | Simplify to ready/partial status |
