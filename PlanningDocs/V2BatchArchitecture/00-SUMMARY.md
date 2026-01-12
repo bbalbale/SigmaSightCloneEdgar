@@ -112,6 +112,8 @@ Current architecture ties symbol-level data maintenance to portfolio-level analy
 | [14-FRESHNESS-CONTRACTS.md](./14-FRESHNESS-CONTRACTS.md) | Data staleness SLAs and alerting |
 | [15-OBSERVABILITY.md](./15-OBSERVABILITY.md) | Logging, admin APIs, and dashboard updates |
 | [16-PARALLELISM.md](./16-PARALLELISM.md) | Concurrency, rate limits, idempotency |
+| [17-API-CONTRACT-CHANGES.md](./17-API-CONTRACT-CHANGES.md) | Frontend API migration (breaking changes) |
+| [18-ANALYTICS-ENDPOINT-STRATEGY.md](./18-ANALYTICS-ENDPOINT-STRATEGY.md) | Cache vs DB for analytics endpoints |
 
 ---
 

@@ -2041,6 +2041,8 @@ Background: symbol_onboarding_worker processes all 3
 
 The frontend must be updated to handle instant onboarding. This is a **breaking change** from the current 15-20 minute batch flow.
 
+> **See also**: `V2BatchArchitecture/17-API-CONTRACT-CHANGES.md` for complete API contract migration guide.
+
 #### 10.7.1 `frontend/src/hooks/usePortfolioUpload.ts`
 
 **Current behavior**: Calls `createPortfolio()` then `triggerCalculations()` then redirects to progress page.
@@ -2201,6 +2203,25 @@ The following will be deprecated/simplified:
    - `is_single_portfolio_mode` logic in batch_orchestrator - removed
    - `source="onboarding"` tracking - removed
    - `scoped_only` mode for onboarding - removed (still used for admin operations)
+
+### 10.10 Analytics Endpoint Strategy
+
+The current analytics stack treats analytics as **batch products** (computed during batch, stored in DB). V2 changes some endpoints to **compute on-demand from cache**.
+
+> **See**: `V2BatchArchitecture/18-ANALYTICS-ENDPOINT-STRATEGY.md` for complete endpoint-by-endpoint strategy.
+
+**Summary:**
+
+| Endpoint | V1 Source | V2 Source | API Change? |
+|----------|-----------|-----------|-------------|
+| `/analytics/portfolio/{id}/overview` | Stored `portfolio_snapshots` | Stored (no change) | No |
+| `/analytics/portfolio/{id}/correlation-matrix` | Computed from DB | Computed from cache | No |
+| `/analytics/portfolio/{id}/factor-exposures` | Stored `factor_exposures` | Computed from cache | No |
+| `/analytics/portfolio/{id}/positions/factor-exposures` | Stored rows | Computed from cache | No |
+| `/analytics/portfolio/{id}/stress-test` | Computed from stored factors | Computed from cache | No |
+| `/analytics/portfolio/{id}/volatility` | Computed from DB | Computed from cache | No |
+
+**Key principle**: V2 changes HOW analytics are computed (cache vs DB), not WHAT they return. **API response contracts are preserved.**
 
 ---
 
