@@ -832,7 +832,524 @@ class PortfolioCacheService:
         return hashlib.sha256(str(data).encode()).hexdigest()[:16]
 ```
 
-### 4.4 Modifications to Existing Code
+### 4.4 In-Memory Analytics Cache (Replaces PriceCache)
+
+**Background**: The current `PriceCache` class creates a fresh cache per batch run. For V2's instant analytics, we need a **persistent in-memory cache** that survives between requests and is refreshed after the daily batch.
+
+**Rename**: `app/cache/price_cache.py` → `app/cache/analytics_cache.py`
+
+**Memory Footprint**:
+| Data | Size | Notes |
+|------|------|-------|
+| Symbol factor betas | ~370 KB | 5,000 symbols × 8 factors × 8 bytes |
+| Factor ETF returns | ~16 KB | 8 ETFs × 252 days × 8 bytes |
+| Correlation matrix | ~1 KB | 8×8 pre-computed |
+| Historical prices | ~50 MB | 5,000 symbols × 252 days × ~40 bytes |
+| **Total** | **~50 MB** | Acceptable for Railway |
+
+**`backend/app/cache/analytics_cache.py`:**
+
+```python
+"""
+Analytics Cache - Persistent In-Memory Cache for Instant Analytics
+
+Extends the former PriceCache to include all data needed for instant analytics:
+- Historical prices (1 year)
+- Symbol factor betas (from symbol_factor_exposures)
+- Factor ETF returns (for correlation matrix)
+- Pre-computed correlation matrix
+
+Lifecycle:
+1. Loaded at application startup
+2. Refreshed after daily batch completes
+3. Used by all analytics requests (zero DB reads)
+
+Memory: ~50 MB for 5,000 symbols
+"""
+
+from dataclasses import dataclass
+from datetime import date, datetime, timedelta
+from typing import Dict, List, Optional, Any, Set
+from uuid import UUID
+import numpy as np
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.logging import get_logger
+from app.database import AsyncSessionLocal
+from app.models.market_data import MarketDataCache, SymbolFactorExposure
+from app.constants.factors import FACTOR_ETFS
+
+logger = get_logger(__name__)
+
+# Factor ETFs for correlation matrix (8 factors)
+CORRELATION_FACTORS = list(FACTOR_ETFS.values())  # SPY, QQQ, IWM, TLT, etc.
+
+
+@dataclass
+class SymbolFactors:
+    """Factor betas for a single symbol."""
+    symbol: str
+    market_beta: float          # SPY (90-day OLS)
+    ir_beta: float              # TLT (90-day OLS)
+    value_beta: float           # VTV (ridge)
+    growth_beta: float          # VUG (ridge)
+    momentum_beta: float        # MTUM (ridge)
+    quality_beta: float         # QUAL (ridge)
+    size_beta: float            # IWM (ridge)
+    low_vol_beta: float         # USMV (ridge)
+    growth_value_spread: float  # VUG-VTV (spread)
+    momentum_spread: float      # MTUM-SPY (spread)
+    size_spread: float          # IWM-SPY (spread)
+    quality_spread: float       # QUAL-SPY (spread)
+    calculation_date: date
+
+
+@dataclass
+class PriceRecord:
+    """Single price record for a symbol/date."""
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+    adjusted_close: Optional[float] = None
+
+
+class AnalyticsCache:
+    """
+    Persistent in-memory cache for all analytics data.
+
+    Usage:
+        # At startup
+        await analytics_cache.load_all()
+
+        # After daily batch
+        await analytics_cache.refresh_after_batch()
+
+        # During request
+        betas = analytics_cache.get_symbol_betas("AAPL")
+        corr = analytics_cache.get_correlation_matrix()
+    """
+
+    def __init__(self):
+        # Price data: symbol -> date -> PriceRecord
+        self._prices: Dict[str, Dict[date, PriceRecord]] = {}
+
+        # Symbol factor betas: symbol -> SymbolFactors
+        self._symbol_betas: Dict[str, SymbolFactors] = {}
+
+        # Factor ETF returns: symbol -> list of daily returns (252 days)
+        self._factor_returns: Dict[str, List[float]] = {}
+
+        # Pre-computed correlation matrix: factor -> factor -> correlation
+        self._correlation_matrix: Dict[str, Dict[str, float]] = {}
+
+        # Metadata
+        self._last_refresh: Optional[datetime] = None
+        self._symbols_loaded: int = 0
+        self._prices_loaded: int = 0
+        self._is_loaded: bool = False
+
+    # =========================================================================
+    # LOADING METHODS
+    # =========================================================================
+
+    async def load_all(self, db: Optional[AsyncSession] = None) -> Dict[str, Any]:
+        """
+        Load all data needed for instant analytics.
+        Called at startup and after daily batch.
+
+        Returns:
+            Summary of loaded data
+        """
+        logger.info("AnalyticsCache: Starting full load...")
+
+        close_session = False
+        if db is None:
+            db = AsyncSessionLocal()
+            close_session = True
+
+        try:
+            # Load in parallel where possible
+            prices_result = await self._load_prices(db)
+            betas_result = await self._load_symbol_betas(db)
+            returns_result = await self._load_factor_returns(db)
+
+            # Compute correlation matrix from returns
+            self._compute_correlation_matrix()
+
+            self._last_refresh = datetime.utcnow()
+            self._is_loaded = True
+
+            summary = {
+                'success': True,
+                'last_refresh': self._last_refresh.isoformat(),
+                'symbols_with_prices': len(self._prices),
+                'symbols_with_betas': len(self._symbol_betas),
+                'factor_returns_loaded': len(self._factor_returns),
+                'correlation_matrix_size': f"{len(self._correlation_matrix)}x{len(self._correlation_matrix)}",
+                'total_prices': self._prices_loaded,
+            }
+
+            logger.info(
+                f"AnalyticsCache: Loaded {len(self._symbol_betas)} symbol betas, "
+                f"{self._prices_loaded} prices, {len(self._correlation_matrix)}x{len(self._correlation_matrix)} correlation matrix"
+            )
+
+            return summary
+
+        finally:
+            if close_session:
+                await db.close()
+
+    async def refresh_after_batch(self, db: Optional[AsyncSession] = None) -> Dict[str, Any]:
+        """
+        Refresh cache after daily batch completes.
+        Called from batch_orchestrator at end of run_daily_batch_with_backfill().
+        """
+        logger.info("AnalyticsCache: Refreshing after daily batch...")
+        return await self.load_all(db)
+
+    async def _load_prices(self, db: AsyncSession) -> Dict[str, Any]:
+        """Load 1 year of historical prices for all symbols."""
+        from app.models.market_data import MarketDataCache
+
+        end_date = date.today()
+        start_date = end_date - timedelta(days=366)
+
+        result = await db.execute(
+            select(MarketDataCache)
+            .where(MarketDataCache.date >= start_date)
+            .order_by(MarketDataCache.symbol, MarketDataCache.date)
+        )
+        rows = result.scalars().all()
+
+        self._prices.clear()
+        self._prices_loaded = 0
+
+        for row in rows:
+            symbol = row.symbol.upper()
+            if symbol not in self._prices:
+                self._prices[symbol] = {}
+
+            self._prices[symbol][row.date] = PriceRecord(
+                open=float(row.open) if row.open else 0.0,
+                high=float(row.high) if row.high else 0.0,
+                low=float(row.low) if row.low else 0.0,
+                close=float(row.close) if row.close else 0.0,
+                volume=int(row.volume) if row.volume else 0,
+                adjusted_close=float(row.adjusted_close) if row.adjusted_close else None,
+            )
+            self._prices_loaded += 1
+
+        logger.debug(f"Loaded {self._prices_loaded} prices for {len(self._prices)} symbols")
+        return {'prices_loaded': self._prices_loaded, 'symbols': len(self._prices)}
+
+    async def _load_symbol_betas(self, db: AsyncSession) -> Dict[str, Any]:
+        """Load all symbol factor betas from symbol_factor_exposures."""
+        from app.models.market_data import SymbolFactorExposure
+
+        # Get latest calculation date
+        latest_date_result = await db.execute(
+            select(SymbolFactorExposure.calculation_date)
+            .order_by(SymbolFactorExposure.calculation_date.desc())
+            .limit(1)
+        )
+        latest_date = latest_date_result.scalar_one_or_none()
+
+        if not latest_date:
+            logger.warning("No symbol factor exposures found in database")
+            return {'symbols_loaded': 0}
+
+        # Load all betas for latest date
+        result = await db.execute(
+            select(SymbolFactorExposure)
+            .where(SymbolFactorExposure.calculation_date == latest_date)
+        )
+        rows = result.scalars().all()
+
+        self._symbol_betas.clear()
+
+        for row in rows:
+            symbol = row.symbol.upper()
+
+            # Extract betas from the row (adjust field names as needed)
+            self._symbol_betas[symbol] = SymbolFactors(
+                symbol=symbol,
+                market_beta=float(row.market_beta or 0.0),
+                ir_beta=float(row.ir_beta or 0.0),
+                value_beta=float(row.value_beta or 0.0),
+                growth_beta=float(row.growth_beta or 0.0),
+                momentum_beta=float(row.momentum_beta or 0.0),
+                quality_beta=float(row.quality_beta or 0.0),
+                size_beta=float(row.size_beta or 0.0),
+                low_vol_beta=float(row.low_vol_beta or 0.0),
+                growth_value_spread=float(row.growth_value_spread or 0.0),
+                momentum_spread=float(row.momentum_spread or 0.0),
+                size_spread=float(row.size_spread or 0.0),
+                quality_spread=float(row.quality_spread or 0.0),
+                calculation_date=row.calculation_date,
+            )
+
+        self._symbols_loaded = len(self._symbol_betas)
+        logger.debug(f"Loaded betas for {self._symbols_loaded} symbols (date={latest_date})")
+        return {'symbols_loaded': self._symbols_loaded, 'calculation_date': latest_date}
+
+    async def _load_factor_returns(self, db: AsyncSession) -> Dict[str, Any]:
+        """Load 252 days of returns for factor ETFs (for correlation matrix)."""
+        from app.models.market_data import MarketDataCache
+
+        end_date = date.today()
+        start_date = end_date - timedelta(days=300)  # Extra buffer for 252 trading days
+
+        self._factor_returns.clear()
+
+        for factor_symbol in CORRELATION_FACTORS:
+            result = await db.execute(
+                select(MarketDataCache.date, MarketDataCache.close)
+                .where(
+                    MarketDataCache.symbol == factor_symbol,
+                    MarketDataCache.date >= start_date
+                )
+                .order_by(MarketDataCache.date)
+            )
+            rows = result.all()
+
+            if len(rows) < 2:
+                logger.warning(f"Insufficient data for factor {factor_symbol}")
+                continue
+
+            # Calculate daily returns
+            prices = [float(row.close) for row in rows if row.close]
+            returns = []
+            for i in range(1, len(prices)):
+                if prices[i-1] > 0:
+                    daily_return = (prices[i] - prices[i-1]) / prices[i-1]
+                    returns.append(daily_return)
+
+            # Keep last 252 trading days
+            self._factor_returns[factor_symbol] = returns[-252:] if len(returns) > 252 else returns
+
+        logger.debug(f"Loaded returns for {len(self._factor_returns)} factor ETFs")
+        return {'factors_loaded': len(self._factor_returns)}
+
+    def _compute_correlation_matrix(self) -> None:
+        """Compute correlation matrix from factor returns."""
+        import numpy as np
+
+        self._correlation_matrix.clear()
+
+        factors = list(self._factor_returns.keys())
+        if len(factors) < 2:
+            logger.warning("Insufficient factors for correlation matrix")
+            return
+
+        # Find minimum length across all factors
+        min_len = min(len(self._factor_returns[f]) for f in factors)
+        if min_len < 30:
+            logger.warning(f"Insufficient data for correlation ({min_len} days)")
+            return
+
+        # Build correlation matrix
+        for f1 in factors:
+            self._correlation_matrix[f1] = {}
+            returns1 = np.array(self._factor_returns[f1][-min_len:])
+
+            for f2 in factors:
+                if f1 == f2:
+                    self._correlation_matrix[f1][f2] = 1.0
+                else:
+                    returns2 = np.array(self._factor_returns[f2][-min_len:])
+                    corr = np.corrcoef(returns1, returns2)[0, 1]
+                    # Bound correlation to [-0.95, 0.95] to avoid extreme values
+                    corr = max(-0.95, min(0.95, corr))
+                    self._correlation_matrix[f1][f2] = float(corr)
+
+        logger.debug(f"Computed {len(factors)}x{len(factors)} correlation matrix")
+
+    # =========================================================================
+    # LOOKUP METHODS (Used by analytics at request time)
+    # =========================================================================
+
+    def get_symbol_betas(self, symbol: str) -> Optional[SymbolFactors]:
+        """Get factor betas for a symbol. Returns None if not found."""
+        return self._symbol_betas.get(symbol.upper())
+
+    def get_all_symbol_betas(self) -> Dict[str, SymbolFactors]:
+        """Get all cached symbol betas."""
+        return self._symbol_betas
+
+    def get_correlation_matrix(self) -> Dict[str, Dict[str, float]]:
+        """Get pre-computed factor correlation matrix."""
+        return self._correlation_matrix
+
+    def get_factor_returns(self, factor: str) -> List[float]:
+        """Get daily returns for a factor ETF."""
+        return self._factor_returns.get(factor, [])
+
+    def get_price(self, symbol: str, price_date: date) -> Optional[PriceRecord]:
+        """Get price for a symbol on a specific date."""
+        symbol_prices = self._prices.get(symbol.upper())
+        if symbol_prices:
+            return symbol_prices.get(price_date)
+        return None
+
+    def get_prices_range(
+        self,
+        symbol: str,
+        start_date: date,
+        end_date: date
+    ) -> Dict[date, PriceRecord]:
+        """Get prices for a symbol within a date range."""
+        symbol_prices = self._prices.get(symbol.upper(), {})
+        return {
+            d: p for d, p in symbol_prices.items()
+            if start_date <= d <= end_date
+        }
+
+    def get_returns(self, symbol: str, days: int = 90) -> List[float]:
+        """Calculate daily returns for a symbol over N days."""
+        symbol_prices = self._prices.get(symbol.upper(), {})
+        if not symbol_prices:
+            return []
+
+        sorted_dates = sorted(symbol_prices.keys(), reverse=True)[:days+1]
+        sorted_dates.reverse()
+
+        returns = []
+        for i in range(1, len(sorted_dates)):
+            prev_price = symbol_prices[sorted_dates[i-1]].close
+            curr_price = symbol_prices[sorted_dates[i]].close
+            if prev_price > 0:
+                returns.append((curr_price - prev_price) / prev_price)
+
+        return returns
+
+    # =========================================================================
+    # STATUS METHODS
+    # =========================================================================
+
+    def is_loaded(self) -> bool:
+        """Check if cache has been loaded."""
+        return self._is_loaded
+
+    def get_stats(self) -> Dict[str, Any]:
+        """Get cache statistics."""
+        return {
+            'is_loaded': self._is_loaded,
+            'last_refresh': self._last_refresh.isoformat() if self._last_refresh else None,
+            'symbols_with_betas': len(self._symbol_betas),
+            'symbols_with_prices': len(self._prices),
+            'total_prices': self._prices_loaded,
+            'factor_etfs_loaded': len(self._factor_returns),
+            'correlation_matrix_size': len(self._correlation_matrix),
+        }
+
+    def has_symbol(self, symbol: str) -> bool:
+        """Check if symbol has data in cache."""
+        symbol_upper = symbol.upper()
+        return symbol_upper in self._symbol_betas or symbol_upper in self._prices
+
+
+# =============================================================================
+# SINGLETON INSTANCE
+# =============================================================================
+
+# Global singleton - imported by other modules
+analytics_cache = AnalyticsCache()
+```
+
+**Startup Integration** (`backend/app/main.py`):
+
+```python
+from contextlib import asynccontextmanager
+from app.cache.analytics_cache import analytics_cache
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Load analytics cache
+    logger.info("Loading analytics cache at startup...")
+    try:
+        result = await analytics_cache.load_all()
+        logger.info(f"Analytics cache loaded: {result['symbols_with_betas']} symbols")
+    except Exception as e:
+        logger.error(f"Failed to load analytics cache: {e}")
+        # Continue anyway - cache will be populated after first batch
+
+    yield
+
+    # Shutdown: Nothing to clean up (in-memory)
+    logger.info("Shutting down...")
+
+app = FastAPI(lifespan=lifespan)
+```
+
+**Batch Integration** (`backend/app/batch/batch_orchestrator.py`):
+
+```python
+from app.cache.analytics_cache import analytics_cache
+
+async def run_daily_batch_with_backfill(...) -> Dict[str, Any]:
+    # ... existing batch phases ...
+
+    # At end of batch, refresh the persistent cache
+    logger.info("Refreshing analytics cache after batch...")
+    cache_result = await analytics_cache.refresh_after_batch()
+    logger.info(f"Analytics cache refreshed: {cache_result}")
+
+    return results
+```
+
+**Usage in Analytics** (`backend/app/calculations/stress_testing.py`):
+
+```python
+from app.cache.analytics_cache import analytics_cache
+
+async def run_comprehensive_stress_test(
+    db: AsyncSession,
+    portfolio_id: UUID,
+    calculation_date: date,
+    ...
+) -> Dict[str, Any]:
+    # USE CACHED CORRELATION MATRIX (no DB query!)
+    correlation_matrix = analytics_cache.get_correlation_matrix()
+
+    if not correlation_matrix:
+        # Fallback: compute from DB if cache not loaded
+        correlation_data = await calculate_factor_correlation_matrix(db)
+        correlation_matrix = correlation_data['correlation_matrix']
+
+    # ... rest of stress test uses cached data ...
+```
+
+### 4.5 Modifications to Existing Code
+
+**`batch_orchestrator.py`** - Use persistent AnalyticsCache:
+
+```python
+# BEFORE (current):
+async def run_daily_batch_with_backfill(...):
+    # Fresh cache created each run
+    price_cache = PriceCache()
+    await price_cache.load_date_range(db, symbols, start_date, end_date)
+    # ... phases use price_cache ...
+    # Cache discarded when function exits
+
+# AFTER (new):
+from app.cache.analytics_cache import analytics_cache
+
+async def run_daily_batch_with_backfill(...):
+    # Use persistent singleton (already loaded at startup)
+    # Just refresh prices for this batch's date range
+    await analytics_cache.load_prices(db, symbols, start_date, end_date)
+
+    # ... phases use analytics_cache ...
+
+    # At end: refresh all cached data (betas, returns, correlation)
+    await analytics_cache.refresh_after_batch(db)
+```
 
 **`batch_orchestrator.py`** - Remove portfolio-driven symbol processing:
 
