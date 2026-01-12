@@ -142,13 +142,15 @@ async def run_v2_batch():
         return False
 
 
-def check_v2_guard():
+async def check_v2_guard():
     """
     V2 Architecture Guard: Redirect to V2 batch when enabled.
 
     When BATCH_V2_ENABLED=true, this script runs the V2 batch logic directly
     instead of V1 legacy batch. This allows seamless migration without
     changing Railway cron configuration.
+
+    Returns True if V2 was run (and script should exit), False otherwise.
     """
     if settings.BATCH_V2_ENABLED:
         print("=" * 60)
@@ -156,8 +158,8 @@ def check_v2_guard():
         print("=" * 60)
         sys.stdout.flush()
 
-        # Run V2 batch directly
-        success = asyncio.run(run_v2_batch())
+        # Run V2 batch directly (await since we're already in async context)
+        success = await run_v2_batch()
 
         if success:
             print("[OK] V2 batch completed successfully")
@@ -165,6 +167,8 @@ def check_v2_guard():
         else:
             print("[FAIL] V2 batch failed")
             sys.exit(1)
+
+    return False  # V2 not enabled, continue with V1
 
 
 async def ensure_factor_definitions():
@@ -185,7 +189,7 @@ async def ensure_factor_definitions():
 async def main():
     """Main entry point for daily batch job."""
     # V2 Guard: Exit early if V2 batch mode is enabled
-    check_v2_guard()
+    await check_v2_guard()
 
     job_start = datetime.datetime.now()
 
