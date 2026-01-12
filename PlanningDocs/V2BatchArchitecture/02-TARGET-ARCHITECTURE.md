@@ -14,7 +14,7 @@
 ```
 STEP 1: Get all symbols in symbol_universe WHERE is_active = true
 STEP 2: Batch fetch today's prices from YFinance
-STEP 3: Update symbol_prices_daily table
+STEP 3: Update market_data_cache table (existing)
 STEP 4: For each symbol (parallelized, 10 concurrent):
         a. Calculate Market Beta (OLS vs SPY)
         b. Calculate IR Beta (OLS vs TLT)
@@ -104,10 +104,9 @@ backend/app/cache/
 Symbol Layer (Global)          Portfolio Layer (Per-User)
 ─────────────────────          ──────────────────────────
 symbol_universe                portfolios
-symbol_prices_daily            positions
+market_data_cache              positions
 symbol_factor_exposures        portfolio_snapshots
-symbol_daily_metrics           position_factor_exposures (computed)
-                               portfolio_analytics_cache
+symbol_daily_metrics           (in-memory analytics cache)
 ```
 
 **Rule**: Portfolio layer READS from symbol layer, never writes. Symbol layer has no knowledge of portfolios.

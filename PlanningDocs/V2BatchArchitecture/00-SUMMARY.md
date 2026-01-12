@@ -49,7 +49,7 @@ Current architecture ties symbol-level data maintenance to portfolio-level analy
 │   4. Calculate Spread factors (4)                               │
 │   5. Record completion flag                                     │
 │                                                                  │
-│   Duration: ~15 min | Tables: symbol_prices_daily,              │
+│   Duration: ~15 min | Tables: market_data_cache,              │
 │                       symbol_factor_exposures                   │
 └─────────────────────────────────────────────────────────────────┘
                               │

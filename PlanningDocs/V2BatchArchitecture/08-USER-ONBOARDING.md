@@ -36,7 +36,7 @@ User uploads CSV
     ▼
 ┌─────────────────────────────────────┐
 │ 4. Get latest price date from cache │
-│    (symbol_prices_daily)            │
+│    (market_data_cache)            │
 └─────────────────────────────────────┘
     │
     ▼
@@ -138,14 +138,14 @@ async def create_portfolio_with_csv(
 ```python
 async def get_latest_price_date(db: AsyncSession) -> date:
     """
-    Get the most recent price date in symbol_prices_daily.
+    Get the most recent price date in market_data_cache.
 
     This is the date we'll use for the snapshot.
     - Before 9 PM cron: Yesterday's date
     - After 9 PM cron: Today's date
     """
     result = await db.execute(
-        select(func.max(SymbolPricesDaily.price_date))
+        select(func.max(MarketDataCache.date))
     )
     latest_date = result.scalar()
 
@@ -166,14 +166,14 @@ async def get_cached_price_for_date(
     NEVER fetches live prices - cache only.
     """
     result = await db.execute(
-        select(SymbolPricesDaily.close_price)
+        select(MarketDataCache.close)
         .where(
-            SymbolPricesDaily.symbol == symbol.upper(),
-            SymbolPricesDaily.price_date == price_date
+            MarketDataCache.symbol == symbol.upper(),
+            MarketDataCache.date == price_date
         )
     )
     row = result.first()
-    return row.close_price if row else None
+    return row.close if row else None
 ```
 
 ---

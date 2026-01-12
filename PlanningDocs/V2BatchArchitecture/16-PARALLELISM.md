@@ -176,13 +176,13 @@ async def get_portfolios_without_snapshot(target_date: date) -> List[Portfolio]:
 ```python
 async def upsert_symbol_price(symbol: str, date: date, price: Decimal):
     """Upsert price - safe to run multiple times."""
-    stmt = insert(SymbolPricesDaily).values(
+    stmt = insert(MarketDataCache).values(
         symbol=symbol,
-        price_date=date,
-        close_price=price
+        date=date,
+        close=price
     ).on_conflict_do_update(
-        index_elements=['symbol', 'price_date'],
-        set_={'close_price': price, 'updated_at': func.now()}
+        index_elements=['symbol', 'date'],
+        set_={'close': price, 'updated_at': func.now()}
     )
     await db.execute(stmt)
 ```

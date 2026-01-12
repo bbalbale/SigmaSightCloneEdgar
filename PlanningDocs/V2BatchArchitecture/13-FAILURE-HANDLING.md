@@ -211,7 +211,7 @@ async def get_batch_status(db: AsyncSession = Depends(get_db)) -> BatchStatusRes
 
     # Market data staleness
     latest_price_date = await db.execute(
-        select(func.max(SymbolPricesDaily.price_date))
+        select(func.max(MarketDataCache.date))
     )
 
     return BatchStatusResponse(

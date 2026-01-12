@@ -197,8 +197,8 @@ def get_trading_days_between(start_date: date, end_date: date) -> List[date]:
 async def has_price_data_for_date(target_date: date) -> bool:
     """Check if we have price data for a given date."""
     result = await db.execute(
-        select(func.count(SymbolPricesDaily.id))
-        .where(SymbolPricesDaily.price_date == target_date)
+        select(func.count(MarketDataCache.id))
+        .where(MarketDataCache.date == target_date)
     )
     count = result.scalar()
     return count > 0
@@ -240,7 +240,7 @@ async def create_portfolio_snapshot(
     """
     Create a snapshot for a portfolio using cached prices.
 
-    Uses prices from symbol_prices_daily (populated by symbol batch).
+    Uses prices from market_data_cache (populated by symbol batch).
     NEVER fetches live prices.
     """
     # Check if snapshot already exists (idempotent)
@@ -262,7 +262,7 @@ async def create_portfolio_snapshot(
     total_cost = Decimal('0')
 
     for position in positions:
-        # Get price from cache (symbol_prices_daily)
+        # Get price from cache (market_data_cache)
         price = await get_cached_price(position.symbol, snapshot_date)
 
         if price:
@@ -293,15 +293,15 @@ async def create_portfolio_snapshot(
 
 async def get_cached_price(symbol: str, target_date: date) -> Optional[Decimal]:
     """
-    Get price from symbol_prices_daily.
+    Get price from market_data_cache.
 
     Returns the price for target_date, or None if not found.
     """
     result = await db.execute(
-        select(SymbolPricesDaily.close_price)
+        select(MarketDataCache.close_price)
         .where(
-            SymbolPricesDaily.symbol == symbol,
-            SymbolPricesDaily.price_date == target_date
+            MarketDataCache.symbol == symbol,
+            MarketDataCache.date == target_date
         )
     )
     row = result.first()

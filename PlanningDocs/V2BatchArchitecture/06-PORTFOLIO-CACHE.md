@@ -148,7 +148,7 @@ class SymbolCacheService:
 
     async def _load_all_symbols(self, db) -> List[SymbolCache]:
         """Load all symbol data from database."""
-        # Implementation: query symbol_prices_daily, symbol_factor_exposures
+        # Implementation: query market_data_cache, symbol_factor_exposures
         # Join and build SymbolCache objects
         ...
 

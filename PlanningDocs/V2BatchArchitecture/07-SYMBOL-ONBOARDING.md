@@ -140,7 +140,7 @@ class SymbolOnboardingRunner:
 
         # Phase 1: Fetch 1 year of prices
         prices = await yfinance_fetch_history(symbol, period="1y")
-        await bulk_insert_symbol_prices(db, symbol, prices)
+        await bulk_upsert_market_data(db, symbol, prices)
 
         # Phase 2: Calculate factor betas
         await calculate_symbol_factors(db, symbol)

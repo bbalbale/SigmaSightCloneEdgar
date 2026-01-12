@@ -89,7 +89,7 @@ async def _run_price_phase(
     # Batch fetch from YFinance (more efficient than per-symbol)
     prices = await yfinance_batch_fetch(symbols, target_date)
 
-    # Bulk upsert to symbol_prices_daily
+    # Bulk upsert to market_data_cache (existing table)
     await bulk_upsert_prices(prices)
 
     batch_run_tracker.complete_phase("prices", success=True)
