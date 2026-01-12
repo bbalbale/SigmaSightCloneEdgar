@@ -17,6 +17,7 @@ Reference: PlanningDocs/V2BatchArchitecture/04-SYMBOL-BATCH-RUNNER.md
 """
 
 import asyncio
+import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from typing import Dict, Any, List, Optional
