@@ -75,10 +75,15 @@ class ValuationBatchService:
                 ...
             }
         """
+        import sys
+
         if not symbols:
             logger.warning("No symbols provided to fetch_daily_valuations")
             return {}
 
+        total_batches = (len(symbols) + batch_size - 1) // batch_size
+        print(f"[VALUATION] Starting batch fetch: {len(symbols)} symbols in {total_batches} batches")
+        sys.stdout.flush()
         logger.info(f"Fetching daily valuations for {len(symbols)} symbols in batches of {batch_size}")
 
         all_results = {}
@@ -87,9 +92,9 @@ class ValuationBatchService:
         for i in range(0, len(symbols), batch_size):
             batch = symbols[i:i + batch_size]
             batch_num = (i // batch_size) + 1
-            total_batches = (len(symbols) + batch_size - 1) // batch_size
 
-            logger.info(f"Processing batch {batch_num}/{total_batches} ({len(batch)} symbols)")
+            print(f"[VALUATION] Batch {batch_num}/{total_batches}: fetching {len(batch)} symbols...")
+            sys.stdout.flush()
 
             # Run in thread pool to avoid blocking async event loop
             loop = asyncio.get_event_loop()
@@ -101,11 +106,17 @@ class ValuationBatchService:
 
             all_results.update(batch_results)
 
+            # Progress update
+            print(f"[VALUATION] Batch {batch_num}/{total_batches}: got {len(batch_results)} results (total: {len(all_results)})")
+            sys.stdout.flush()
+
             # Small delay between batches to avoid rate limiting
             if i + batch_size < len(symbols):
                 await asyncio.sleep(0.5)
 
         success_count = len(all_results)
+        print(f"[VALUATION] Complete: {success_count}/{len(symbols)} symbols successful")
+        sys.stdout.flush()
         logger.info(f"Valuation fetch complete: {success_count}/{len(symbols)} symbols successful")
 
         return all_results
@@ -184,6 +195,7 @@ class ValuationBatchService:
         Returns:
             Dict with update results
         """
+        import sys
         from sqlalchemy import select
         from app.models.market_data import CompanyProfile
 
@@ -193,8 +205,14 @@ class ValuationBatchService:
         updated = 0
         created = 0
         failed = 0
+        total = len(valuations)
+        processed = 0
+
+        print(f"[VALUATION] Updating {total} company profiles in database...")
+        sys.stdout.flush()
 
         for symbol, metrics in valuations.items():
+            processed += 1
             try:
                 # Check if profile exists
                 result = await db.execute(
@@ -240,11 +258,20 @@ class ValuationBatchService:
                 logger.warning(f"Failed to update profile for {symbol}: {e}")
                 failed += 1
 
+            # Progress logging every 200 symbols
+            if processed % 200 == 0:
+                print(f"[VALUATION] DB update progress: {processed}/{total} ({updated} updated, {created} created)")
+                sys.stdout.flush()
+
         try:
             await db.commit()
+            print(f"[VALUATION] DB commit successful: {updated} updated, {created} created, {failed} failed")
+            sys.stdout.flush()
         except Exception as e:
             logger.error(f"Failed to commit profile updates: {e}")
             await db.rollback()
+            print(f"[VALUATION] DB commit FAILED: {e}")
+            sys.stdout.flush()
             return {"updated": 0, "created": 0, "failed": len(valuations), "error": str(e)}
 
         logger.info(f"Profile updates: {updated} updated, {created} created, {failed} failed")
