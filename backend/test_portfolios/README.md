@@ -48,7 +48,7 @@ This directory contains CSV files for testing portfolio uploads with variants of
 
 **Holdings**:
 - ETFs: QQQ, XLK, SOXX, ARKK, VGT
-- Stocks: CRWD, SNOW, NET, DDOG, PLTR, ADBE, CRM, NOW, PANW, FTNT, MELI, SQ
+- Stocks: CRWD, SNOW, NET, DDOG, PLTR, ADBE, CRM, NOW, PANW, FTNT, MELI, XYZ
 
 ---
 
