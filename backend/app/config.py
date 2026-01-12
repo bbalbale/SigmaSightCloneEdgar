@@ -227,7 +227,58 @@ class Settings(BaseSettings):
     # Batch processing settings
     BATCH_PROCESSING_ENABLED: bool = True
     MARKET_DATA_UPDATE_INTERVAL: int = 3600  # 1 hour in seconds
-    
+
+    # ==========================================================================
+    # V2 BATCH ARCHITECTURE (Two-Cron, Instant Onboarding)
+    # ==========================================================================
+    # Master switch for V2 batch architecture
+    # When True: Symbol batch + Portfolio refresh run as separate cron jobs
+    # When False: Legacy batch_orchestrator runs all phases together
+    BATCH_V2_ENABLED: bool = Field(
+        default=False,
+        env="BATCH_V2_ENABLED",
+        description="Enable V2 batch architecture (two-cron, instant onboarding)"
+    )
+
+    # V2 Batch timing thresholds (seconds)
+    SYMBOL_BATCH_TIMEOUT_SECONDS: int = Field(
+        default=1500,  # 25 min abort
+        env="SYMBOL_BATCH_TIMEOUT_SECONDS",
+        description="Symbol batch timeout (target 15 min, warn at 20 min)"
+    )
+    PORTFOLIO_REFRESH_TIMEOUT_SECONDS: int = Field(
+        default=1200,  # 20 min abort
+        env="PORTFOLIO_REFRESH_TIMEOUT_SECONDS",
+        description="Portfolio refresh timeout (target 10 min, warn at 15 min)"
+    )
+
+    # V2 Concurrency limits (Railway-safe defaults)
+    PRICE_FETCH_CONCURRENCY: int = Field(
+        default=5,
+        env="PRICE_FETCH_CONCURRENCY",
+        description="Max concurrent price fetch operations"
+    )
+    FACTOR_CALC_CONCURRENCY: int = Field(
+        default=10,
+        env="FACTOR_CALC_CONCURRENCY",
+        description="Max concurrent factor calculations"
+    )
+    PORTFOLIO_REFRESH_CONCURRENCY: int = Field(
+        default=10,
+        env="PORTFOLIO_REFRESH_CONCURRENCY",
+        description="Max concurrent portfolio refresh operations"
+    )
+    SYMBOL_ONBOARDING_CONCURRENCY: int = Field(
+        default=3,
+        env="SYMBOL_ONBOARDING_CONCURRENCY",
+        description="Max concurrent symbol onboarding jobs"
+    )
+    SYMBOL_ONBOARDING_MAX_QUEUE: int = Field(
+        default=50,
+        env="SYMBOL_ONBOARDING_MAX_QUEUE",
+        description="Max pending symbol onboarding jobs (backpressure)"
+    )
+
     class Config:
         env_file = ".env"
         case_sensitive = True

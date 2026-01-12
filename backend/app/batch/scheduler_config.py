@@ -56,8 +56,15 @@ class BatchScheduler:
     
     def initialize_jobs(self):
         """
-        Initialize all scheduled batch jobs.
-        These align with the timeline in Section 1.6:
+        Initialize scheduled batch jobs based on V1/V2 mode.
+
+        V1 Mode (BATCH_V2_ENABLED=false): All existing jobs scheduled
+        V2 Mode (BATCH_V2_ENABLED=true): Only non-conflicting jobs scheduled
+            - Symbol batch and portfolio refresh run via Railway cron (not APScheduler)
+            - Market data, correlations, company profiles handled by V2 crons
+            - Only feedback_learning and admin_metrics run via APScheduler
+
+        Historical timeline for V1 (Section 1.6):
         - 4:00 PM: Market data update
         - 4:30 PM: Portfolio aggregation and Greeks
         - 5:00 PM: Factor analysis and risk metrics
@@ -65,10 +72,58 @@ class BatchScheduler:
         - 6:00 PM: Correlations (Daily)
         - 6:30 PM: Portfolio snapshots
         """
-        
         # Remove existing jobs to avoid duplicates
         self.scheduler.remove_all_jobs()
-        
+
+        if settings.BATCH_V2_ENABLED:
+            # =================================================================
+            # V2 MODE: Only non-batch jobs run via APScheduler
+            # Symbol batch and portfolio refresh run via Railway cron
+            # =================================================================
+            logger.info("V2 Batch Mode: Skipping batch jobs, using Railway cron")
+
+            # Feedback learning batch job - Daily at 8:00 PM ET (Phase 3 PRD4)
+            # Non-conflicting: doesn't touch market data or calculations
+            self.scheduler.add_job(
+                func=self._run_feedback_learning,
+                trigger='cron',
+                hour=20,  # 8:00 PM
+                minute=0,
+                id='feedback_learning',
+                name='Daily Feedback Learning Analysis',
+                replace_existing=True
+            )
+
+            # Admin metrics aggregation and cleanup - Daily at 8:30 PM ET
+            # Non-conflicting: only aggregates metrics, no market data
+            self.scheduler.add_job(
+                func=self._run_admin_metrics_batch,
+                trigger='cron',
+                hour=20,  # 8:30 PM ET
+                minute=30,
+                id='admin_metrics_batch',
+                name='Daily Admin Metrics Aggregation & Cleanup',
+                replace_existing=True
+            )
+
+            logger.info("V2 Mode: Only feedback_learning and admin_metrics_batch scheduled")
+            logger.info("V2 Cron jobs (via Railway): symbol_batch (9 PM), portfolio_refresh (9:30 PM)")
+
+        else:
+            # =================================================================
+            # V1 MODE: All existing jobs scheduled (unchanged behavior)
+            # =================================================================
+            self._initialize_v1_jobs()
+
+        logger.info(f"Batch jobs initialized (V2={settings.BATCH_V2_ENABLED})")
+        self._log_scheduled_jobs()
+
+    def _initialize_v1_jobs(self):
+        """
+        Initialize all V1 scheduled batch jobs.
+
+        Separated into its own method for clarity. Called when BATCH_V2_ENABLED=false.
+        """
         # Daily batch sequence - runs at 4:00 PM ET after market close
         self.scheduler.add_job(
             func=self._run_daily_batch,
@@ -79,7 +134,7 @@ class BatchScheduler:
             name='Daily Batch Processing Sequence',
             replace_existing=True
         )
-        
+
         # Daily correlation calculation - Every day at 6:00 PM ET
         self.scheduler.add_job(
             func=self._run_daily_correlations,
@@ -90,7 +145,7 @@ class BatchScheduler:
             name='Daily Correlation Calculation',
             replace_existing=True
         )
-        
+
         # Company profile sync - Daily at 7:00 PM ET
         self.scheduler.add_job(
             func=self._sync_company_profiles,
@@ -136,21 +191,16 @@ class BatchScheduler:
             replace_existing=True
         )
 
-        # Admin metrics aggregation and cleanup - Daily at 8:00 PM UTC (1 AM UTC next day)
-        # Note: 8 PM ET = 1 AM UTC next day during EST, 12 AM UTC during EDT
-        # Running at 8 PM ET to ensure all daily data is captured before aggregation
+        # Admin metrics aggregation and cleanup - Daily at 8:30 PM ET
         self.scheduler.add_job(
             func=self._run_admin_metrics_batch,
             trigger='cron',
-            hour=20,  # 8:00 PM ET (same as feedback learning, but staggered by 30 min)
+            hour=20,  # 8:30 PM ET
             minute=30,
             id='admin_metrics_batch',
             name='Daily Admin Metrics Aggregation & Cleanup',
             replace_existing=True
         )
-
-        logger.info("Batch jobs initialized successfully")
-        self._log_scheduled_jobs()
     
     async def _run_daily_batch(self):
         """Execute the daily batch processing sequence with automatic backfill."""

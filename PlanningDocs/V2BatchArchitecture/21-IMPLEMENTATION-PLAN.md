@@ -22,7 +22,9 @@ Before starting, verify:
 
 ## Phase 1: Foundation (Steps 1-4)
 
-These steps are sequential dependencies - each blocks the next.
+These steps establish the V2 infrastructure without breaking V1 behavior.
+
+**Key Principle**: Zero new database tables - V2 reuses existing tables.
 
 ### Step 1: Add V2 Feature Flag
 
@@ -163,57 +165,44 @@ print('Jobs:', [j.id for j in batch_scheduler.scheduler.get_jobs()])
 
 ---
 
-### Step 4: Database Schema for V2
+### Step 4: Database Schema for V2 - ZERO NEW TABLES
 
-**Goal**: Add tables needed for V2 tracking.
+**Goal**: Confirm V2 uses existing tables only. No migrations required.
 
-**Reference Docs**: `03-DATABASE-SCHEMA.md`, `20-CRITICAL-INTEGRATION-GAPS.md` Section 7
+**Reference Docs**: `03-DATABASE-SCHEMA.md`
 
-**Files to Create**:
-```
-backend/app/models/symbol_onboarding.py       # NEW: Onboarding queue model
-backend/migrations_core/versions/xxx_add_v2_batch_tables.py  # Migration
-```
+**Key Principle**: V2 architecture reuses existing tables to avoid migration complexity.
 
-**Files to Modify**:
-```
-backend/app/models/__init__.py                # Export new models
-```
+**Existing Tables Used by V2**:
 
-**New Tables**:
+| Table | V2 Usage |
+|-------|----------|
+| `symbol_universe` | Track which symbols are in the system |
+| `market_data_cache` | Store fetched prices (already exists) |
+| `symbol_factor_exposures` | Store calculated factors (already exists) |
+| `symbol_daily_metrics` | Store volatility/beta metrics (already exists) |
+| `batch_run_history` | Track batch run completions (already exists) |
 
-1. `symbol_onboarding_jobs` - Database-backed onboarding queue
-   ```sql
-   CREATE TABLE symbol_onboarding_jobs (
-       id UUID PRIMARY KEY,
-       symbol VARCHAR(20) NOT NULL,
-       status VARCHAR(20) DEFAULT 'pending',  -- pending, processing, completed, failed
-       portfolio_id UUID REFERENCES portfolios(id),
-       user_id UUID REFERENCES users(id),
-       error_message TEXT,
-       created_at TIMESTAMP DEFAULT NOW(),
-       started_at TIMESTAMP,
-       completed_at TIMESTAMP
-   );
-   CREATE INDEX ix_symbol_onboarding_status ON symbol_onboarding_jobs(status);
-   ```
+**Symbol Onboarding**: Uses **in-memory queue** (not database-backed)
+- Jobs are short-lived (< 1 minute typically)
+- If Railway restarts mid-onboarding, user can retry
+- Simpler implementation, no migration needed
+- `symbol_universe` tracks which symbols have been processed
+
+**Files to Modify**: None
 
 **Acceptance Criteria**:
-- [ ] Migration runs successfully locally
-- [ ] Migration runs successfully on Railway staging
-- [ ] New model imports without error
-- [ ] Can create/query/update onboarding jobs
+- [ ] Confirm no new migrations needed
+- [ ] Verify existing tables have required columns
+- [ ] Document which existing tables V2 uses
 
-**Commands**:
+**Verification**:
 ```bash
-# Create migration
-uv run alembic -c alembic.ini revision --autogenerate -m "add_v2_batch_tables"
-
-# Apply locally
-uv run alembic -c alembic.ini upgrade head
-
-# Apply to Railway (after testing locally)
-railway run uv run alembic -c alembic.ini upgrade head
+# Verify existing tables have required columns
+uv run python -c "
+from app.models import SymbolUniverse, SymbolFactorExposure, SymbolDailyMetrics, MarketDataCache
+print('✅ All required V2 tables already exist')
+"
 ```
 
 ---
@@ -461,40 +450,91 @@ async def run_portfolio_refresh(target_date=None):
 
 ---
 
-### Step 9: Symbol Onboarding Queue
+### Step 9: Symbol Onboarding Queue (In-Memory)
 
-**Goal**: Implement database-backed symbol onboarding queue.
+**Goal**: Implement in-memory symbol onboarding queue for instant processing.
 
-**Reference Docs**: `07-SYMBOL-ONBOARDING.md`, `20-CRITICAL-INTEGRATION-GAPS.md` Section 7
+**Reference Docs**: `07-SYMBOL-ONBOARDING.md`
 
 **Files to Create**:
 ```
 backend/app/batch/v2/symbol_onboarding.py
 ```
 
-**Files to Modify**:
-```
-backend/app/main.py   # Add resume_on_startup to lifespan
-```
+**Design Decision**: In-memory queue (not database-backed)
+- Jobs are short-lived (< 1 minute typically)
+- If Railway restarts mid-job, user simply retries upload
+- `symbol_universe` table tracks which symbols have been processed
+- Simpler implementation, no migration needed
 
 **Implementation**:
 
 1. `SymbolOnboardingQueue` class with:
-   - `enqueue(symbol, portfolio_id, user_id)` - add to DB queue
+   - `_pending: Dict[str, OnboardingJob]` - in-memory job storage
+   - `enqueue(symbol, portfolio_id, user_id)` - add to queue
    - `get_pending()` - list pending jobs
    - `process_next()` - process one job
-   - `resume_on_startup()` - reset processing → pending
+   - `is_symbol_known(symbol)` - check `symbol_universe` table
 
-2. Background worker that processes queue
+2. Background worker that processes queue (asyncio task)
 
-3. Call `resume_on_startup()` from app lifespan handler
+3. On symbol completion:
+   - Add to `symbol_universe` table
+   - Add prices to `market_data_cache`
+   - Calculate and store factors in `symbol_factor_exposures`
+
+**Key Logic**:
+```python
+@dataclass
+class OnboardingJob:
+    symbol: str
+    portfolio_id: UUID
+    user_id: UUID
+    status: str = "pending"  # pending, processing, completed, failed
+    created_at: datetime = field(default_factory=datetime.utcnow)
+
+class SymbolOnboardingQueue:
+    _pending: Dict[str, OnboardingJob] = {}
+    _processing: Dict[str, OnboardingJob] = {}
+
+    async def enqueue(self, symbol: str, portfolio_id: UUID, user_id: UUID) -> bool:
+        # Check if symbol already known (in symbol_universe)
+        if await self.is_symbol_known(symbol):
+            return False  # Already processed, skip
+
+        # Check if already queued
+        if symbol in self._pending or symbol in self._processing:
+            return False  # Already queued
+
+        self._pending[symbol] = OnboardingJob(symbol, portfolio_id, user_id)
+        return True
+
+    async def process_next(self) -> Optional[str]:
+        if not self._pending:
+            return None
+
+        symbol, job = self._pending.popitem()
+        job.status = "processing"
+        self._processing[symbol] = job
+
+        try:
+            await self._process_symbol(symbol)
+            job.status = "completed"
+            del self._processing[symbol]
+            return symbol
+        except Exception as e:
+            job.status = "failed"
+            del self._processing[symbol]
+            raise
+```
 
 **Acceptance Criteria**:
-- [ ] Jobs persisted to database
-- [ ] Jobs survive Railway restart
-- [ ] `resume_on_startup()` resets interrupted jobs
 - [ ] Queue processes jobs in order
-- [ ] Completed symbols added to cache
+- [ ] Duplicate symbols are deduplicated
+- [ ] Known symbols (in symbol_universe) are skipped
+- [ ] Completed symbols added to symbol_universe
+- [ ] Factors calculated and stored in symbol_factor_exposures
+- [ ] Prices stored in market_data_cache
 
 ---
 
@@ -619,10 +659,10 @@ backend/tests/batch/test_v2_integration.py
 
 ```
 Week 1: Foundation
-├── Step 1: V2 Feature Flag .............. [Day 1]
-├── Step 2: Multi-Job Batch Tracker ...... [Day 1-2]
-├── Step 3: V2 Guards in Schedulers ...... [Day 2]
-└── Step 4: Database Schema .............. [Day 2-3]
+├── Step 1: V2 Feature Flag .............. [Day 1] ✅
+├── Step 2: Multi-Job Batch Tracker ...... [Day 1-2] ✅
+├── Step 3: V2 Guards in Schedulers ...... [Day 2] ✅
+└── Step 4: Zero New Tables .............. [SKIPPED - uses existing tables] ✅
 
 Week 2: Symbol Batch
 ├── Step 5: Symbol Batch Core ............ [Day 1-2]
@@ -631,7 +671,7 @@ Week 2: Symbol Batch
 
 Week 3: Portfolio & Cache (Parallel)
 ├── Step 8: Portfolio Refresh Runner ..... [Day 1-3]
-├── Step 9: Symbol Onboarding Queue ...... [Day 2-3]
+├── Step 9: Symbol Onboarding (In-Memory). [Day 2-3]
 ├── Step 10: Symbol Cache + Health ....... [Day 1-2]
 └── Step 11: Frontend V2 Mode ............ [Day 3]
 
@@ -653,12 +693,12 @@ Week 5+: Production
 | 1 | - | `config.py`, `.env.example` |
 | 2 | - | `batch_run_tracker.py`, `batch_trigger_service.py` |
 | 3 | - | `scheduler_config.py`, `railway_daily_batch.py` |
-| 4 | `models/symbol_onboarding.py`, migration | `models/__init__.py` |
+| 4 | - (zero new tables) | - |
 | 5 | `batch/v2/__init__.py`, `symbol_batch_runner.py`, `run_symbol_batch.py` | - |
 | 6 | - | `symbol_batch_runner.py` |
 | 7 | - | `symbol_batch_runner.py` |
 | 8 | `portfolio_refresh_runner.py`, `run_portfolio_refresh.py` | - |
-| 9 | `symbol_onboarding.py` | `main.py` |
+| 9 | `batch/v2/symbol_onboarding.py` (in-memory queue) | - |
 | 10 | `cache/symbol_cache.py` | `health.py`, `main.py` |
 | 11 | - | `onboarding/status.py`, `useOnboardingStatus.ts`, `upload/page.tsx` |
 | 12 | `tests/batch/test_v2_*.py` | - |

@@ -14,7 +14,7 @@ Key features:
 - Graceful error handling
 """
 from uuid import UUID, uuid4
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -24,7 +24,11 @@ from app.core.logging import get_logger
 from app.core.trading_calendar import get_most_recent_trading_day
 from app.models.users import Portfolio
 from app.batch.batch_orchestrator import batch_orchestrator
-from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
+from app.batch.batch_run_tracker import (
+    batch_run_tracker,
+    CurrentBatchRun,
+    BatchJobType,
+)
 from app.core.datetime_utils import utc_now
 
 logger = get_logger(__name__)
@@ -34,15 +38,54 @@ class BatchTriggerService:
     """Service for triggering batch processing"""
 
     @staticmethod
-    async def check_batch_running() -> bool:
+    async def check_batch_running(
+        job_type: Optional[BatchJobType] = None
+    ) -> bool:
         """
         Check if a batch is currently running.
+
+        V2 Enhancement: Can check specific job type or any job.
+
+        Args:
+            job_type: Optional specific job type to check.
+                     If None, checks V1 legacy batch (backward compatible).
 
         Returns:
             True if batch is running, False otherwise
         """
+        if job_type is not None:
+            # V2 mode: Check specific job type
+            return batch_run_tracker.is_job_running(job_type)
+
+        # V1 mode: Check legacy current run
         current_run = batch_run_tracker.get_current()
         return current_run is not None
+
+    @staticmethod
+    async def check_any_batch_running(
+        job_types: Optional[List[BatchJobType]] = None
+    ) -> bool:
+        """
+        Check if any batch job is currently running (V2 multi-job aware).
+
+        Args:
+            job_types: Optional list of job types to check.
+                      If None, checks all V2 job types AND V1 legacy batch.
+
+        Returns:
+            True if any specified batch is running, False otherwise
+        """
+        # Check V2 jobs
+        if batch_run_tracker.is_any_job_running(job_types):
+            return True
+
+        # Also check V1 legacy batch (for backward compatibility)
+        if job_types is None or BatchJobType.LEGACY_BATCH in job_types:
+            current_run = batch_run_tracker.get_current()
+            if current_run is not None:
+                return True
+
+        return False
 
     @staticmethod
     async def verify_portfolio_ownership(

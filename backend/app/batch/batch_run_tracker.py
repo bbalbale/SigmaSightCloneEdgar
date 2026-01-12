@@ -17,17 +17,58 @@ Phase 7.4 Enhancement (2026-01-11):
 - Added BatchActivityLogHandler to capture existing INFO/WARNING logs
 - Logs from calculation engines are automatically forwarded to activity log
 - Provides Railway-level debugging detail in downloadable logs
+
+V2 Batch Architecture Enhancement (2026-01-12):
+- Added BatchJobType enum for different job types (V2 support)
+- Added multi-job tracking support for concurrent V2 operations
+- V1 compatibility preserved via start()/get_current() wrappers
 """
+import asyncio
 import copy
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from enum import Enum
 from typing import Optional, List, Dict, Any
 from uuid import UUID
 
 from app.core.datetime_utils import utc_now
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# V2 BATCH JOB TYPES
+# =============================================================================
+
+class BatchJobType(Enum):
+    """
+    V2 Batch job types for multi-job tracking.
+
+    Allows concurrent jobs of different types while preventing
+    duplicate jobs of the same type.
+    """
+    SYMBOL_BATCH = "symbol_batch"           # V2: Nightly symbol data refresh
+    PORTFOLIO_REFRESH = "portfolio_refresh" # V2: Nightly portfolio snapshots
+    SYMBOL_ONBOARDING = "symbol_onboarding" # V2: On-demand new symbol processing
+    LEGACY_BATCH = "legacy_batch"           # V1: Full batch orchestrator run
+
+
+@dataclass
+class BatchJob:
+    """
+    V2 Batch job state for multi-job tracking.
+
+    Each job type can have one active job at a time.
+    """
+    job_id: str
+    job_type: BatchJobType
+    started_at: datetime
+    triggered_by: str
+    status: str = "running"  # running, completed, failed
+    target_date: Optional[str] = None  # ISO date string
+    error_message: Optional[str] = None
+    completed_at: Optional[datetime] = None
 
 
 # Maximum activity log entries to keep for UI (prevents memory growth)
@@ -220,13 +261,24 @@ class CompletedRunStatus:
 
 
 class BatchRunTracker:
-    """Simple singleton - tracks CURRENT run and recently completed runs"""
+    """
+    Batch run tracker supporting both V1 (single run) and V2 (multi-job) modes.
+
+    V1 Mode: Tracks single CURRENT batch run via start()/get_current()
+    V2 Mode: Tracks multiple concurrent jobs via start_job()/get_job()
+
+    Both modes can coexist - V1 methods wrap LEGACY_BATCH job type.
+    """
 
     def __init__(self):
         self._current: Optional[CurrentBatchRun] = None
         # Phase 7.1 Fix: Retain completed run status for 60 seconds
         # so frontend can see "completed"/"failed" instead of "not_found"
         self._completed_runs: Dict[str, CompletedRunStatus] = {}
+
+        # V2 Multi-job tracking: One job per type allowed
+        self._v2_jobs: Dict[BatchJobType, BatchJob] = {}
+        self._v2_lock = asyncio.Lock()
 
     def start(self, run: CurrentBatchRun):
         """Register new batch run as current"""
@@ -1027,6 +1079,199 @@ class BatchRunTracker:
 
         # Check if currently running
         return self._build_status_dict(portfolio_id)
+
+    # =========================================================================
+    # V2 MULTI-JOB TRACKING METHODS
+    # =========================================================================
+
+    async def start_job(self, job: BatchJob) -> bool:
+        """
+        Start a new V2 batch job of given type.
+
+        V2 Architecture: Allows concurrent jobs of different types while
+        preventing duplicate jobs of the same type.
+
+        Args:
+            job: BatchJob to start
+
+        Returns:
+            True if job started successfully, False if job of same type already running
+        """
+        async with self._v2_lock:
+            existing = self._v2_jobs.get(job.job_type)
+
+            if existing and existing.status == "running":
+                logger.warning(
+                    f"V2 job type {job.job_type.value} already running: {existing.job_id}"
+                )
+                return False
+
+            self._v2_jobs[job.job_type] = job
+            logger.info(f"V2 job started: {job.job_id} ({job.job_type.value})")
+            return True
+
+    def start_job_sync(self, job: BatchJob) -> bool:
+        """
+        Synchronous version of start_job for non-async contexts.
+
+        Args:
+            job: BatchJob to start
+
+        Returns:
+            True if job started successfully, False if job of same type already running
+        """
+        existing = self._v2_jobs.get(job.job_type)
+
+        if existing and existing.status == "running":
+            logger.warning(
+                f"V2 job type {job.job_type.value} already running: {existing.job_id}"
+            )
+            return False
+
+        self._v2_jobs[job.job_type] = job
+        logger.info(f"V2 job started (sync): {job.job_id} ({job.job_type.value})")
+        return True
+
+    async def complete_job(
+        self,
+        job_type: BatchJobType,
+        status: str = "completed",
+        error_message: Optional[str] = None
+    ) -> None:
+        """
+        Mark V2 job as complete.
+
+        Args:
+            job_type: Type of job to complete
+            status: Final status ("completed" or "failed")
+            error_message: Optional error message if failed
+        """
+        async with self._v2_lock:
+            if job_type in self._v2_jobs:
+                job = self._v2_jobs[job_type]
+                job.status = status
+                job.completed_at = utc_now()
+                if error_message:
+                    job.error_message = error_message
+                logger.info(
+                    f"V2 job completed: {job.job_id} ({job_type.value}) - {status}"
+                )
+
+    def complete_job_sync(
+        self,
+        job_type: BatchJobType,
+        status: str = "completed",
+        error_message: Optional[str] = None
+    ) -> None:
+        """
+        Synchronous version of complete_job for non-async contexts.
+
+        Args:
+            job_type: Type of job to complete
+            status: Final status ("completed" or "failed")
+            error_message: Optional error message if failed
+        """
+        if job_type in self._v2_jobs:
+            job = self._v2_jobs[job_type]
+            job.status = status
+            job.completed_at = utc_now()
+            if error_message:
+                job.error_message = error_message
+            logger.info(
+                f"V2 job completed (sync): {job.job_id} ({job_type.value}) - {status}"
+            )
+
+    def get_job(self, job_type: BatchJobType) -> Optional[BatchJob]:
+        """
+        Get current job of given type.
+
+        Args:
+            job_type: Type of job to get
+
+        Returns:
+            BatchJob if exists, None otherwise
+        """
+        return self._v2_jobs.get(job_type)
+
+    def is_job_running(self, job_type: BatchJobType) -> bool:
+        """
+        Check if job type is currently running.
+
+        Args:
+            job_type: Type of job to check
+
+        Returns:
+            True if job of given type is running
+        """
+        job = self._v2_jobs.get(job_type)
+        return job is not None and job.status == "running"
+
+    def get_all_running_jobs(self) -> List[BatchJob]:
+        """
+        Get all currently running V2 jobs.
+
+        Returns:
+            List of running BatchJob instances
+        """
+        return [j for j in self._v2_jobs.values() if j.status == "running"]
+
+    def is_any_job_running(self, job_types: Optional[List[BatchJobType]] = None) -> bool:
+        """
+        Check if any batch job is currently running.
+
+        Args:
+            job_types: Optional list of job types to check. If None, checks all types.
+
+        Returns:
+            True if any specified job type is running
+        """
+        if job_types is None:
+            # Check all job types
+            return len(self.get_all_running_jobs()) > 0
+
+        # Check specific job types
+        for job_type in job_types:
+            if self.is_job_running(job_type):
+                return True
+        return False
+
+    def get_job_status_dict(self, job_type: BatchJobType) -> Optional[Dict[str, Any]]:
+        """
+        Get job status as dictionary for API response.
+
+        Args:
+            job_type: Type of job to get status for
+
+        Returns:
+            Dict with job status or None if not found
+        """
+        job = self._v2_jobs.get(job_type)
+        if not job:
+            return None
+
+        return {
+            "job_id": job.job_id,
+            "job_type": job.job_type.value,
+            "status": job.status,
+            "started_at": job.started_at.isoformat() if job.started_at else None,
+            "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+            "triggered_by": job.triggered_by,
+            "target_date": job.target_date,
+            "error_message": job.error_message,
+        }
+
+    def get_all_jobs_status(self) -> Dict[str, Any]:
+        """
+        Get status of all V2 jobs for admin dashboard.
+
+        Returns:
+            Dict with all job statuses
+        """
+        return {
+            job_type.value: self.get_job_status_dict(job_type)
+            for job_type in BatchJobType
+            if job_type in self._v2_jobs
+        }
 
 
 # Global singleton instance

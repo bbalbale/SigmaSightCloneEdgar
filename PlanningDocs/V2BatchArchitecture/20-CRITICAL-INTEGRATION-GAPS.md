@@ -633,102 +633,103 @@ class SymbolOnboardingQueue:
         self._jobs: Dict[str, OnboardingJob] = {}  # In-memory!
 ```
 
-Railway restarts (deploys, scaling) lose all pending jobs. User uploads with new symbols silently stall.
+Railway restarts (deploys, scaling) lose all pending jobs.
 
-### Solution: Database-Backed Queue
+### Decision: Use In-Memory Queue (Accepted Risk)
+
+After analysis, we choose **in-memory queue** over database-backed:
+
+**Why In-Memory is Acceptable**:
+1. Onboarding jobs are short-lived (< 1 minute typically)
+2. If Railway restarts mid-job, user simply retries upload
+3. `symbol_universe` table tracks which symbols have been processed
+4. No new database migrations required (zero new tables principle)
+5. Simpler implementation
+
+**Mitigation**:
+- `symbol_universe` serves as the "done" list - symbols won't be re-processed
+- User can retry failed upload - new symbols will be re-queued
+- Jobs complete quickly so restart window is small
+
+### Solution: Simple In-Memory Queue with symbol_universe Tracking
 
 ```python
-# backend/app/models/symbol_onboarding.py (NEW)
-
-class SymbolOnboardingJob(Base):
-    __tablename__ = "symbol_onboarding_jobs"
-
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid4)
-    symbol = Column(String(20), nullable=False, index=True)
-    status = Column(String(20), default="pending")  # pending, processing, completed, failed
-    portfolio_id = Column(UUID(as_uuid=True), ForeignKey("portfolios.id"), nullable=True)
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    error_message = Column(Text, nullable=True)
-    created_at = Column(DateTime, default=utc_now)
-    started_at = Column(DateTime, nullable=True)
-    completed_at = Column(DateTime, nullable=True)
-
-    __table_args__ = (
-        Index('ix_symbol_onboarding_status', 'status'),
-        UniqueConstraint('symbol', 'status', name='uq_symbol_pending'),  # One pending per symbol
-    )
-
-
 # backend/app/batch/v2/symbol_onboarding.py
+
+@dataclass
+class OnboardingJob:
+    symbol: str
+    portfolio_id: UUID
+    user_id: UUID
+    status: str = "pending"
+    created_at: datetime = field(default_factory=datetime.utcnow)
+
 
 class SymbolOnboardingQueue:
     """
-    Database-backed symbol onboarding queue.
+    In-memory symbol onboarding queue.
 
-    Survives restarts. On startup, resumes any pending/processing jobs.
+    Uses symbol_universe table to track completed symbols.
+    If restart occurs, user can retry and only NEW symbols will be queued.
     """
 
-    async def enqueue(self, symbol: str, portfolio_id: UUID = None, user_id: UUID = None) -> UUID:
-        """Add symbol to onboarding queue."""
-        async with get_async_session() as db:
-            # Check if already pending/processing
-            existing = await db.execute(
-                select(SymbolOnboardingJob).where(
-                    and_(
-                        SymbolOnboardingJob.symbol == symbol.upper(),
-                        SymbolOnboardingJob.status.in_(['pending', 'processing'])
-                    )
-                )
-            )
-            if existing.scalar_one_or_none():
-                logger.info(f"Symbol {symbol} already in queue")
-                return existing.id
+    def __init__(self):
+        self._pending: Dict[str, OnboardingJob] = {}
+        self._processing: Dict[str, OnboardingJob] = {}
 
-            # Create new job
-            job = SymbolOnboardingJob(
-                symbol=symbol.upper(),
-                portfolio_id=portfolio_id,
-                user_id=user_id
-            )
-            db.add(job)
-            await db.commit()
+    async def enqueue(self, symbol: str, portfolio_id: UUID, user_id: UUID) -> bool:
+        """Add symbol to onboarding queue if not already known."""
+        symbol = symbol.upper()
 
-            logger.info(f"Enqueued symbol {symbol} for onboarding")
-            return job.id
+        # Check if symbol already in symbol_universe (already processed)
+        if await self._is_symbol_known(symbol):
+            logger.debug(f"Symbol {symbol} already known, skipping")
+            return False
 
-    async def get_pending(self) -> List[SymbolOnboardingJob]:
-        """Get all pending jobs."""
+        # Check if already queued
+        if symbol in self._pending or symbol in self._processing:
+            logger.debug(f"Symbol {symbol} already queued")
+            return False
+
+        self._pending[symbol] = OnboardingJob(symbol, portfolio_id, user_id)
+        logger.info(f"Enqueued symbol {symbol} for onboarding")
+        return True
+
+    async def _is_symbol_known(self, symbol: str) -> bool:
+        """Check if symbol exists in symbol_universe."""
         async with get_async_session() as db:
             result = await db.execute(
-                select(SymbolOnboardingJob)
-                .where(SymbolOnboardingJob.status == 'pending')
-                .order_by(SymbolOnboardingJob.created_at)
+                select(SymbolUniverse.symbol)
+                .where(SymbolUniverse.symbol == symbol)
             )
-            return result.scalars().all()
+            return result.scalar_one_or_none() is not None
 
-    async def resume_on_startup(self):
-        """
-        Resume interrupted jobs on app startup.
+    async def process_next(self) -> Optional[str]:
+        """Process next pending symbol."""
+        if not self._pending:
+            return None
 
-        Called from lifespan handler.
-        """
-        async with get_async_session() as db:
-            # Find jobs that were processing when app died
-            stale_jobs = await db.execute(
-                select(SymbolOnboardingJob).where(
-                    SymbolOnboardingJob.status == 'processing'
-                )
-            )
+        symbol, job = self._pending.popitem()
+        job.status = "processing"
+        self._processing[symbol] = job
 
-            for job in stale_jobs.scalars():
-                logger.info(f"Resuming interrupted onboarding for {job.symbol}")
-                job.status = 'pending'  # Reset to pending for retry
-                job.started_at = None
+        try:
+            await self._process_symbol(symbol)
+            job.status = "completed"
+            del self._processing[symbol]
+            return symbol
+        except Exception as e:
+            job.status = "failed"
+            del self._processing[symbol]
+            logger.error(f"Failed to onboard {symbol}: {e}")
+            raise
 
-            await db.commit()
-
-        # Start processing pending jobs
-        await self._start_worker()
+    async def _process_symbol(self, symbol: str):
+        """Fetch data and add to symbol_universe."""
+        # 1. Fetch prices
+        # 2. Calculate factors
+        # 3. Add to symbol_universe (marks as "done")
+        pass  # Implementation in Step 9
 ```
 
 ---
@@ -931,9 +932,15 @@ async def collect_fundamentals_if_due(target_date: date) -> Dict[str, Any]:
 | `railway_daily_batch.py` | V2 mode guard |
 | `symbol_batch_runner.py` (NEW) | Backfill support, factor seeding, fundamentals |
 | `portfolio_refresh_runner.py` (NEW) | Use PnLCalculator, write to DB tables |
-| `symbol_onboarding.py` (NEW) | Database-backed queue |
+| `symbol_onboarding.py` (NEW) | In-memory queue with symbol_universe tracking |
 | `useOnboardingStatus.ts` | V2 instant mode detection |
 | `onboarding/status.py` | V2 mode response |
+
+**Note**: Zero new database tables required. V2 uses existing tables:
+- `symbol_universe` - tracks known symbols
+- `market_data_cache` - stores prices
+- `symbol_factor_exposures` - stores factors
+- `batch_run_history` - tracks batch completions
 
 ---
 
@@ -941,7 +948,7 @@ async def collect_fundamentals_if_due(target_date: date) -> Dict[str, Any]:
 
 1. **Week 1**: Add multi-job tracker, V2 guards in existing code
 2. **Week 2**: Create V2 runners with backfill and DB writes
-3. **Week 3**: Add database-backed onboarding queue
+3. **Week 3**: Add in-memory onboarding queue
 4. **Week 4**: Deploy with `BATCH_V2_ENABLED=false`, test V2 code paths
 5. **Week 5**: Enable V2, monitor closely
 6. **Week 6+**: Remove V1 code after stable

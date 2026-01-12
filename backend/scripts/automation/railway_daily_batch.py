@@ -47,12 +47,37 @@ if 'DATABASE_URL' in os.environ:
 sys.path.insert(0, '/app')  # Railway container path
 sys.path.insert(0, '.')      # Local development path
 
+from app.config import settings
 from app.core.logging import get_logger
 from app.batch.batch_orchestrator import batch_orchestrator
 from app.database import AsyncSessionLocal
 from app.db.seed_factors import seed_factors
 
 logger = get_logger(__name__)
+
+
+def check_v2_guard():
+    """
+    V2 Architecture Guard: Exit if V2 batch mode is enabled.
+
+    When BATCH_V2_ENABLED=true, this legacy batch script should NOT run.
+    V2 mode uses separate cron jobs for symbol batch and portfolio refresh.
+
+    This prevents accidental double-processing when migrating to V2.
+    """
+    if settings.BATCH_V2_ENABLED:
+        print("=" * 60)
+        print("❌ V2 BATCH MODE ENABLED - LEGACY BATCH SKIPPED")
+        print("=" * 60)
+        print("BATCH_V2_ENABLED=true detected.")
+        print("")
+        print("In V2 mode, use these scripts instead:")
+        print("  - scripts/batch_processing/run_symbol_batch.py (9:00 PM ET)")
+        print("  - scripts/batch_processing/run_portfolio_refresh.py (9:30 PM ET)")
+        print("")
+        print("To run V1 legacy batch, set BATCH_V2_ENABLED=false")
+        print("=" * 60)
+        sys.exit(0)  # Exit 0 = graceful skip (not an error)
 
 
 async def ensure_factor_definitions():
@@ -72,11 +97,14 @@ async def ensure_factor_definitions():
 
 async def main():
     """Main entry point for daily batch job."""
+    # V2 Guard: Exit early if V2 batch mode is enabled
+    check_v2_guard()
+
     job_start = datetime.datetime.now()
 
     # Use print() for critical messages - logger.info() doesn't show in Railway logs
     print("╔══════════════════════════════════════════════════════════════╗")
-    print("║       SIGMASIGHT DAILY BATCH WORKFLOW - STARTING             ║")
+    print("║       SIGMASIGHT DAILY BATCH WORKFLOW - STARTING (V1)        ║")
     print("╚══════════════════════════════════════════════════════════════╝")
     print(f"Timestamp: {job_start.strftime('%Y-%m-%d %H:%M:%S %Z')}")
 
