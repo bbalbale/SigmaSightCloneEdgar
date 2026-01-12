@@ -125,40 +125,38 @@ class ValuationBatchService:
         """
         Synchronous batch fetch (runs in thread pool).
 
-        Uses yahooquery's batch API to fetch:
-        - summary_detail: PE, 52w high/low, beta, dividend yield
-        - key_stats: forward PE
-        - price: market cap
+        Uses yahooquery's summary_detail which contains ALL needed metrics:
+        - trailingPE, forwardPE, beta
+        - fiftyTwoWeekHigh, fiftyTwoWeekLow
+        - marketCap, dividendYield
+
+        Optimized: Single API call instead of 3 (was: summary_detail + key_stats + price)
         """
         results = {}
 
         try:
             ticker = Ticker(symbols, asynchronous=False)
 
-            # Fetch all three data sources in batch
+            # Single API call - summary_detail has everything we need
             summary_detail = ticker.summary_detail
-            key_stats = ticker.key_stats
-            price_data = ticker.price
 
             for symbol in symbols:
                 try:
                     sd = summary_detail.get(symbol, {}) if isinstance(summary_detail, dict) else {}
-                    ks = key_stats.get(symbol, {}) if isinstance(key_stats, dict) else {}
-                    pr = price_data.get(symbol, {}) if isinstance(price_data, dict) else {}
 
-                    # Skip if we got error responses
-                    if isinstance(sd, str) or isinstance(ks, str) or isinstance(pr, str):
+                    # Skip if we got error response
+                    if isinstance(sd, str):
                         logger.debug(f"{symbol}: skipped (error response)")
                         continue
 
-                    # Extract valuation metrics
+                    # Extract valuation metrics - all from summary_detail
                     metrics = {
-                        'pe_ratio': self._safe_decimal(sd.get('trailingPE') or ks.get('trailingPE')),
-                        'forward_pe': self._safe_decimal(ks.get('forwardPE')),
-                        'beta': self._safe_decimal(sd.get('beta') or ks.get('beta')),
+                        'pe_ratio': self._safe_decimal(sd.get('trailingPE')),
+                        'forward_pe': self._safe_decimal(sd.get('forwardPE')),
+                        'beta': self._safe_decimal(sd.get('beta')),
                         'week_52_high': self._safe_decimal(sd.get('fiftyTwoWeekHigh')),
                         'week_52_low': self._safe_decimal(sd.get('fiftyTwoWeekLow')),
-                        'market_cap': self._safe_decimal(pr.get('marketCap') or ks.get('marketCap')),
+                        'market_cap': self._safe_decimal(sd.get('marketCap')),
                         'dividend_yield': self._safe_decimal(sd.get('dividendYield')),
                     }
 
