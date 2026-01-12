@@ -288,16 +288,48 @@ interface PortfolioFactorExposures {
 If symbol data is not in cache, fall back to database query:
 
 ```python
-def get_factors_with_fallback(symbol: str) -> Optional[SymbolFactors]:
+async def get_factors_with_fallback(symbol: str, db: AsyncSession) -> Optional[SymbolFactors]:
     # Try cache first
     cached = symbol_cache.get_factors(symbol)
     if cached:
         return cached
 
-    # Fallback to database (slower)
-    logger.warning(f"Cache miss for {symbol}, falling back to DB")
-    return await db_get_symbol_factors(symbol)
+    # Fallback to database (slower but always works)
+    logger.info(f"Cache miss for {symbol}, falling back to DB")
+    return await db_get_symbol_factors(db, symbol)
 ```
+
+### Cold Start Handling
+
+When app restarts or scales, cache is empty. Analytics must still work.
+
+**Strategy**: Cache initializes in background; analytics use DB fallback until ready.
+
+```python
+async def get_portfolio_factor_exposures(portfolio_id: UUID, db: AsyncSession):
+    # Check if cache is ready
+    use_cache = symbol_cache.is_ready()
+
+    for pos in positions:
+        if use_cache:
+            # Fast path: cache hit
+            factors = symbol_cache.get_factors(pos.symbol)
+        else:
+            # Slow path: DB query (cold start)
+            factors = await db_get_symbol_factors(db, pos.symbol)
+```
+
+**Performance during cold start:**
+
+| Scenario | Latency | Notes |
+|----------|---------|-------|
+| Cache ready | ~10-50ms | Normal operation |
+| Cold start (cache empty) | ~200-500ms | Falls back to DB |
+| Cache initializing | ~200-500ms | DB fallback while loading |
+
+**Key**: Analytics always work. Cache is an optimization, not a requirement.
+
+> **See also**: `06-PORTFOLIO-CACHE.md` for complete cold start implementation details.
 
 ---
 

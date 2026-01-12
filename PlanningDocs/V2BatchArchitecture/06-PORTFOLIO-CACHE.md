@@ -287,21 +287,155 @@ async def get_cache_status() -> CacheStatusResponse:
 
 ---
 
-## Fallback: Cache Miss
+## Cold Start & Fallback Strategy
 
-If symbol not in cache (shouldn't happen, but defensive):
+### Risk: Cold Starts
+
+When the app restarts or scales, the cache is empty. Analytics must still work.
+
+**Solution**: Always fall back to database queries when cache is empty or on cache miss.
+
+### Cache State Detection
 
 ```python
-def get_latest_price(self, symbol: str) -> Optional[Decimal]:
-    """Get latest closing price for a symbol."""
+class SymbolCacheService:
+    def __init__(self):
+        self._cache: Dict[str, SymbolCache] = {}
+        self._initialized: bool = False
+        self._initializing: bool = False
+
+    def is_ready(self) -> bool:
+        """Check if cache is initialized and ready."""
+        return self._initialized and len(self._cache) > 0
+
+    def is_empty(self) -> bool:
+        """Check if cache is empty (cold start or failed init)."""
+        return len(self._cache) == 0
+```
+
+### Fallback: Cache Miss → Database Query
+
+```python
+async def get_latest_price(self, symbol: str, db: AsyncSession = None) -> Optional[Decimal]:
+    """
+    Get latest closing price for a symbol.
+
+    Falls back to database if not in cache.
+    """
     cached = self._cache.get(symbol.upper())
 
     if cached:
         return cached.latest_price.close
 
-    # Cache miss - log warning, return None
-    logger.warning(f"Cache miss for {symbol}")
+    # Cache miss - fall back to database
+    if db:
+        logger.info(f"Cache miss for {symbol}, falling back to DB")
+        result = await db.execute(
+            select(MarketDataCache.close)
+            .where(MarketDataCache.symbol == symbol.upper())
+            .order_by(MarketDataCache.date.desc())
+            .limit(1)
+        )
+        row = result.first()
+        return row.close if row else None
+
+    logger.warning(f"Cache miss for {symbol}, no DB session provided")
+    return None
+
+
+async def get_factors(self, symbol: str, db: AsyncSession = None) -> Optional[SymbolFactors]:
+    """
+    Get factor exposures for a symbol.
+
+    Falls back to database if not in cache.
+    """
+    cached = self._cache.get(symbol.upper())
+
+    if cached:
+        return cached.factors
+
+    # Cache miss - fall back to database
+    if db:
+        logger.info(f"Cache miss for {symbol} factors, falling back to DB")
+        return await self._load_symbol_factors_from_db(db, symbol)
+
     return None
 ```
 
-Callers handle `None` gracefully (position shows "Data unavailable").
+### Analytics Endpoint Fallback
+
+Analytics endpoints work in both modes:
+
+```python
+async def get_portfolio_factor_exposures(
+    portfolio_id: UUID,
+    db: AsyncSession
+) -> PortfolioFactorExposures:
+    """
+    Compute portfolio factor exposures.
+
+    Uses cache if available, falls back to DB queries if not.
+    """
+    positions = await get_active_positions(db, portfolio_id)
+
+    # Determine data source
+    use_cache = symbol_cache.is_ready()
+
+    for pos in positions:
+        if use_cache:
+            # Fast path: read from cache
+            price = symbol_cache.get_latest_price(pos.symbol)
+            factors = symbol_cache.get_factors(pos.symbol)
+        else:
+            # Slow path: query database (cold start or cache miss)
+            price = await get_price_from_db(db, pos.symbol)
+            factors = await get_factors_from_db(db, pos.symbol)
+
+        # ... compute weighted factors ...
+
+    return PortfolioFactorExposures(**portfolio_factors)
+```
+
+### Startup Behavior
+
+```python
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup: Initialize cache (non-blocking for health checks)
+    asyncio.create_task(initialize_cache_async())
+
+    yield
+
+    # Shutdown
+    pass
+
+
+async def initialize_cache_async():
+    """
+    Initialize cache in background.
+
+    App accepts requests immediately - analytics fall back to DB
+    until cache is ready.
+    """
+    try:
+        symbol_cache._initializing = True
+        async with get_async_session() as db:
+            await symbol_cache.initialize(db)
+        logger.info(f"Cache initialized with {symbol_cache.symbols_in_cache()} symbols")
+    except Exception as e:
+        logger.error(f"Cache initialization failed: {e}")
+        # App continues to work - analytics use DB fallback
+    finally:
+        symbol_cache._initializing = False
+```
+
+### Performance Comparison
+
+| Scenario | Latency | Notes |
+|----------|---------|-------|
+| Cache hit | ~10-50ms | Normal operation |
+| Cache miss (single symbol) | ~50-200ms | Falls back to DB |
+| Cold start (cache empty) | ~200-500ms | All queries hit DB |
+| Cache initializing | ~200-500ms | DB fallback while loading |
+
+**Key**: Analytics always work. Cache makes them fast, but DB fallback ensures availability.
