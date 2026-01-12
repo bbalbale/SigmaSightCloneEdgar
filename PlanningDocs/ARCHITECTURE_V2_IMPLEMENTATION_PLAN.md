@@ -290,35 +290,25 @@ CREATE INDEX idx_cache_portfolio ON portfolio_analytics_cache(portfolio_id);
 CREATE INDEX idx_cache_valid ON portfolio_analytics_cache(valid_until);
 ```
 
-**`symbol_onboarding_queue`** - Async job queue:
+**`symbol_onboarding_queue`** - ~~Async job queue~~ **NOW IN-MEMORY** (no database table):
 
-```sql
-CREATE TABLE symbol_onboarding_queue (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    symbol VARCHAR(20) NOT NULL,
-    status VARCHAR(20) DEFAULT 'pending',  -- pending, processing, completed, failed
-    requested_by UUID REFERENCES users(id),
-    priority VARCHAR(10) DEFAULT 'normal',  -- high, normal, low
-    error_message TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    started_at TIMESTAMPTZ,
-    completed_at TIMESTAMPTZ
-);
-
-CREATE INDEX idx_queue_status ON symbol_onboarding_queue(status, priority, created_at);
-```
+> **Updated Decision**: Symbol onboarding uses an in-memory queue instead of a database table because:
+> - Jobs are transient (complete in seconds, then stale)
+> - Single Railway instance (no multi-worker coordination needed)
+> - If server restarts, user can simply retry (rare edge case)
+> - Simpler implementation, no migration needed
+>
+> See `07-SYMBOL-ONBOARDING.md` for the in-memory `SymbolOnboardingQueue` class.
 
 ### 3.2 Schema Modifications
 
-**`symbol_universe`** - Add status tracking:
+**`symbol_universe`** - ~~Add status tracking~~ **NO CHANGES NEEDED**:
 
-```sql
-ALTER TABLE symbol_universe ADD COLUMN status VARCHAR(20) DEFAULT 'active';
--- Values: 'pending', 'active', 'delisted', 'error'
-
-ALTER TABLE symbol_universe ADD COLUMN last_price_date DATE;
-ALTER TABLE symbol_universe ADD COLUMN last_factor_date DATE;
-```
+> **Updated Decision**: Instead of adding columns, we query existing tables for freshness:
+> - `last_price_date` → Query `market_data_cache` for max date per symbol
+> - `last_factor_date` → Query `symbol_factor_exposures` for max calculation_date
+>
+> See `03-DATABASE-SCHEMA.md` for query patterns.
 
 **`symbol_factor_exposures`** - Already exists, add Market Beta and IR Beta:
 
@@ -1399,17 +1389,19 @@ async def _calculate_ridge_factors(...):
 
 ## Part 5: Migration Strategy
 
-### 5.1 Phase 1: Database Schema (Week 1)
+### 5.1 Phase 1: Verify Schema (Week 1)
 
-1. Create migration for new tables:
-   - `symbol_prices_daily`
-   - `portfolio_analytics_cache`
-   - `symbol_onboarding_queue`
+> **Updated**: V2 requires ZERO database migrations. All needed tables already exist.
 
-2. Modify `symbol_universe` table:
-   - Add `status`, `last_price_date`, `last_factor_date` columns
+1. ~~Create migration for new tables~~ **NOT NEEDED**:
+   - ~~`symbol_prices_daily`~~ → Use existing `market_data_cache`
+   - ~~`portfolio_analytics_cache`~~ → Use in-memory cache
+   - ~~`symbol_onboarding_queue`~~ → Use in-memory queue
 
-3. Add new factor definitions:
+2. ~~Modify `symbol_universe` table~~ **NOT NEEDED**:
+   - ~~Add columns~~ → Query existing tables instead
+
+3. Add new factor definitions (if not present):
    - `Symbol Market Beta`
    - `Symbol IR Beta`
 
@@ -1453,22 +1445,54 @@ async def _calculate_ridge_factors(...):
    - Factor endpoints read from cache or compute from symbol data
    - Stress test endpoints use cached factor exposures
 
-### 5.5 Phase 5: Onboarding Flow (Week 5)
+### 5.5 Phase 5: Onboarding Flow - Backend (Week 5)
 
 1. Create `symbol_onboarding_worker.py`:
-   - Background job processor
+   - Background job processor using in-memory queue
    - Symbol history fetch
    - Factor calculation for new symbols
 
-2. Create API endpoint `/api/v1/symbols/{symbol}/status`:
-   - Returns: `ready`, `pending`, `error`
+2. Create in-memory `SymbolOnboardingQueue`:
+   - Deduplication at queue time
+   - Max queue depth (50)
+   - Max concurrent processing (3)
+   - No database table needed
 
-3. Modify position creation:
-   - Check symbol status
-   - Queue onboarding if new
-   - Return appropriate status to frontend
+3. Create API endpoint `/api/v1/symbols/{symbol}/status`:
+   - Returns: `ready`, `pending`, `processing`, `error`
+   - Reads from in-memory queue
 
-### 5.6 Phase 6: Cleanup (Week 6)
+4. Modify `onboarding.py` - `/create-portfolio` endpoint:
+   - Check symbol universe
+   - Create instant snapshot with known symbols
+   - Queue unknown symbols (in-memory)
+   - Return new response format: `{portfolio_id, status, pending_symbols, snapshot_date}`
+
+5. Simplify `onboarding_status.py`:
+   - Remove 9-phase tracking
+   - Return simple `ready`/`partial` status
+
+### 5.6 Phase 6: Onboarding Flow - Frontend (Week 5-6)
+
+1. Update `usePortfolioUpload.ts`:
+   - Remove `triggerCalculations()` call
+   - Handle new response format with `status` field
+   - Redirect directly to dashboard
+
+2. Deprecate or repurpose `onboarding/progress/page.tsx`:
+   - Option A: Remove entirely (all users go to dashboard)
+   - Option B: Repurpose for symbol-only status (rare cases)
+
+3. Replace `useOnboardingStatus.ts`:
+   - Create new `useSymbolOnboardingStatus` hook
+   - Simplified polling (5s interval)
+   - Handle `ready`/`partial` status
+
+4. Update `portfolioApi.ts`:
+   - Update response types for `createPortfolio()`
+   - Deprecate `triggerCalculations()` function
+
+### 5.7 Phase 7: Cleanup (Week 6)
 
 1. Remove deprecated code:
    - Portfolio-driven symbol processing
@@ -2013,41 +2037,126 @@ Background: symbol_onboarding_worker processes all 3
 1-2 min later: Full analytics available
 ```
 
-### 10.7 Frontend Changes (Suggested)
+### 10.7 Frontend Changes (REQUIRED)
 
-**Current frontend (waiting state):**
-```jsx
-// Shows for 15-30 minutes
-<div className="onboarding-progress">
-  <h2>Processing your portfolio...</h2>
-  <ProgressBar phases={9} current={currentPhase} />
-  <ActivityLog entries={activityLog} />
-  <p>Estimated time: 15-20 minutes</p>
-</div>
+The frontend must be updated to handle instant onboarding. This is a **breaking change** from the current 15-20 minute batch flow.
+
+#### 10.7.1 `frontend/src/hooks/usePortfolioUpload.ts`
+
+**Current behavior**: Calls `createPortfolio()` then `triggerCalculations()` then redirects to progress page.
+
+**Required changes**:
+1. Remove call to `triggerCalculations()` - no longer needed
+2. Handle new response format with `status` field
+3. Redirect directly to dashboard instead of progress page
+
+```typescript
+// BEFORE (V1)
+const handleUpload = async (file: File) => {
+    const portfolio = await createPortfolio(file);
+    await triggerCalculations(portfolio.id);  // DELETE THIS
+    router.push(`/onboarding/progress?id=${portfolio.id}`);  // CHANGE THIS
+};
+
+// AFTER (V2)
+const handleUpload = async (file: File) => {
+    const response = await createPortfolio(file);
+
+    if (response.status === 'ready') {
+        router.push(`/portfolio/${response.portfolio_id}`);
+    } else if (response.status === 'partial') {
+        toast.info(`${response.pending_symbols.length} symbols loading...`);
+        router.push(`/portfolio/${response.portfolio_id}`);
+    }
+};
 ```
 
-**New frontend (instant):**
-```jsx
-// Case 1: Immediate success
-<div className="onboarding-complete">
-  <h2>✅ Your portfolio is ready!</h2>
-  <Button onClick={() => navigate('/dashboard')}>
-    View Analytics
-  </Button>
-</div>
+#### 10.7.2 `frontend/app/onboarding/progress/page.tsx`
 
-// Case 2: Partial (rare)
-<div className="onboarding-partial">
-  <h2>📊 Analytics ready for most positions</h2>
-  <p>Loading data for {pendingSymbols.length} new symbol(s)...</p>
-  <ProgressBar indeterminate />
-  <Button onClick={() => navigate('/dashboard')}>
-    View Available Analytics
-  </Button>
-</div>
+**Current behavior**: Shows batch phase progress (Phase 1, 2, 3...) with progress bars.
+
+**Required changes**: Either deprecate entirely OR repurpose for symbol-only onboarding.
+
+**Option A: Deprecate**
+- Remove the page entirely
+- All users go directly to dashboard
+
+**Option B: Repurpose for symbol onboarding only** (Recommended)
+- Only accessible when `response.status === 'partial'`
+- Only track symbol onboarding progress (not full batch)
+- Simplified UI: "Loading data for XYZ, ABC..." with checkmarks
+- Allow user to proceed to dashboard at any time
+
+```typescript
+// Repurposed progress page
+function OnboardingProgress() {
+    const { pendingSymbols, isComplete } = useSymbolOnboardingStatus(portfolioId);
+
+    if (isComplete) {
+        router.push(`/portfolio/${portfolioId}`);
+        return null;
+    }
+
+    return (
+        <div>
+            <h2>Loading market data...</h2>
+            {pendingSymbols.map(symbol => (
+                <SymbolStatusRow key={symbol} symbol={symbol} />
+            ))}
+            <p>You can start using your portfolio now.</p>
+            <Button onClick={() => router.push(`/portfolio/${portfolioId}`)}>
+                Go to Dashboard
+            </Button>
+        </div>
+    );
+}
+```
+
+#### 10.7.3 `frontend/src/hooks/useOnboardingStatus.ts`
+
+**Current behavior**: Polls `/api/v1/onboarding/status/{id}` for batch phase progress.
+
+**Required changes**:
+1. Replace with symbol-specific status polling
+2. Handle new simplified response format
+3. Shorter polling interval (5s instead of 2s - symbols process faster)
+
+```typescript
+// BEFORE (V1) - Polls for batch phases
+const { phase, progress, isComplete } = useOnboardingStatus(portfolioId);
+
+// AFTER (V2) - Polls for symbol status only
+export function useSymbolOnboardingStatus(portfolioId: string) {
+    return useQuery({
+        queryKey: ['symbolOnboarding', portfolioId],
+        queryFn: () => fetchOnboardingStatus(portfolioId),
+        refetchInterval: (data) => data?.status === 'ready' ? false : 5000,
+    });
+}
+```
+
+#### 10.7.4 `frontend/src/services/portfolioApi.ts` (or similar)
+
+**Required changes**:
+1. Update `createPortfolio()` return type to include new fields
+2. Remove or deprecate `triggerCalculations()` function
+
+```typescript
+// Updated response type
+interface CreatePortfolioResponse {
+    portfolio_id: string;
+    status: 'ready' | 'partial';
+    pending_symbols?: string[];
+    snapshot_date: string;
+}
+
+// Remove or deprecate
+// async function triggerCalculations(portfolioId: string) { ... }
 ```
 
 ### 10.8 Files to Modify for Onboarding
+
+**Backend Files:**
 
 | File | Change Type | Description |
 |------|-------------|-------------|
@@ -2056,6 +2165,15 @@ Background: symbol_onboarding_worker processes all 3
 | `app/services/batch_trigger_service.py` | MINOR | Remove onboarding-specific batch logic |
 | `app/services/onboarding_service.py` | MINOR | Add symbol check integration |
 | `app/services/onboarding_helpers.py` | NEW | Helper functions for new flow |
+
+**Frontend Files:**
+
+| File | Change Type | Description |
+|------|-------------|-------------|
+| `frontend/src/hooks/usePortfolioUpload.ts` | MAJOR | Skip triggerCalculations, handle new response, direct redirect |
+| `frontend/app/onboarding/progress/page.tsx` | DEPRECATE/REPURPOSE | Remove batch UI, optionally repurpose for symbol status |
+| `frontend/src/hooks/useOnboardingStatus.ts` | REPLACE | New hook for symbol-specific polling |
+| `frontend/src/services/portfolioApi.ts` | MINOR | Update response types, deprecate triggerCalculations |
 
 ### 10.9 Deprecations
 
@@ -2685,12 +2803,14 @@ If issues arise, revert to portfolio-driven batch:
 
 ### Database Migrations
 
-| Migration | Description |
-|-----------|-------------|
-| `add_symbol_prices_daily.py` | New price history table |
-| `add_portfolio_analytics_cache.py` | New cache table |
-| `add_symbol_onboarding_queue.py` | New queue table |
-| `modify_symbol_universe.py` | Add status columns |
+> **Updated**: V2 requires ZERO database migrations. All functionality uses existing tables + in-memory caches.
+
+| ~~Migration~~ | ~~Description~~ | Status |
+|---------------|-----------------|--------|
+| ~~`add_symbol_prices_daily.py`~~ | ~~New price history table~~ | NOT NEEDED - use `market_data_cache` |
+| ~~`add_portfolio_analytics_cache.py`~~ | ~~New cache table~~ | NOT NEEDED - use in-memory cache |
+| ~~`add_symbol_onboarding_queue.py`~~ | ~~New queue table~~ | NOT NEEDED - use in-memory queue |
+| ~~`modify_symbol_universe.py`~~ | ~~Add status columns~~ | NOT NEEDED - query existing tables |
 
 ---
 
