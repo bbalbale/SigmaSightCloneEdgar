@@ -2,7 +2,7 @@
 V2 Symbol Batch Runner
 
 Nightly job that processes ALL symbols in the universe:
-1. Phase 0: Company profile sync (sector, industry data)
+1. Phase 0: Daily valuation metrics (PE, beta, 52w range, market cap) - batch via yahooquery
 2. Phase 1: Market data collection (prices from YFinance)
 3. Phase 2: Fundamental data (earnings-driven)
 4. Phase 3: Factor calculations (betas, exposures)
@@ -361,22 +361,24 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
         sys.stdout.flush()
         logger.info(f"{V2_LOG_PREFIX} Found {symbols_processed} symbols to process for {calc_date}")
 
-        # Phase 0: Company profiles (only on final date of backfill)
-        print(f"{V2_LOG_PREFIX}   Phase 0: Company profiles...")
+        # Phase 0: Daily valuations (PE, beta, 52w range, market cap)
+        print(f"{V2_LOG_PREFIX}   Phase 0: Daily valuations...")
         sys.stdout.flush()
         phase_start = datetime.now()
         try:
             phase_0_result = await _run_phase_0_company_profiles(symbols, calc_date)
-            print(f"{V2_LOG_PREFIX}   Phase 0 complete: {phase_0_result.get('synced', 0)} synced")
+            print(f"{V2_LOG_PREFIX}   Phase 0 complete: {phase_0_result.get('synced', 0)} valuations updated")
             sys.stdout.flush()
-            phases["phase_0_company_profiles"] = {
+            phases["phase_0_daily_valuations"] = {
                 "success": True,
                 "duration_seconds": (datetime.now() - phase_start).total_seconds(),
-                "profiles_synced": phase_0_result.get("synced", 0),
+                "valuations_updated": phase_0_result.get("synced", 0),
+                "updated": phase_0_result.get("updated", 0),
+                "created": phase_0_result.get("created", 0),
             }
         except Exception as e:
             logger.warning(f"{V2_LOG_PREFIX} Phase 0 error (non-fatal): {e}")
-            phases["phase_0_company_profiles"] = {
+            phases["phase_0_daily_valuations"] = {
                 "success": False,
                 "error": str(e),
                 "duration_seconds": (datetime.now() - phase_start).total_seconds(),
@@ -534,10 +536,17 @@ async def _get_symbols_to_process() -> List[str]:
 
 async def _run_phase_0_company_profiles(symbols: List[str], calc_date: date) -> Dict[str, Any]:
     """
-    Phase 0: Sync company profiles for all symbols.
+    Phase 0: Fetch daily valuation metrics for all symbols.
 
-    Fetches sector, industry, market cap, etc. from YahooQuery/FMP APIs.
-    Uses existing market_data_collector._fetch_company_profiles() method.
+    Uses yahooquery batch API to efficiently fetch:
+    - pe_ratio, forward_pe, beta
+    - week_52_high, week_52_low
+    - market_cap, dividend_yield
+
+    Performance: ~5 minutes for 1250 symbols (vs 30+ min with individual calls)
+
+    Note: Full company profile sync (sector, industry, etc.) is handled separately
+    as documented in PlanningDocs/V2BatchArchitecture/NextSteps.md
 
     Args:
         symbols: List of symbols to sync
@@ -546,30 +555,35 @@ async def _run_phase_0_company_profiles(symbols: List[str], calc_date: date) -> 
     Returns:
         Dict with sync results
     """
-    from app.batch.market_data_collector import market_data_collector
+    from app.services.valuation_batch_service import valuation_batch_service
 
-    logger.info(f"{V2_LOG_PREFIX} Phase 0: Company profile sync for {len(symbols)} symbols")
+    logger.info(f"{V2_LOG_PREFIX} Phase 0: Daily valuation metrics for {len(symbols)} symbols")
 
     try:
+        # Fetch valuation metrics in batch (efficient - ~5 min for 1250 symbols)
+        valuations = await valuation_batch_service.fetch_daily_valuations(symbols)
+
+        # Update company_profiles table with valuation data
         async with get_async_session() as db:
-            results = await market_data_collector._fetch_company_profiles(
+            update_result = await valuation_batch_service.update_company_profiles(
                 db=db,
-                symbols=set(symbols)
+                valuations=valuations,
             )
 
-        synced = results.get("symbols_successful", 0)
-        failed = results.get("symbols_failed", 0)
-        skipped = results.get("symbols_skipped", 0) + results.get("symbols_etf_skipped", 0)
+        synced = update_result.get("total_processed", 0)
+        failed = update_result.get("failed", 0)
+        updated = update_result.get("updated", 0)
+        created = update_result.get("created", 0)
 
         logger.info(
-            f"{V2_LOG_PREFIX} Phase 0 complete: synced={synced}, failed={failed}, skipped={skipped}"
+            f"{V2_LOG_PREFIX} Phase 0 complete: synced={synced} (updated={updated}, created={created}), failed={failed}"
         )
 
         return {
             "synced": synced,
+            "updated": updated,
+            "created": created,
             "failed": failed,
-            "skipped": skipped,
-            "details": results,
         }
 
     except Exception as e:

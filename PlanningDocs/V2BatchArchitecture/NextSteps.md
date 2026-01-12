@@ -1,0 +1,181 @@
+# V2 Batch Architecture - Next Steps
+
+## Overview
+
+This document tracks future enhancements needed for the V2 batch architecture after the initial implementation is complete and stable.
+
+---
+
+## 1. Smart Company Profile Refresh (Priority: High)
+
+### Problem
+
+The current `_fetch_company_profiles()` function fetches ALL 53 fields for every symbol on every run. With 1250+ symbols in the universe, this is:
+- Too slow (30+ minutes of API calls)
+- Wasteful (most data doesn't change daily)
+- Inefficient (same API cost whether data changed or not)
+
+### Current State (V2 Initial Release)
+
+Company profile sync is **skipped** in the V2 symbol batch to unblock the critical path (prices + factors). Profiles must be synced separately via manual trigger or existing mechanisms.
+
+### Proposed Solution: Tiered Refresh Strategy
+
+Split company profile data into tiers based on refresh frequency:
+
+#### Tier 1: Daily Refresh
+Fields that change with market close:
+- `pe_ratio`, `forward_pe`
+- `dividend_yield`
+- `beta`
+- `week_52_high`, `week_52_low`
+- `market_cap`
+
+**Implementation:** Fetch nightly as part of V2 symbol batch, but ONLY these fields.
+
+#### Tier 2: Quarterly Refresh (Earnings-Driven)
+Fields that change with earnings reports:
+- `forward_eps`, `earnings_growth`, `revenue_growth`
+- `earnings_quarterly_growth`
+- `profit_margins`, `operating_margins`, `gross_margins`
+- `return_on_assets`, `return_on_equity`
+- `total_revenue`
+- `current_year_*` estimates
+- `next_year_*` estimates
+- Analyst targets and recommendations
+
+**Implementation:**
+- Check `updated_at` timestamp
+- Only refresh if:
+  - Last update > 7 days ago, OR
+  - Symbol had earnings in last 3 days (use earnings calendar)
+
+#### Tier 3: Static/Rare Refresh
+Fields that rarely change:
+- `company_name`, `sector`, `industry`
+- `exchange`, `country`
+- `ceo`, `employees`, `website`
+- `is_etf`, `is_fund`
+- `description`
+
+**Implementation:**
+- Only fetch if record doesn't exist, OR
+- Last update > 30 days ago, OR
+- Manual trigger
+
+### API Design
+
+```python
+async def refresh_company_profiles(
+    symbols: List[str],
+    tier: str = "daily",  # "daily", "quarterly", "static", "all"
+    force: bool = False,  # Bypass age checks
+) -> Dict[str, Any]:
+    """
+    Smart company profile refresh with tiered strategy.
+
+    Args:
+        symbols: Symbols to refresh
+        tier: Which tier of data to refresh
+        force: Force refresh even if data is fresh
+    """
+```
+
+### Database Changes Needed
+
+Add to `company_profiles` table:
+- `daily_updated_at` - Last daily tier refresh
+- `quarterly_updated_at` - Last quarterly tier refresh
+- `static_updated_at` - Last static tier refresh
+
+Or use a separate `company_profile_refresh_log` table to track per-symbol refresh history.
+
+### Estimated Effort
+
+- Design: 2-3 hours
+- Implementation: 4-6 hours
+- Testing: 2-3 hours
+
+---
+
+## 2. Symbol Universe Management (Priority: Medium)
+
+### Problem
+
+V2 currently processes ALL symbols from:
+- Active positions (~63)
+- Symbol universe table (~1200+)
+- Factor ETFs (5)
+
+This leads to 1250+ symbols, most of which may not be actively used.
+
+### Proposed Solution
+
+Add `priority` or `tier` to symbol_universe:
+- **Tier 1 (Active):** Symbols in current positions - always process
+- **Tier 2 (Watchlist):** User watchlist symbols - process daily
+- **Tier 3 (Universe):** Full universe - process weekly or on-demand
+
+### Benefits
+
+- Faster nightly batch (only Tier 1+2)
+- Full universe refresh can run on weekends
+- Reduces API costs
+
+---
+
+## 3. Batch Progress Persistence (Priority: Low)
+
+### Problem
+
+If V2 batch crashes mid-run, there's no record of which symbols were processed.
+
+### Proposed Solution
+
+Add `symbol_batch_progress` table:
+```sql
+CREATE TABLE symbol_batch_progress (
+    id UUID PRIMARY KEY,
+    batch_run_id VARCHAR(50),
+    symbol VARCHAR(20),
+    calc_date DATE,
+    phase VARCHAR(50),
+    status VARCHAR(20),  -- pending, completed, failed
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    error_message TEXT
+);
+```
+
+Benefits:
+- Resume from where batch left off
+- Per-symbol error tracking
+- Better observability
+
+---
+
+## 4. Parallel Processing (Priority: Low)
+
+### Current State
+
+V2 processes symbols sequentially within each phase.
+
+### Proposed Enhancement
+
+Use asyncio.gather() or worker pools for:
+- Phase 1: Parallel price fetches (with rate limiting)
+- Phase 3: Parallel factor calculations
+
+### Considerations
+
+- API rate limits (YFinance, FMP)
+- Database connection pool limits
+- Memory usage with 1000+ concurrent tasks
+
+---
+
+## Document History
+
+| Date | Author | Changes |
+|------|--------|---------|
+| 2026-01-12 | Claude | Initial creation - Smart profile refresh planning |
