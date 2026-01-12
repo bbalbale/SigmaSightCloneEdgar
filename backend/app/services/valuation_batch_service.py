@@ -181,6 +181,9 @@ class ValuationBatchService:
         """
         Update company_profiles table with daily valuation metrics.
 
+        Uses PostgreSQL UPSERT for efficiency - single query per symbol
+        instead of SELECT + INSERT/UPDATE.
+
         Only updates the Tier 1 (daily) fields:
         - pe_ratio, forward_pe, beta
         - week_52_high, week_52_low
@@ -194,53 +197,35 @@ class ValuationBatchService:
             Dict with update results
         """
         import sys
-        from sqlalchemy import select
+        from sqlalchemy.dialects.postgresql import insert
         from app.models.market_data import CompanyProfile
 
         if not valuations:
             return {"updated": 0, "created": 0, "failed": 0}
 
+        total = len(valuations)
+        print(f"[VALUATION] Upserting {total} company profiles...")
+        sys.stdout.flush()
+
         updated = 0
         created = 0
         failed = 0
-        total = len(valuations)
-        processed = 0
 
-        print(f"[VALUATION] Updating {total} company profiles in database...")
-        sys.stdout.flush()
+        # Process in batches of 100 for efficiency
+        symbols = list(valuations.keys())
+        batch_size = 100
 
-        for symbol, metrics in valuations.items():
-            processed += 1
+        for i in range(0, len(symbols), batch_size):
+            batch_symbols = symbols[i:i + batch_size]
+            batch_num = (i // batch_size) + 1
+            total_batches = (len(symbols) + batch_size - 1) // batch_size
+
             try:
-                # Check if profile exists
-                result = await db.execute(
-                    select(CompanyProfile).where(CompanyProfile.symbol == symbol)
-                )
-                profile = result.scalar_one_or_none()
+                for symbol in batch_symbols:
+                    metrics = valuations[symbol]
 
-                if profile:
-                    # Update existing profile's valuation fields only
-                    if metrics.get('pe_ratio') is not None:
-                        profile.pe_ratio = metrics['pe_ratio']
-                    if metrics.get('forward_pe') is not None:
-                        profile.forward_pe = metrics['forward_pe']
-                    if metrics.get('beta') is not None:
-                        profile.beta = metrics['beta']
-                    if metrics.get('week_52_high') is not None:
-                        profile.week_52_high = metrics['week_52_high']
-                    if metrics.get('week_52_low') is not None:
-                        profile.week_52_low = metrics['week_52_low']
-                    if metrics.get('market_cap') is not None:
-                        profile.market_cap = metrics['market_cap']
-                    if metrics.get('dividend_yield') is not None:
-                        profile.dividend_yield = metrics['dividend_yield']
-                    profile.updated_at = datetime.utcnow()
-                    updated += 1
-                else:
-                    # Create new profile with valuation fields only
-                    # Other fields (sector, industry, etc.) will be NULL
-                    # and populated later by full profile sync
-                    new_profile = CompanyProfile(
+                    # PostgreSQL UPSERT: INSERT ... ON CONFLICT DO UPDATE
+                    stmt = insert(CompanyProfile).values(
                         symbol=symbol,
                         pe_ratio=metrics.get('pe_ratio'),
                         forward_pe=metrics.get('forward_pe'),
@@ -249,37 +234,44 @@ class ValuationBatchService:
                         week_52_low=metrics.get('week_52_low'),
                         market_cap=metrics.get('market_cap'),
                         dividend_yield=metrics.get('dividend_yield'),
+                        updated_at=datetime.utcnow(),
+                    ).on_conflict_do_update(
+                        index_elements=['symbol'],
+                        set_={
+                            'pe_ratio': metrics.get('pe_ratio'),
+                            'forward_pe': metrics.get('forward_pe'),
+                            'beta': metrics.get('beta'),
+                            'week_52_high': metrics.get('week_52_high'),
+                            'week_52_low': metrics.get('week_52_low'),
+                            'market_cap': metrics.get('market_cap'),
+                            'dividend_yield': metrics.get('dividend_yield'),
+                            'updated_at': datetime.utcnow(),
+                        }
                     )
-                    db.add(new_profile)
-                    created += 1
+                    await db.execute(stmt)
+                    updated += 1
 
-            except Exception as e:
-                logger.warning(f"Failed to update profile for {symbol}: {e}")
-                failed += 1
-
-            # Progress logging every 200 symbols
-            if processed % 200 == 0:
-                print(f"[VALUATION] DB update progress: {processed}/{total} ({updated} updated, {created} created)")
+                # Commit each batch
+                await db.commit()
+                print(f"[VALUATION] DB batch {batch_num}/{total_batches}: {len(batch_symbols)} upserted")
                 sys.stdout.flush()
 
-        try:
-            await db.commit()
-            print(f"[VALUATION] DB commit successful: {updated} updated, {created} created, {failed} failed")
-            sys.stdout.flush()
-        except Exception as e:
-            logger.error(f"Failed to commit profile updates: {e}")
-            await db.rollback()
-            print(f"[VALUATION] DB commit FAILED: {e}")
-            sys.stdout.flush()
-            return {"updated": 0, "created": 0, "failed": len(valuations), "error": str(e)}
+            except Exception as e:
+                logger.error(f"Batch {batch_num} failed: {e}")
+                await db.rollback()
+                failed += len(batch_symbols)
+                print(f"[VALUATION] DB batch {batch_num} FAILED: {e}")
+                sys.stdout.flush()
 
-        logger.info(f"Profile updates: {updated} updated, {created} created, {failed} failed")
+        print(f"[VALUATION] DB complete: {updated} upserted, {failed} failed")
+        sys.stdout.flush()
+        logger.info(f"Profile upserts: {updated} upserted, {failed} failed")
 
         return {
             "updated": updated,
             "created": created,
             "failed": failed,
-            "total_processed": updated + created,
+            "total_processed": updated,
         }
 
     def _safe_decimal(self, value: Any) -> Optional[Decimal]:
