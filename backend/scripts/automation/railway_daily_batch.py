@@ -56,36 +56,115 @@ from app.db.seed_factors import seed_factors
 logger = get_logger(__name__)
 
 
+async def run_v2_batch():
+    """
+    Run V2 batch logic directly (symbol batch + portfolio refresh).
+
+    This is called when BATCH_V2_ENABLED=true instead of V1 legacy batch.
+    """
+    from datetime import datetime as dt
+
+    job_start = dt.now()
+
+    print("=" * 60)
+    print("  SIGMASIGHT DAILY BATCH V2 - STARTING")
+    print("=" * 60)
+    print(f"Timestamp:    {job_start.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"V2 Enabled:   True")
+    print("=" * 60)
+    sys.stdout.flush()
+
+    symbol_result = None
+    portfolio_result = None
+
+    try:
+        # Phase 1: Symbol Batch
+        print("-" * 60)
+        print("PHASE 1: SYMBOL BATCH")
+        print("-" * 60)
+        sys.stdout.flush()
+
+        from app.batch.v2.symbol_batch_runner import run_symbol_batch
+        symbol_result = await run_symbol_batch(
+            target_date=None,  # Auto-detect most recent trading day
+            backfill=True,     # Enable backfill for missed days
+        )
+
+        print(f"Symbol Batch Result: success={symbol_result.get('success')}")
+        print(f"  Dates processed: {symbol_result.get('dates_processed', 0)}")
+        print(f"  Dates failed: {symbol_result.get('dates_failed', 0)}")
+        sys.stdout.flush()
+
+        # Phase 2: Portfolio Refresh (only if symbol batch succeeded)
+        if symbol_result.get('success'):
+            print("-" * 60)
+            print("PHASE 2: PORTFOLIO REFRESH")
+            print("-" * 60)
+            sys.stdout.flush()
+
+            from app.batch.v2.portfolio_refresh_runner import run_portfolio_refresh
+            portfolio_result = await run_portfolio_refresh(
+                target_date=None,            # Auto-detect most recent trading day
+                wait_for_symbol_batch=False, # Already ran symbol batch above
+                wait_for_onboarding=True,    # Wait for any pending onboarding
+            )
+
+            print(f"Portfolio Refresh Result: success={portfolio_result.get('success')}")
+            print(f"  Portfolios processed: {portfolio_result.get('portfolios_processed', 0)}")
+            print(f"  Snapshots created: {portfolio_result.get('snapshots_created', 0)}")
+        else:
+            print("[WARN] Skipping portfolio refresh due to symbol batch failure")
+
+        sys.stdout.flush()
+
+        # Calculate duration
+        job_end = dt.now()
+        duration = (job_end - job_start).total_seconds()
+
+        # Print summary
+        print("=" * 60)
+        print("  SIGMASIGHT DAILY BATCH V2 - COMPLETE")
+        print("=" * 60)
+        print(f"Duration:     {duration:.1f}s ({duration/60:.1f} min)")
+        print(f"Symbol Batch: {'SUCCESS' if symbol_result and symbol_result.get('success') else 'FAILED'}")
+        print(f"Portfolio:    {'SUCCESS' if portfolio_result and portfolio_result.get('success') else 'SKIPPED/FAILED'}")
+        print("=" * 60)
+        sys.stdout.flush()
+
+        # Return success status
+        return symbol_result and symbol_result.get('success')
+
+    except Exception as e:
+        print(f"[FAIL] V2 batch error: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.stdout.flush()
+        return False
+
+
 def check_v2_guard():
     """
     V2 Architecture Guard: Redirect to V2 batch when enabled.
 
-    When BATCH_V2_ENABLED=true, this script delegates to the V2 batch runner
-    instead of running V1 legacy batch. This allows seamless migration without
+    When BATCH_V2_ENABLED=true, this script runs the V2 batch logic directly
+    instead of V1 legacy batch. This allows seamless migration without
     changing Railway cron configuration.
     """
     if settings.BATCH_V2_ENABLED:
         print("=" * 60)
-        print("[V2] V2 BATCH MODE ENABLED - DELEGATING TO V2 RUNNER")
+        print("[V2] V2 BATCH MODE ENABLED - RUNNING V2 BATCH")
         print("=" * 60)
-        print("BATCH_V2_ENABLED=true detected.")
-        print("Delegating to V2 batch runner...")
-        print("=" * 60)
+        sys.stdout.flush()
 
-        # Import and run V2 batch
-        import subprocess
-        import sys
+        # Run V2 batch directly
+        success = asyncio.run(run_v2_batch())
 
-        # Get the path to the V2 script
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        v2_script = os.path.join(script_dir, "railway_daily_batch_v2.py")
-
-        # Run V2 script and exit with its exit code
-        result = subprocess.run(
-            [sys.executable, v2_script],
-            cwd=os.path.dirname(script_dir),  # Set cwd to backend/scripts
-        )
-        sys.exit(result.returncode)
+        if success:
+            print("[OK] V2 batch completed successfully")
+            sys.exit(0)
+        else:
+            print("[FAIL] V2 batch failed")
+            sys.exit(1)
 
 
 async def ensure_factor_definitions():
