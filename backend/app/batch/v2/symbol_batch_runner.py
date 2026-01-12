@@ -596,14 +596,21 @@ async def _run_phase_1_market_data(symbols: List[str], calc_date: date) -> Dict[
     Returns:
         Dict with fetch results
     """
+    import sys
     from app.batch.market_data_collector import market_data_collector
     from app.config import settings
 
+    print(f"[PHASE1] Starting market data collection for {len(symbols)} symbols...")
+    print(f"[PHASE1] Lookback: 365 days, Date: {calc_date}")
+    sys.stdout.flush()
     logger.info(f"{V2_LOG_PREFIX} Phase 1: Market data collection for {len(symbols)} symbols")
 
     try:
         # Use existing market_data_collector with 365-day lookback for vol analysis
         # Skip company profiles since Phase 0 handles that
+        print(f"[PHASE1] Calling market_data_collector.collect_daily_market_data()...")
+        sys.stdout.flush()
+
         result = await market_data_collector.collect_daily_market_data(
             calculation_date=calc_date,
             lookback_days=365,
@@ -617,6 +624,13 @@ async def _run_phase_1_market_data(symbols: List[str], calc_date: date) -> Dict[
         symbols_with_data = result.get("symbols_with_data", 0)
         coverage_pct = result.get("data_coverage_pct", 0)
         fetch_mode = result.get("fetch_mode", "unknown")
+        provider_breakdown = result.get("provider_breakdown", {})
+
+        print(f"[PHASE1] Complete: {prices_fetched} fetched, {symbols_with_data} with data")
+        print(f"[PHASE1] Coverage: {coverage_pct}%, Mode: {fetch_mode}")
+        if provider_breakdown:
+            print(f"[PHASE1] Providers: {provider_breakdown}")
+        sys.stdout.flush()
 
         logger.info(
             f"{V2_LOG_PREFIX} Phase 1 complete: fetched={prices_fetched}, "
@@ -628,11 +642,13 @@ async def _run_phase_1_market_data(symbols: List[str], calc_date: date) -> Dict[
             "symbols_with_data": symbols_with_data,
             "coverage_pct": float(coverage_pct),
             "fetch_mode": fetch_mode,
-            "provider_breakdown": result.get("provider_breakdown", {}),
+            "provider_breakdown": provider_breakdown,
             "missing_symbols": result.get("missing_symbols", []),
         }
 
     except Exception as e:
+        print(f"[PHASE1] ERROR: {e}")
+        sys.stdout.flush()
         logger.error(f"{V2_LOG_PREFIX} Phase 1 error: {e}", exc_info=True)
         raise
 
@@ -711,7 +727,15 @@ async def _run_phase_3_factors(symbols: List[str], calc_date: date) -> Dict[str,
 
     logger.info(f"{V2_LOG_PREFIX} Phase 3: Factor calculations for {len(symbols)} symbols")
 
+    # Print logging for Railway visibility
+    print(f"[PHASE3] Starting factor calculations for {len(symbols)} symbols...")
+    print(f"[PHASE3] Date: {calc_date}, Ridge=True, Spread=True")
+    sys.stdout.flush()
+
     try:
+        print(f"[PHASE3] Calling calculate_universe_factors()...")
+        sys.stdout.flush()
+
         # Use existing universe factor calculation
         # Pass symbols for scoped mode (V2 symbol batch knows which symbols to process)
         result = await calculate_universe_factors(
@@ -739,6 +763,12 @@ async def _run_phase_3_factors(symbols: List[str], calc_date: date) -> Dict[str,
         total_cached = ridge_cached + spread_cached
         total_failed = ridge_failed + spread_failed
 
+        # Print logging for Railway visibility
+        print(f"[PHASE3] Complete: calculated={total_calculated}, cached={total_cached}, failed={total_failed}")
+        print(f"[PHASE3] Ridge: calc={ridge_calculated}, cached={ridge_cached}, fail={ridge_failed}")
+        print(f"[PHASE3] Spread: calc={spread_calculated}, cached={spread_cached}, fail={spread_failed}")
+        sys.stdout.flush()
+
         logger.info(
             f"{V2_LOG_PREFIX} Phase 3 complete: calculated={total_calculated}, "
             f"cached={total_cached}, failed={total_failed}"
@@ -752,6 +782,8 @@ async def _run_phase_3_factors(symbols: List[str], calc_date: date) -> Dict[str,
 
         errors = result.get("errors", [])
         if errors:
+            print(f"[PHASE3] Errors ({len(errors)} total): {errors[:3]}")  # Show first 3
+            sys.stdout.flush()
             logger.warning(f"{V2_LOG_PREFIX} Phase 3 errors: {errors[:5]}")  # Log first 5
 
         return {
@@ -764,6 +796,8 @@ async def _run_phase_3_factors(symbols: List[str], calc_date: date) -> Dict[str,
         }
 
     except Exception as e:
+        print(f"[PHASE3] ERROR: {e}")
+        sys.stdout.flush()
         logger.error(f"{V2_LOG_PREFIX} Phase 3 error: {e}", exc_info=True)
         raise
 
