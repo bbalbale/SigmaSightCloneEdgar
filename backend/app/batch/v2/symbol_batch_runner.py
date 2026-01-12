@@ -361,26 +361,17 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
         sys.stdout.flush()
         logger.info(f"{V2_LOG_PREFIX} Found {symbols_processed} symbols to process for {calc_date}")
 
-        # Phase 0: Company profiles (only on final date of backfill)
-        print(f"{V2_LOG_PREFIX}   Phase 0: Company profiles...")
+        # Phase 0: Company profiles - SKIP for now (too slow with 1000+ symbols)
+        # Company profiles are fairly static and don't need daily updates
+        # TODO: Run separately via railway cron at lower frequency (weekly)
+        print(f"{V2_LOG_PREFIX}   Phase 0: Company profiles... SKIPPED (handled by separate cron)")
         sys.stdout.flush()
-        phase_start = datetime.now()
-        try:
-            phase_0_result = await _run_phase_0_company_profiles(symbols, calc_date)
-            print(f"{V2_LOG_PREFIX}   Phase 0 complete: {phase_0_result.get('synced', 0)} synced")
-            sys.stdout.flush()
-            phases["phase_0_company_profiles"] = {
-                "success": True,
-                "duration_seconds": (datetime.now() - phase_start).total_seconds(),
-                "profiles_synced": phase_0_result.get("synced", 0),
-            }
-        except Exception as e:
-            logger.warning(f"{V2_LOG_PREFIX} Phase 0 error (non-fatal): {e}")
-            phases["phase_0_company_profiles"] = {
-                "success": False,
-                "error": str(e),
-                "duration_seconds": (datetime.now() - phase_start).total_seconds(),
-            }
+        phases["phase_0_company_profiles"] = {
+            "success": True,
+            "skipped": True,
+            "reason": "Company profiles handled by separate cron job",
+            "duration_seconds": 0,
+        }
 
         # Phase 1: Market data
         print(f"{V2_LOG_PREFIX}   Phase 1: Market data...")
