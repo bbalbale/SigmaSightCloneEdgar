@@ -201,7 +201,7 @@ class ValuationBatchService:
             return {"updated": 0, "created": 0, "failed": 0}
 
         updated = 0
-        created = 0
+        skipped = 0
         failed = 0
         total = len(valuations)
         processed = 0
@@ -237,20 +237,10 @@ class ValuationBatchService:
                     profile.updated_at = datetime.utcnow()
                     updated += 1
                 else:
-                    # Create new profile with valuation data only
-                    # (static fields will be populated later)
-                    new_profile = CompanyProfile(
-                        symbol=symbol,
-                        pe_ratio=metrics.get('pe_ratio'),
-                        forward_pe=metrics.get('forward_pe'),
-                        beta=metrics.get('beta'),
-                        week_52_high=metrics.get('week_52_high'),
-                        week_52_low=metrics.get('week_52_low'),
-                        market_cap=metrics.get('market_cap'),
-                        dividend_yield=metrics.get('dividend_yield'),
-                    )
-                    db.add(new_profile)
-                    created += 1
+                    # Skip symbols without existing profiles
+                    # New profiles should be created by full company profile sync
+                    # (which populates sector, industry, company_name, etc.)
+                    skipped += 1
 
             except Exception as e:
                 logger.warning(f"Failed to update profile for {symbol}: {e}")
@@ -258,27 +248,27 @@ class ValuationBatchService:
 
             # Progress logging every 200 symbols
             if processed % 200 == 0:
-                print(f"[VALUATION] DB update progress: {processed}/{total} ({updated} updated, {created} created)")
+                print(f"[VALUATION] DB update progress: {processed}/{total} ({updated} updated, {skipped} skipped)")
                 sys.stdout.flush()
 
         try:
             await db.commit()
-            print(f"[VALUATION] DB commit successful: {updated} updated, {created} created, {failed} failed")
+            print(f"[VALUATION] DB commit successful: {updated} updated, {skipped} skipped (no profile), {failed} failed")
             sys.stdout.flush()
         except Exception as e:
             logger.error(f"Failed to commit profile updates: {e}")
             await db.rollback()
             print(f"[VALUATION] DB commit FAILED: {e}")
             sys.stdout.flush()
-            return {"updated": 0, "created": 0, "failed": len(valuations), "error": str(e)}
+            return {"updated": 0, "skipped": 0, "failed": len(valuations), "error": str(e)}
 
-        logger.info(f"Profile updates: {updated} updated, {created} created, {failed} failed")
+        logger.info(f"Profile updates: {updated} updated, {skipped} skipped, {failed} failed")
 
         return {
             "updated": updated,
-            "created": created,
+            "skipped": skipped,
             "failed": failed,
-            "total_processed": updated + created,
+            "total_processed": updated,
         }
 
     def _safe_decimal(self, value: Any) -> Optional[Decimal]:

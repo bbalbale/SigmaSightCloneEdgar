@@ -174,8 +174,66 @@ Use asyncio.gather() or worker pools for:
 
 ---
 
+## 5. New Company Profile Creation (Priority: High)
+
+### Problem
+
+When a new symbol is added to a portfolio (via position creation), the V2 daily valuation batch will skip it because no `company_profiles` record exists. The valuation batch only UPDATES existing profiles - it doesn't create new ones.
+
+### Current State
+
+- Daily valuation batch fetches PE, beta, 52w range, market cap for all symbols
+- If a symbol has no existing profile, it's skipped (logged as "skipped - no profile")
+- New symbols won't get valuation data until a profile is created
+
+### Proposed Solution
+
+Create a separate "New Profile Sync" step that runs:
+1. **On portfolio onboarding** - When new positions are added
+2. **Before daily valuation batch** - Check for symbols without profiles
+
+```python
+async def sync_missing_profiles(symbols: List[str]) -> Dict[str, Any]:
+    """
+    Create company_profiles for symbols that don't have one.
+
+    Fetches static fields (sector, industry, company_name, etc.)
+    only for symbols missing from company_profiles table.
+    """
+    # 1. Query DB for existing profile symbols
+    # 2. Find symbols in input that don't have profiles
+    # 3. Fetch full profile data for missing symbols only
+    # 4. Insert new profiles
+```
+
+### Implementation Options
+
+**Option A: Add to V2 Symbol Batch (Phase -1)**
+- Run before Phase 0 daily valuations
+- Only fetches profiles for symbols without existing records
+- Pro: Automatic, no manual trigger needed
+- Con: Adds time to nightly batch
+
+**Option B: Separate Cron Job**
+- Runs weekly or on-demand
+- Syncs all missing profiles
+- Pro: Doesn't slow down nightly batch
+- Con: New symbols may wait up to a week for profiles
+
+**Option C: On-Demand via Onboarding**
+- Trigger profile sync when new positions are added
+- Pro: Immediate data availability
+- Con: Requires integration with position creation flow
+
+### Recommended Approach
+
+Start with **Option A** - add a quick "missing profiles" check to V2 batch. Since we're only fetching profiles for NEW symbols (not all 1250), it should be fast.
+
+---
+
 ## Document History
 
 | Date | Author | Changes |
 |------|--------|---------|
+| 2026-01-12 | Claude | Added new company profile creation section |
 | 2026-01-12 | Claude | Initial creation - Smart profile refresh planning |
