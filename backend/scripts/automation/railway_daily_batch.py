@@ -58,26 +58,34 @@ logger = get_logger(__name__)
 
 def check_v2_guard():
     """
-    V2 Architecture Guard: Exit if V2 batch mode is enabled.
+    V2 Architecture Guard: Redirect to V2 batch when enabled.
 
-    When BATCH_V2_ENABLED=true, this legacy batch script should NOT run.
-    V2 mode uses separate cron jobs for symbol batch and portfolio refresh.
-
-    This prevents accidental double-processing when migrating to V2.
+    When BATCH_V2_ENABLED=true, this script delegates to the V2 batch runner
+    instead of running V1 legacy batch. This allows seamless migration without
+    changing Railway cron configuration.
     """
     if settings.BATCH_V2_ENABLED:
         print("=" * 60)
-        print("❌ V2 BATCH MODE ENABLED - LEGACY BATCH SKIPPED")
+        print("[V2] V2 BATCH MODE ENABLED - DELEGATING TO V2 RUNNER")
         print("=" * 60)
         print("BATCH_V2_ENABLED=true detected.")
-        print("")
-        print("In V2 mode, use these scripts instead:")
-        print("  - scripts/batch_processing/run_symbol_batch.py (9:00 PM ET)")
-        print("  - scripts/batch_processing/run_portfolio_refresh.py (9:30 PM ET)")
-        print("")
-        print("To run V1 legacy batch, set BATCH_V2_ENABLED=false")
+        print("Delegating to V2 batch runner...")
         print("=" * 60)
-        sys.exit(0)  # Exit 0 = graceful skip (not an error)
+
+        # Import and run V2 batch
+        import subprocess
+        import sys
+
+        # Get the path to the V2 script
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        v2_script = os.path.join(script_dir, "railway_daily_batch_v2.py")
+
+        # Run V2 script and exit with its exit code
+        result = subprocess.run(
+            [sys.executable, v2_script],
+            cwd=os.path.dirname(script_dir),  # Set cwd to backend/scripts
+        )
+        sys.exit(result.returncode)
 
 
 async def ensure_factor_definitions():
