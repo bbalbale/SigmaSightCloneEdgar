@@ -390,6 +390,67 @@ class AdminApiService {
   }
 
   /**
+   * Download batch run activity logs
+   * Returns the log content and triggers download
+   */
+  async downloadBatchLogs(batchRunId: string, format: 'json' | 'txt' = 'txt'): Promise<void> {
+    const token = adminAuthService.getAccessToken()
+    if (!token) {
+      throw new Error('Admin not authenticated')
+    }
+
+    const response = await fetch(
+      `/api/proxy/api/v1/admin/batch/history/${encodeURIComponent(batchRunId)}/logs?format=${format}`,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        credentials: 'include',
+      }
+    )
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        adminAuthService.clearSession()
+        throw new Error('Session expired. Please login again.')
+      }
+      const error = await response.json().catch(() => ({ detail: 'Download failed' }))
+      throw new Error(error.detail || `Download failed with status ${response.status}`)
+    }
+
+    // Get filename from Content-Disposition header or use default
+    const contentDisposition = response.headers.get('Content-Disposition')
+    let filename = `${batchRunId}_log.${format}`
+    if (contentDisposition) {
+      const match = contentDisposition.match(/filename="(.+)"/)
+      if (match) {
+        filename = match[1]
+      }
+    }
+
+    // Create blob and trigger download
+    const blob = await response.blob()
+    const url = window.URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    window.URL.revokeObjectURL(url)
+    document.body.removeChild(a)
+  }
+
+  /**
+   * Get batch run log entry count (lightweight - does not download full logs)
+   */
+  async getBatchLogCount(batchRunId: string): Promise<number> {
+    const response = await adminFetch<{ log_entry_count: number }>(
+      `/api/v1/admin/batch/history/${encodeURIComponent(batchRunId)}/logs?count_only=true`
+    )
+    return response.log_entry_count || 0
+  }
+
+  /**
    * Get batch history summary
    */
   async getBatchHistorySummary(days: number = 30): Promise<BatchHistorySummary> {

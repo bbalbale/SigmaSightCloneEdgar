@@ -24,7 +24,9 @@ import {
   RefreshCw,
   ChevronRight,
   AlertTriangle,
-  Timer
+  Timer,
+  Download,
+  FileText
 } from 'lucide-react'
 
 export default function BatchHistoryPage() {
@@ -35,6 +37,7 @@ export default function BatchHistoryPage() {
   const [selectedRun, setSelectedRun] = useState<BatchRunDetails | null>(null)
   const [loading, setLoading] = useState(true)
   const [detailsLoading, setDetailsLoading] = useState(false)
+  const [downloadLoading, setDownloadLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [days, setDays] = useState(30)
   const [statusFilter, setStatusFilter] = useState<string>('')
@@ -68,6 +71,18 @@ export default function BatchHistoryPage() {
       setError(err instanceof Error ? err.message : 'Failed to load run details')
     } finally {
       setDetailsLoading(false)
+    }
+  }
+
+  const downloadLogs = async (format: 'txt' | 'json' = 'txt') => {
+    if (!selectedRun) return
+    setDownloadLoading(true)
+    try {
+      await adminApiService.downloadBatchLogs(selectedRun.batch_run_id, format)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to download logs')
+    } finally {
+      setDownloadLoading(false)
     }
   }
 
@@ -436,6 +451,41 @@ export default function BatchHistoryPage() {
                             )}
                           </div>
                         )}
+
+                        {/* Download Logs Section */}
+                        <div className="pt-4 border-t border-slate-700">
+                          <p className="text-xs text-slate-500 uppercase mb-3">Activity Logs</p>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => downloadLogs('txt')}
+                              disabled={downloadLoading}
+                              className="flex-1 bg-slate-700 border-slate-600 hover:bg-slate-600 text-white"
+                            >
+                              {downloadLoading ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <FileText className="w-4 h-4 mr-2" />
+                              )}
+                              TXT
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => downloadLogs('json')}
+                              disabled={downloadLoading}
+                              className="flex-1 bg-slate-700 border-slate-600 hover:bg-slate-600 text-white"
+                            >
+                              {downloadLoading ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <Download className="w-4 h-4 mr-2" />
+                              )}
+                              JSON
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     ) : (
                       <p className="text-slate-400 text-center py-8">
