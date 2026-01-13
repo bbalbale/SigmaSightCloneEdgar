@@ -494,8 +494,17 @@ async def _get_symbols_to_process() -> List[str]:
     from app.models.symbol_analytics import SymbolUniverse
 
     symbols = set()
+    inactive_symbols = set()
 
     async with get_async_session() as db:
+        # First, get inactive symbols to exclude (delisted, renamed, etc.)
+        result = await db.execute(
+            select(SymbolUniverse.symbol).where(SymbolUniverse.is_active == False)
+        )
+        inactive_symbols = {row[0].upper() for row in result.fetchall() if row[0]}
+        if inactive_symbols:
+            logger.info(f"{V2_LOG_PREFIX} Excluding {len(inactive_symbols)} inactive symbols: {inactive_symbols}")
+
         # Get symbols from active positions
         result = await db.execute(
             select(Position.symbol)
@@ -511,12 +520,15 @@ async def _get_symbols_to_process() -> List[str]:
         position_symbols = [row[0].upper() for row in result.fetchall() if row[0]]
         symbols.update(position_symbols)
 
-        # Get symbols from symbol_universe
+        # Get symbols from symbol_universe (active only)
         result = await db.execute(
             select(SymbolUniverse.symbol).where(SymbolUniverse.is_active == True)
         )
         universe_symbols = [row[0].upper() for row in result.fetchall() if row[0]]
         symbols.update(universe_symbols)
+
+    # Remove inactive symbols from the set
+    symbols -= inactive_symbols
 
     # Add factor ETF symbols
     factor_etfs = ["SPY", "TLT", "GLD", "USO", "UUP"]
