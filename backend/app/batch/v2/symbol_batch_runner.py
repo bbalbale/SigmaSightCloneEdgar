@@ -499,6 +499,9 @@ import re
 # Examples: SPY250919C00460000, AAPL250815P00200000
 OPTION_TICKER_PATTERN = re.compile(r'^([A-Z]+)(\d{6})([CP])(\d{8})$')
 
+# Internal/Private asset ID pattern (e.g., EQ5D6A2D8F - generated identifiers)
+INTERNAL_ID_PATTERN = re.compile(r'^EQ[A-F0-9]{8,}$', re.IGNORECASE)
+
 
 def parse_option_expiry(symbol: str) -> Optional[date]:
     """
@@ -558,6 +561,57 @@ def filter_expired_options(symbols: List[str], as_of_date: date) -> tuple[List[s
     return valid, expired
 
 
+def is_private_asset_symbol(symbol: str) -> bool:
+    """
+    Detect if a symbol represents a private/alternative asset.
+
+    Private assets don't have market data and can't be processed for factor analysis.
+    Detection heuristics:
+    1. Contains underscore (standard equity tickers don't have underscores)
+       - Examples: HOME_EQUITY, FO_PRIVATE_CREDIT, BX_PRIVATE_EQUITY, MONEY_MARKET
+    2. Matches internal ID pattern (EQ + hex digits)
+       - Examples: EQ5D6A2D8F
+    3. Known private asset prefixes
+
+    Args:
+        symbol: Ticker symbol to check
+
+    Returns:
+        True if symbol appears to be a private/alternative asset
+    """
+    symbol_upper = symbol.upper()
+
+    # Rule 1: Contains underscore - standard equity tickers don't have underscores
+    # This catches: HOME_EQUITY, RENTAL_SFH, FO_PRIVATE_CREDIT, BX_PRIVATE_EQUITY,
+    #               MONEY_MARKET, TWO_SIGMA_FUND, A16Z_VC_FUND, TREASURY_BILLS, etc.
+    if '_' in symbol:
+        return True
+
+    # Rule 2: Internal ID pattern (EQ + hex digits)
+    # This catches generated identifiers like EQ5D6A2D8F
+    if INTERNAL_ID_PATTERN.match(symbol_upper):
+        return True
+
+    return False
+
+
+def filter_private_assets(symbols: List[str]) -> tuple[List[str], List[str]]:
+    """
+    Filter out private/alternative asset symbols from a list.
+
+    Returns:
+        Tuple of (public_symbols, private_symbols)
+    """
+    public = []
+    private = []
+    for symbol in symbols:
+        if is_private_asset_symbol(symbol):
+            private.append(symbol)
+        else:
+            public.append(symbol)
+    return public, private
+
+
 # =============================================================================
 # PHASE IMPLEMENTATIONS (Step 6-7 will fill these in)
 # =============================================================================
@@ -567,7 +621,7 @@ async def _get_symbols_to_process(calc_date: date = None) -> List[str]:
     Get all symbols that need processing for factor calculations.
 
     Sources:
-    1. All symbols from active positions (excluding PRIVATE and OPTIONS)
+    1. All symbols from active positions (PUBLIC only)
     2. Symbols in symbol_universe
     3. Factor ETF symbols (SPY, TLT, etc.)
 
@@ -575,6 +629,7 @@ async def _get_symbols_to_process(calc_date: date = None) -> List[str]:
     - PRIVATE positions (no market data - see NextSteps.md #7)
     - OPTIONS positions (need Greeks not factor calcs, expire)
     - Expired options (detected by parsing ticker)
+    - Private asset symbols (detected by underscore pattern)
     - Inactive symbols from symbol_universe
 
     Returns:
@@ -599,9 +654,10 @@ async def _get_symbols_to_process(calc_date: date = None) -> List[str]:
         if inactive_symbols:
             logger.info(f"{V2_LOG_PREFIX} Excluding {len(inactive_symbols)} inactive symbols: {inactive_symbols}")
 
-        # Get symbols from active positions (exclude PRIVATE and OPTIONS)
+        # Get symbols from active positions - PUBLIC investment class only
         # PRIVATE: No market data (custom identifiers like BX_PRIVATE_EQUITY)
         # OPTIONS: Need Greeks calculations, not factor regressions
+        # NULL: Treat as unknown, will be filtered by pattern detection below
         result = await db.execute(
             select(Position.symbol)
             .join(Portfolio, Portfolio.id == Position.portfolio_id)
@@ -609,15 +665,11 @@ async def _get_symbols_to_process(calc_date: date = None) -> List[str]:
                 and_(
                     Portfolio.deleted_at.is_(None),
                     Position.exit_date.is_(None),
-                    # Exclude PRIVATE and OPTIONS - they don't have equity price history
-                    # PRIVATE: No ticker/market data (see NextSteps.md #7)
-                    # OPTIONS: Expire, need Greeks not factor calcs
+                    # Only include PUBLIC positions explicitly
+                    # NULL and other classes will be filtered by pattern detection
                     or_(
-                        Position.investment_class.is_(None),
-                        and_(
-                            Position.investment_class != "PRIVATE",
-                            Position.investment_class != "OPTIONS"
-                        )
+                        Position.investment_class == "PUBLIC",
+                        Position.investment_class.is_(None),  # Check pattern later
                     ),
                 )
             )
@@ -625,7 +677,7 @@ async def _get_symbols_to_process(calc_date: date = None) -> List[str]:
         )
         position_symbols = [row[0].upper() for row in result.fetchall() if row[0]]
         symbols.update(position_symbols)
-        logger.info(f"{V2_LOG_PREFIX} Collected {len(position_symbols)} symbols from positions (excluding PRIVATE/OPTIONS)")
+        logger.info(f"{V2_LOG_PREFIX} Collected {len(position_symbols)} symbols from positions")
 
         # Get symbols from symbol_universe (active only)
         result = await db.execute(
@@ -641,14 +693,23 @@ async def _get_symbols_to_process(calc_date: date = None) -> List[str]:
     factor_etfs = ["SPY", "TLT", "GLD", "USO", "UUP"]
     symbols.update(factor_etfs)
 
-    # Filter out any expired options that slipped through
-    # (safety net in case investment_class wasn't set correctly)
+    # Filter out private/alternative asset symbols by pattern
+    # This catches symbols with underscores (HOME_EQUITY, FO_PRIVATE_CREDIT, etc.)
+    # and internal IDs (EQ5D6A2D8F) that slipped through due to NULL investment_class
     symbol_list = list(symbols)
-    valid_symbols, expired = filter_expired_options(symbol_list, calc_date)
+    public_symbols, private_symbols = filter_private_assets(symbol_list)
+    if private_symbols:
+        logger.info(
+            f"{V2_LOG_PREFIX} Filtered out {len(private_symbols)} private/alternative symbols: "
+            f"{private_symbols[:5]}{'...' if len(private_symbols) > 5 else ''}"
+        )
+
+    # Filter out any expired options that slipped through
+    valid_symbols, expired = filter_expired_options(public_symbols, calc_date)
     if expired:
         logger.info(f"{V2_LOG_PREFIX} Filtered out {len(expired)} expired options: {expired[:5]}{'...' if len(expired) > 5 else ''}")
 
-    logger.info(f"{V2_LOG_PREFIX} Found {len(valid_symbols)} unique symbols to process")
+    logger.info(f"{V2_LOG_PREFIX} Found {len(valid_symbols)} unique public symbols to process")
     return valid_symbols
 
 

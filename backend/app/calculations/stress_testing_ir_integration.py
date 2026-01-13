@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.positions import Position
 from app.models.symbol_analytics import SymbolFactorExposure
-from app.models.factors import FactorDefinition
+from app.models.market_data import FactorDefinition
 from app.calculations.market_data import get_position_value
 from app.core.logging import get_logger
 
