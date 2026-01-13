@@ -512,7 +512,8 @@ async def _aggregate_portfolio_factors(
                     calculation_date=target_date,
                     use_delta_adjusted=False,
                     include_ridge=True,
-                    include_spread=False
+                    include_spread=False,
+                    include_ols=False
                 )
 
                 ridge_betas = ridge_result.get('ridge_betas', {})
@@ -535,7 +536,8 @@ async def _aggregate_portfolio_factors(
                     calculation_date=target_date,
                     use_delta_adjusted=False,
                     include_ridge=False,
-                    include_spread=True
+                    include_spread=True,
+                    include_ols=False
                 )
 
                 spread_betas = spread_result.get('spread_betas', {})
@@ -549,8 +551,30 @@ async def _aggregate_portfolio_factors(
                         portfolio_equity=portfolio_equity
                     )
 
+                # Get OLS factors (Market Beta 90D, IR Beta, Provider Beta 1Y)
+                ols_result = await get_portfolio_factor_exposures(
+                    db=db,
+                    portfolio_id=portfolio_id,
+                    calculation_date=target_date,
+                    use_delta_adjusted=False,
+                    include_ridge=False,
+                    include_spread=False,
+                    include_ols=True
+                )
+
+                ols_betas = ols_result.get('ols_betas', {})
+
+                if ols_betas:
+                    await store_portfolio_factor_exposures(
+                        db=db,
+                        portfolio_id=portfolio_id,
+                        portfolio_betas=ols_betas,
+                        calculation_date=target_date,
+                        portfolio_equity=portfolio_equity
+                    )
+
                 # CRITICAL: Commit the transaction (store_portfolio_factor_exposures doesn't commit)
-                if ridge_betas or spread_betas:
+                if ridge_betas or spread_betas or ols_betas:
                     await db.commit()
                     calculated += 1
                 else:

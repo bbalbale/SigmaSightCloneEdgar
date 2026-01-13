@@ -36,6 +36,17 @@ logger = get_logger(__name__)
 RIDGE_FACTORS = ['Value', 'Growth', 'Momentum', 'Quality', 'Size', 'Low Volatility']
 SPREAD_FACTORS = ['Growth-Value Spread', 'Momentum Spread', 'Size Spread', 'Quality Spread']
 
+# OLS Beta factors (single-factor regressions calculated in Phase 3)
+# These use different calculation_methods in symbol_factor_exposures:
+#   - Market Beta (90D): 'ols_market' - OLS regression vs SPY
+#   - IR Beta: 'ols_ir' - OLS regression vs TLT (bond ETF)
+#   - Provider Beta (1Y): 'provider' - from company_profiles (Yahoo Finance/FMP)
+OLS_FACTORS = {
+    'Market Beta (90D)': 'ols_market',
+    'IR Beta': 'ols_ir',
+    'Provider Beta (1Y)': 'provider',
+}
+
 
 @dataclass
 class PositionWeight:
@@ -202,7 +213,8 @@ async def get_portfolio_factor_exposures(
     calculation_date: date,
     use_delta_adjusted: bool = False,
     include_ridge: bool = True,
-    include_spread: bool = True
+    include_spread: bool = True,
+    include_ols: bool = True
 ) -> Dict[str, Any]:
     """
     Get portfolio factor exposures by aggregating pre-computed symbol betas.
@@ -218,12 +230,14 @@ async def get_portfolio_factor_exposures(
         use_delta_adjusted: Apply delta adjustment for options
         include_ridge: Include Ridge factors (6 factors)
         include_spread: Include Spread factors (4 factors)
+        include_ols: Include OLS factors (Market Beta 90D, IR Beta, Provider Beta 1Y)
 
     Returns:
         Dict with:
         - factor_betas: {factor_name: portfolio_beta}
         - ridge_betas: Ridge factors only (if include_ridge)
         - spread_betas: Spread factors only (if include_spread)
+        - ols_betas: OLS factors only (if include_ols)
         - metadata: Aggregation metadata
         - data_quality: Coverage and quality metrics
     """
@@ -251,6 +265,7 @@ async def get_portfolio_factor_exposures(
         'factor_betas': {},
         'ridge_betas': {},
         'spread_betas': {},
+        'ols_betas': {},
         'metadata': {
             'positions_count': len(position_weights),
             'unique_symbols': len(symbols),
@@ -261,9 +276,15 @@ async def get_portfolio_factor_exposures(
             'total_symbols': len(symbols),
             'symbols_with_ridge': 0,
             'symbols_with_spread': 0,
+            'symbols_with_ols': 0,
             'symbols_missing': 0
         }
     }
+
+    # Initialize variables for symbol tracking
+    ridge_betas = {}
+    spread_betas = {}
+    symbols_with_any_ols = set()
 
     # Load Ridge betas
     if include_ridge:
@@ -293,18 +314,41 @@ async def get_portfolio_factor_exposures(
         results['spread_betas'] = spread_portfolio_betas
         results['factor_betas'].update(spread_portfolio_betas)
 
+    # Load OLS betas (Market Beta 90D, IR Beta, Provider Beta 1Y)
+    if include_ols:
+        ols_portfolio_betas = {}
+
+        for factor_name, calc_method in OLS_FACTORS.items():
+            ols_betas = await load_symbol_betas(
+                db, symbols, calculation_date, calc_method
+            )
+
+            if ols_betas:
+                symbols_with_any_ols.update(ols_betas.keys())
+                # Aggregate this OLS factor
+                factor_portfolio_betas = aggregate_symbol_betas_to_portfolio(
+                    position_weights, ols_betas, use_delta_adjusted
+                )
+                # OLS factors return single-factor dict per symbol, so aggregate returns single factor
+                if factor_name in factor_portfolio_betas:
+                    ols_portfolio_betas[factor_name] = factor_portfolio_betas[factor_name]
+
+        results['data_quality']['symbols_with_ols'] = len(symbols_with_any_ols)
+        results['ols_betas'] = ols_portfolio_betas
+        results['factor_betas'].update(ols_portfolio_betas)
+
     # Calculate missing symbols
     all_loaded = set()
-    if include_ridge:
-        all_loaded.update(ridge_betas.keys())
-    if include_spread:
-        all_loaded.update(spread_betas.keys())
+    all_loaded.update(ridge_betas.keys())
+    all_loaded.update(spread_betas.keys())
+    all_loaded.update(symbols_with_any_ols)
     results['data_quality']['symbols_missing'] = len(symbols) - len(all_loaded)
 
     logger.info(
         f"Portfolio factor exposures: {len(results['factor_betas'])} factors, "
         f"Ridge: {results['data_quality']['symbols_with_ridge']}/{len(symbols)} symbols, "
-        f"Spread: {results['data_quality']['symbols_with_spread']}/{len(symbols)} symbols"
+        f"Spread: {results['data_quality']['symbols_with_spread']}/{len(symbols)} symbols, "
+        f"OLS: {results['data_quality']['symbols_with_ols']}/{len(symbols)} symbols"
     )
 
     return results
