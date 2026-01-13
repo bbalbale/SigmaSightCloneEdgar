@@ -72,8 +72,9 @@ async def clear_calcs_for_date(target_date: date, dry_run: bool = False):
     total_deleted = 0
     results = {}
 
-    async with get_async_session() as db:
-        for table_name, date_column, use_date_cast in CALC_TABLES:
+    for table_name, date_column, use_date_cast in CALC_TABLES:
+        # Use separate session per table to isolate transactions
+        async with get_async_session() as db:
             try:
                 # Build WHERE clause - use DATE() cast for DateTime columns
                 if use_date_cast:
@@ -98,6 +99,7 @@ async def clear_calcs_for_date(target_date: date, dry_run: bool = False):
                     # Delete rows for the specific date
                     delete_sql = text(f"DELETE FROM {table_name} WHERE {where_clause}")
                     await db.execute(delete_sql, {"target_date": target_date})
+                    await db.commit()  # Commit each table separately
                     print(f"  [OK]   {table_name}: Deleted {count} rows")
                     results[table_name] = count
                     total_deleted += count
@@ -110,10 +112,6 @@ async def clear_calcs_for_date(target_date: date, dry_run: bool = False):
                 else:
                     print(f"  [ERR]  {table_name}: {error_msg}")
                 results[table_name] = 0
-
-        # Commit all deletions
-        if not dry_run:
-            await db.commit()
 
     # Summary
     print()
