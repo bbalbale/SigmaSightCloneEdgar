@@ -30,7 +30,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.logging import get_logger
 from app.core.datetime_utils import utc_now
-from app.database import get_async_session, AsyncSessionLocal
+from app.database import get_async_session
 from app.cache.price_cache import PriceCache
 
 logger = get_logger(__name__)
@@ -278,11 +278,8 @@ class SymbolCacheService:
         """Fetch price from database."""
         from app.models.market_data import MarketDataCache
 
-        should_close = db is None
-        if db is None:
-            db = AsyncSessionLocal()
-
-        try:
+        # If db provided, use it directly (caller manages session)
+        if db is not None:
             result = await db.execute(
                 select(MarketDataCache.close)
                 .where(
@@ -302,9 +299,26 @@ class SymbolCacheService:
 
             return price
 
-        finally:
-            if should_close:
-                await db.close()
+        # No db provided - use proper async context manager (Railway-safe)
+        async with get_async_session() as session:
+            result = await session.execute(
+                select(MarketDataCache.close)
+                .where(
+                    and_(
+                        MarketDataCache.symbol == symbol,
+                        MarketDataCache.date == price_date,
+                        MarketDataCache.close > 0,
+                    )
+                )
+            )
+            price = result.scalar_one_or_none()
+
+            # Cache the result
+            if price is not None:
+                self._price_cache.set_price(symbol, price_date, price)
+                self._symbols_loaded.add(symbol)
+
+            return price
 
     async def get_factors(
         self,
@@ -344,18 +358,15 @@ class SymbolCacheService:
         from app.models.symbol_analytics import SymbolFactorExposure
         from app.models.market_data import FactorDefinition
 
-        should_close = db is None
-        if db is None:
-            db = AsyncSessionLocal()
-
-        try:
+        async def _do_fetch(session: AsyncSession) -> Dict[str, float]:
+            """Inner function to fetch factors from a session."""
             # Load factor definitions for name mapping
-            factor_result = await db.execute(select(FactorDefinition))
+            factor_result = await session.execute(select(FactorDefinition))
             factors = factor_result.scalars().all()
             factor_id_to_name = {f.id: f.name for f in factors}
 
             # Load factor exposures
-            result = await db.execute(
+            result = await session.execute(
                 select(SymbolFactorExposure)
                 .where(
                     and_(
@@ -378,9 +389,13 @@ class SymbolCacheService:
 
             return factors_dict
 
-        finally:
-            if should_close:
-                await db.close()
+        # If db provided, use it directly (caller manages session)
+        if db is not None:
+            return await _do_fetch(db)
+
+        # No db provided - use proper async context manager (Railway-safe)
+        async with get_async_session() as session:
+            return await _do_fetch(session)
 
     def set_price(self, symbol: str, price_date: date, price: Decimal):
         """Set price in cache (for manual updates)."""

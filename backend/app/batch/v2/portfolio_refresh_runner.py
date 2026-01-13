@@ -39,7 +39,7 @@ from app.core.trading_calendar import (
     get_most_recent_completed_trading_day,
     is_trading_day,
 )
-from app.database import get_async_session, AsyncSessionLocal
+from app.database import get_async_session
 from app.models.admin import BatchRunHistory
 from app.models.users import Portfolio
 from app.batch.batch_run_tracker import (
