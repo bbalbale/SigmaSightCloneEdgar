@@ -67,9 +67,14 @@ async def fix_delisted_symbols(db: AsyncSession, dry_run: bool = True) -> dict:
     return results
 
 
-async def fix_renamed_symbols(db: AsyncSession, dry_run: bool = True) -> dict:
-    """Update renamed symbols across all relevant tables."""
-    results = {"renamed": [], "errors": []}
+async def fix_renamed_symbols(dry_run: bool = True) -> dict:
+    """Update renamed symbols across all relevant tables.
+
+    Uses separate sessions per table to avoid transaction cascade failures.
+    """
+    from app.database import get_async_session
+
+    results = {"renamed": [], "errors": [], "updated_tables": []}
 
     tables_to_update = [
         "symbol_universe",
@@ -84,28 +89,33 @@ async def fix_renamed_symbols(db: AsyncSession, dry_run: bool = True) -> dict:
 
         for table in tables_to_update:
             try:
-                # Check if old symbol exists in table
-                check = await db.execute(
-                    text(f"SELECT COUNT(*) FROM {table} WHERE symbol = :symbol"),
-                    {"symbol": old_symbol}
-                )
-                count = check.scalar()
+                # Use separate session for each table to avoid cascade failures
+                async with get_async_session() as db:
+                    # Check if old symbol exists in table
+                    check = await db.execute(
+                        text(f"SELECT COUNT(*) FROM {table} WHERE symbol = :symbol"),
+                        {"symbol": old_symbol}
+                    )
+                    count = check.scalar()
 
-                if count and count > 0:
-                    if dry_run:
-                        print(f"    [DRY RUN] Would update {count} rows in {table}")
+                    if count and count > 0:
+                        if dry_run:
+                            print(f"    [DRY RUN] Would update {count} rows in {table}")
+                        else:
+                            await db.execute(
+                                text(f"UPDATE {table} SET symbol = :new WHERE symbol = :old"),
+                                {"old": old_symbol, "new": new_symbol}
+                            )
+                            await db.commit()
+                            print(f"    [OK] Updated {count} rows in {table}")
+                            results["updated_tables"].append(table)
                     else:
-                        await db.execute(
-                            text(f"UPDATE {table} SET symbol = :new WHERE symbol = :old"),
-                            {"old": old_symbol, "new": new_symbol}
-                        )
-                        print(f"    [OK] Updated {count} rows in {table}")
-                else:
-                    print(f"    [SKIP] No {old_symbol} in {table}")
+                        print(f"    [SKIP] No {old_symbol} in {table}")
 
             except Exception as e:
-                # Table might not exist
-                print(f"    [SKIP] {table}: {e}")
+                # Table might not exist or other error - continue with next table
+                print(f"    [ERROR] {table}: {e}")
+                results["errors"].append(f"{table}: {str(e)}")
 
         results["renamed"].append(f"{old_symbol} → {new_symbol}")
 
@@ -122,26 +132,31 @@ async def main(dry_run: bool = True):
     print(f"Mode: {'DRY RUN' if dry_run else 'APPLY CHANGES'}")
     print()
 
+    # Fix delisted symbols (uses its own session)
+    print("1. Marking delisted symbols as inactive:")
     async with get_async_session() as db:
-        # Fix delisted symbols
-        print("1. Marking delisted symbols as inactive:")
         delisted_results = await fix_delisted_symbols(db, dry_run)
-
-        # Fix renamed symbols
-        print("\n2. Updating renamed symbols:")
-        renamed_results = await fix_renamed_symbols(db, dry_run)
-
         if not dry_run:
             await db.commit()
-            print("\n[OK] Changes committed to database")
-        else:
-            print("\n[DRY RUN] No changes made. Run without --dry-run to apply.")
+
+    # Fix renamed symbols (each table uses its own session)
+    print("\n2. Updating renamed symbols:")
+    renamed_results = await fix_renamed_symbols(dry_run)
+
+    if dry_run:
+        print("\n[DRY RUN] No changes made. Run without --dry-run to apply.")
+    else:
+        print("\n[OK] All changes committed to database")
 
     print("\n" + "=" * 60)
     print("  SUMMARY")
     print("=" * 60)
     print(f"Delisted: {delisted_results['delisted']}")
     print(f"Renamed: {renamed_results['renamed']}")
+    if renamed_results.get('updated_tables'):
+        print(f"Tables updated: {renamed_results['updated_tables']}")
+    if renamed_results.get('errors'):
+        print(f"Errors: {renamed_results['errors']}")
     print("=" * 60)
 
 
