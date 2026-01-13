@@ -35,7 +35,7 @@ from app.schemas.portfolios import (
 from app.core.logging import get_logger
 from app.core.trading_calendar import get_most_recent_trading_day
 from app.batch.batch_orchestrator import batch_orchestrator
-from app.config import get_tier_limit
+from app.config import get_tier_limit, settings
 from app.batch.batch_run_tracker import batch_run_tracker, CurrentBatchRun
 from app.core.datetime_utils import utc_now
 
@@ -590,18 +590,40 @@ async def trigger_portfolio_calculations(
             f"(batch_run_id: {batch_run_id}, calculation_date: {calculation_date}, today: {date.today()})"
         )
 
-        # Execute batch processing in background using per-portfolio onboarding backfill
-        # Why run_portfolio_onboarding_backfill instead of run_daily_batch_with_backfill?
-        # - run_daily_batch_with_backfill uses GLOBAL watermark (max snapshot across ALL portfolios)
-        # - If cron already ran today, global backfill returns "already up to date" - new portfolio gets nothing
-        # - run_portfolio_onboarding_backfill finds earliest position entry_date for THIS portfolio
-        # - Processes all trading days from that date, guaranteeing complete historical analytics
-        # - Includes Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics)
-        background_tasks.add_task(
-            batch_orchestrator.run_portfolio_onboarding_backfill,
-            str(portfolio_id),  # portfolio_id - the specific portfolio to backfill
-            calculation_date  # end_date - process up to most recent trading day
-        )
+        # Check if V2 batch is enabled
+        if settings.BATCH_V2_ENABLED:
+            # V2 Fast Path: Use pre-computed symbol data + scoped processing
+            # - Classifies symbols as known (in cache) or unknown (need processing)
+            # - Only processes unknown symbols via Phase 0/1/3
+            # - Runs portfolio Phases 4/5/6 using V2 caches
+            # - Typically completes in 5-60 seconds vs 15-20 minutes for V1
+            logger.info(
+                f"[V2] Using V2 onboarding for portfolio {portfolio_id} "
+                f"(batch_run_id: {batch_run_id})"
+            )
+            background_tasks.add_task(
+                _run_v2_onboarding_with_tracking,
+                str(portfolio_id),
+                calculation_date,
+            )
+        else:
+            # V1 Fallback: Full batch backfill
+            # Execute batch processing in background using per-portfolio onboarding backfill
+            # Why run_portfolio_onboarding_backfill instead of run_daily_batch_with_backfill?
+            # - run_daily_batch_with_backfill uses GLOBAL watermark (max snapshot across ALL portfolios)
+            # - If cron already ran today, global backfill returns "already up to date" - new portfolio gets nothing
+            # - run_portfolio_onboarding_backfill finds earliest position entry_date for THIS portfolio
+            # - Processes all trading days from that date, guaranteeing complete historical analytics
+            # - Includes Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics)
+            logger.info(
+                f"[V1] Using V1 batch backfill for portfolio {portfolio_id} "
+                f"(batch_run_id: {batch_run_id})"
+            )
+            background_tasks.add_task(
+                batch_orchestrator.run_portfolio_onboarding_backfill,
+                str(portfolio_id),  # portfolio_id - the specific portfolio to backfill
+                calculation_date  # end_date - process up to most recent trading day
+            )
 
         return TriggerCalculationsResponse(
             portfolio_id=str(portfolio_id),
@@ -618,6 +640,42 @@ async def trigger_portfolio_calculations(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to trigger calculations: {str(e)}"
         )
+
+
+async def _run_v2_onboarding_with_tracking(
+    portfolio_id: str,
+    calculation_date: date,
+) -> None:
+    """
+    V2 onboarding wrapper with batch_run_tracker integration.
+
+    Runs V2 onboarding calculations and updates the batch tracker
+    for frontend status polling compatibility.
+
+    Args:
+        portfolio_id: Portfolio UUID as string
+        calculation_date: Date for calculations
+    """
+    from app.services.v2_onboarding_service import v2_onboarding_service
+
+    try:
+        result = await v2_onboarding_service.run_onboarding_calculations(
+            portfolio_id=UUID(portfolio_id),
+            calculation_date=calculation_date,
+        )
+
+        # Update batch tracker with completion status
+        batch_run_tracker.complete(success=result.get("success", False))
+
+        logger.info(
+            f"[V2] Onboarding complete for portfolio {portfolio_id}: "
+            f"success={result.get('success')}, duration={result.get('duration_seconds')}s"
+        )
+
+    except Exception as e:
+        logger.error(f"[V2] Onboarding failed for {portfolio_id}: {e}", exc_info=True)
+        batch_run_tracker.complete(success=False)
+        raise
 
 
 @router.get("/{portfolio_id}/batch-status/{batch_run_id}", response_model=BatchStatusResponse)

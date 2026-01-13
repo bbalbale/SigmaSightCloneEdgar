@@ -1114,3 +1114,337 @@ async def record_symbol_batch_completion(
         await db.commit()
 
     logger.info(f"{V2_LOG_PREFIX} Recorded completion for {calc_date} (job_id={job_id})")
+
+
+# =============================================================================
+# SCOPED SYMBOL PROCESSING (FOR ONBOARDING)
+# =============================================================================
+
+async def run_symbol_batch_for_symbols(
+    symbols: List[str],
+    target_date: Optional[date] = None,
+) -> Dict[str, Any]:
+    """
+    Run symbol batch phases for specific symbols only.
+
+    Used during onboarding when portfolio contains unknown symbols.
+    Runs Phase 0 (valuations), Phase 1 (prices), Phase 3 (factors).
+
+    This is a SCOPED version of the nightly batch - processes only
+    the provided symbols instead of the full universe.
+
+    Args:
+        symbols: List of symbols to process
+        target_date: Calculation date (defaults to most recent trading day)
+
+    Returns:
+        Dict with processing results per phase
+    """
+    import time
+    start_time = time.time()
+
+    if target_date is None:
+        target_date = get_most_recent_completed_trading_day()
+
+    logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Processing {len(symbols)} symbols for {target_date}")
+
+    result = {
+        "success": True,
+        "symbols_requested": len(symbols),
+        "symbols_processed": 0,
+        "target_date": target_date.isoformat(),
+        "phases": {},
+        "errors": [],
+    }
+
+    if not symbols:
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] No symbols to process")
+        return result
+
+    # Filter out private assets (HOME_EQUITY, FO_*, etc.)
+    public_symbols, private_symbols = filter_private_assets(symbols)
+
+    if private_symbols:
+        logger.info(
+            f"{V2_LOG_PREFIX} [ONBOARDING] Filtered {len(private_symbols)} private assets: "
+            f"{private_symbols[:5]}{'...' if len(private_symbols) > 5 else ''}"
+        )
+
+    if not public_symbols:
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] No public symbols after filtering")
+        result["symbols_processed"] = 0
+        return result
+
+    # Filter out expired options
+    valid_symbols, expired_symbols = filter_expired_options(public_symbols, target_date)
+    if expired_symbols:
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Filtered {len(expired_symbols)} expired options")
+
+    if not valid_symbols:
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] No valid symbols after filtering")
+        result["symbols_processed"] = 0
+        return result
+
+    try:
+        # Phase 0: Daily valuations (PE, beta, 52w range, market cap)
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 0: Daily valuations for {len(valid_symbols)} symbols...")
+        phase_start = time.time()
+        try:
+            phase_0_result = await _run_phase_0_for_symbols(valid_symbols, target_date)
+            result["phases"]["phase_0_valuations"] = {
+                "success": True,
+                "duration_seconds": round(time.time() - phase_start, 2),
+                **phase_0_result,
+            }
+            logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 0 complete: {phase_0_result.get('synced', 0)} valuations")
+        except Exception as e:
+            logger.warning(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 0 error (non-fatal): {e}")
+            result["phases"]["phase_0_valuations"] = {
+                "success": False,
+                "error": str(e),
+                "duration_seconds": round(time.time() - phase_start, 2),
+            }
+
+        # Phase 1: Market data collection (365-day lookback for factor calculations)
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 1: Market data for {len(valid_symbols)} symbols...")
+        phase_start = time.time()
+        try:
+            phase_1_result = await _run_phase_1_for_symbols(valid_symbols, target_date)
+            result["phases"]["phase_1_market_data"] = {
+                "success": True,
+                "duration_seconds": round(time.time() - phase_start, 2),
+                **phase_1_result,
+            }
+            logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 1 complete: {phase_1_result.get('prices_fetched', 0)} prices")
+        except Exception as e:
+            logger.error(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 1 error: {e}", exc_info=True)
+            result["phases"]["phase_1_market_data"] = {
+                "success": False,
+                "error": str(e),
+                "duration_seconds": round(time.time() - phase_start, 2),
+            }
+            result["errors"].append(f"Phase 1: {e}")
+
+        # Initialize cache after Phase 1 (needed for Phase 3)
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Initializing price cache...")
+        from app.cache.symbol_cache import symbol_cache
+        await symbol_cache.initialize_async(target_date=target_date)
+
+        # Phase 3: Factor calculations
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 3: Factor calculations for {len(valid_symbols)} symbols...")
+        phase_start = time.time()
+        try:
+            phase_3_result = await _run_phase_3_factors(valid_symbols, target_date, symbol_cache._price_cache)
+            result["phases"]["phase_3_factors"] = {
+                "success": True,
+                "duration_seconds": round(time.time() - phase_start, 2),
+                **phase_3_result,
+            }
+            logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 3 complete: {phase_3_result.get('calculated', 0)} factors")
+        except Exception as e:
+            logger.error(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 3 error: {e}", exc_info=True)
+            result["phases"]["phase_3_factors"] = {
+                "success": False,
+                "error": str(e),
+                "duration_seconds": round(time.time() - phase_start, 2),
+            }
+            result["errors"].append(f"Phase 3: {e}")
+
+        # Add symbols to symbol_universe (so they're "known" for future onboarding)
+        await _add_symbols_to_universe(valid_symbols)
+
+        # Refresh factor cache (so Phase 5 aggregation uses fresh data)
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Refreshing factor cache...")
+        await symbol_cache.refresh_factors(target_date)
+
+        # Determine overall success
+        phase_1_ok = result["phases"].get("phase_1_market_data", {}).get("success", False)
+        phase_3_ok = result["phases"].get("phase_3_factors", {}).get("success", False)
+        result["success"] = phase_1_ok and phase_3_ok
+        result["symbols_processed"] = len(valid_symbols)
+
+    except Exception as e:
+        logger.error(f"{V2_LOG_PREFIX} [ONBOARDING] Unexpected error: {e}", exc_info=True)
+        result["success"] = False
+        result["errors"].append(str(e))
+
+    result["duration_seconds"] = round(time.time() - start_time, 2)
+    logger.info(
+        f"{V2_LOG_PREFIX} [ONBOARDING] Complete: success={result['success']}, "
+        f"symbols={result['symbols_processed']}, duration={result['duration_seconds']}s"
+    )
+
+    return result
+
+
+async def _run_phase_0_for_symbols(symbols: List[str], calc_date: date) -> Dict[str, Any]:
+    """
+    Phase 0: Fetch daily valuation metrics for specific symbols.
+
+    Uses existing valuation_batch_service.fetch_daily_valuations().
+
+    Args:
+        symbols: List of symbols to process
+        calc_date: Calculation date
+
+    Returns:
+        Dict with sync results
+    """
+    from app.services.valuation_batch_service import valuation_batch_service
+
+    logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 0: Valuations for {len(symbols)} symbols")
+
+    try:
+        # Fetch valuation metrics in batch
+        valuations = await valuation_batch_service.fetch_daily_valuations(symbols)
+
+        # Update company_profiles table with valuation data
+        async with get_async_session() as db:
+            update_result = await valuation_batch_service.update_company_profiles(
+                db=db,
+                valuations=valuations,
+            )
+
+        return {
+            "synced": update_result.get("total_processed", 0),
+            "updated": update_result.get("updated", 0),
+            "created": update_result.get("created", 0),
+            "failed": update_result.get("failed", 0),
+        }
+
+    except Exception as e:
+        logger.error(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 0 error: {e}", exc_info=True)
+        raise
+
+
+async def _run_phase_1_for_symbols(symbols: List[str], calc_date: date) -> Dict[str, Any]:
+    """
+    Phase 1: Fetch market data (prices) for specific symbols.
+
+    Uses existing market_data_service.fetch_historical_data_hybrid().
+
+    Args:
+        symbols: List of symbols to process
+        calc_date: Calculation date
+
+    Returns:
+        Dict with fetch results
+    """
+    from app.services.market_data_service import MarketDataService
+    from app.models.market_data import MarketDataCache
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+    from datetime import timedelta
+
+    logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 1: Market data for {len(symbols)} symbols")
+
+    market_data_service = MarketDataService()
+
+    # 365-day lookback for factor calculations
+    start_date = calc_date - timedelta(days=365)
+    end_date = calc_date
+
+    try:
+        # Fetch prices using existing provider chain (YFinance → YahooQuery → Polygon → FMP)
+        fetched_data = await market_data_service.fetch_historical_data_hybrid(
+            symbols, start_date, end_date
+        )
+
+        prices_fetched = len(fetched_data)
+        records_stored = 0
+
+        # Store in market_data_cache using batch upsert
+        if fetched_data:
+            async with get_async_session() as db:
+                for symbol, price_data in fetched_data.items():
+                    if not price_data:
+                        continue
+
+                    # Prepare records for upsert
+                    records = []
+                    for row in price_data:
+                        records.append({
+                            "symbol": symbol,
+                            "date": row.get("date"),
+                            "open": row.get("open"),
+                            "high": row.get("high"),
+                            "low": row.get("low"),
+                            "close": row.get("close"),
+                            "volume": row.get("volume"),
+                            "adjusted_close": row.get("adjusted_close") or row.get("close"),
+                        })
+
+                    if records:
+                        # Batch upsert
+                        stmt = pg_insert(MarketDataCache).values(records)
+                        stmt = stmt.on_conflict_do_update(
+                            index_elements=["symbol", "date"],
+                            set_={
+                                "open": stmt.excluded.open,
+                                "high": stmt.excluded.high,
+                                "low": stmt.excluded.low,
+                                "close": stmt.excluded.close,
+                                "volume": stmt.excluded.volume,
+                                "adjusted_close": stmt.excluded.adjusted_close,
+                            }
+                        )
+                        await db.execute(stmt)
+                        records_stored += len(records)
+
+                await db.commit()
+
+        logger.info(
+            f"{V2_LOG_PREFIX} [ONBOARDING] Phase 1 complete: "
+            f"fetched={prices_fetched}, stored={records_stored}"
+        )
+
+        return {
+            "prices_fetched": prices_fetched,
+            "records_stored": records_stored,
+        }
+
+    except Exception as e:
+        logger.error(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 1 error: {e}", exc_info=True)
+        raise
+
+
+async def _add_symbols_to_universe(symbols: List[str]) -> None:
+    """
+    Add symbols to symbol_universe table.
+
+    Uses upsert to handle existing symbols gracefully.
+
+    Args:
+        symbols: List of symbols to add
+    """
+    from app.models.symbol_analytics import SymbolUniverse
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    if not symbols:
+        return
+
+    logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Adding {len(symbols)} symbols to universe")
+
+    async with get_async_session() as db:
+        records = [
+            {
+                "symbol": symbol.upper(),
+                "asset_type": "equity",
+                "is_active": True,
+                "first_seen_date": date.today(),
+                "last_seen_date": date.today(),
+            }
+            for symbol in symbols
+        ]
+
+        stmt = pg_insert(SymbolUniverse).values(records)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["symbol"],
+            set_={
+                "last_seen_date": date.today(),
+                "is_active": True,
+            }
+        )
+        await db.execute(stmt)
+        await db.commit()
+
+    logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Added/updated {len(symbols)} symbols in universe")

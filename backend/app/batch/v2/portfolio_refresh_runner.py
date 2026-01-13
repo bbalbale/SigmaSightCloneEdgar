@@ -844,3 +844,325 @@ async def get_last_portfolio_refresh_date() -> Optional[date]:
             return last_run.completed_at.date()
 
     return None
+
+
+# =============================================================================
+# SCOPED PORTFOLIO PROCESSING (FOR ONBOARDING)
+# =============================================================================
+
+async def run_portfolio_refresh_for_portfolio(
+    portfolio_id: UUID,
+    target_date: Optional[date] = None,
+) -> Dict[str, Any]:
+    """
+    Run portfolio refresh phases for a single portfolio.
+
+    Used during onboarding after symbol processing is complete.
+    Runs Phase 4 (P&L), Phase 5 (factor aggregation), Phase 6 (stress tests).
+
+    Leverages V2 caches for fast execution:
+    - symbol_cache._price_cache for P&L calculations
+    - symbol_cache._factor_cache for factor aggregation
+
+    Args:
+        portfolio_id: Portfolio to refresh
+        target_date: Calculation date (defaults to most recent trading day)
+
+    Returns:
+        Dict with processing results
+    """
+    import time
+    start_time = time.time()
+
+    if target_date is None:
+        target_date = get_most_recent_completed_trading_day()
+
+    logger.info(
+        f"{V2_LOG_PREFIX} [ONBOARDING] Refreshing portfolio {portfolio_id} for {target_date}"
+    )
+
+    result = {
+        "success": True,
+        "portfolio_id": str(portfolio_id),
+        "target_date": target_date.isoformat(),
+        "phases": {},
+        "errors": [],
+    }
+
+    try:
+        # Ensure cache is initialized
+        if not symbol_cache._initialized:
+            logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Initializing symbol cache...")
+            await symbol_cache.initialize_async(target_date)
+
+        # Phase 4: P&L calculations using price cache
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 4: P&L calculations...")
+        phase_start = time.time()
+        try:
+            phase_4_result = await _run_phase_4_for_portfolio(portfolio_id, target_date)
+            result["phases"]["phase_4_pnl"] = {
+                "success": True,
+                "duration_seconds": round(time.time() - phase_start, 2),
+                **phase_4_result,
+            }
+            logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 4 complete")
+        except Exception as e:
+            logger.error(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 4 error: {e}", exc_info=True)
+            result["phases"]["phase_4_pnl"] = {
+                "success": False,
+                "error": str(e),
+                "duration_seconds": round(time.time() - phase_start, 2),
+            }
+            result["errors"].append(f"Phase 4: {e}")
+
+        # Phase 5: Factor aggregation using factor cache
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 5: Factor aggregation...")
+        phase_start = time.time()
+        try:
+            phase_5_result = await _run_phase_5_for_portfolio(portfolio_id, target_date)
+            result["phases"]["phase_5_factors"] = {
+                "success": True,
+                "duration_seconds": round(time.time() - phase_start, 2),
+                **phase_5_result,
+            }
+            logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 5 complete")
+        except Exception as e:
+            logger.error(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 5 error: {e}", exc_info=True)
+            result["phases"]["phase_5_factors"] = {
+                "success": False,
+                "error": str(e),
+                "duration_seconds": round(time.time() - phase_start, 2),
+            }
+            result["errors"].append(f"Phase 5: {e}")
+
+        # Phase 6: Stress tests
+        logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 6: Stress tests...")
+        phase_start = time.time()
+        try:
+            phase_6_result = await _run_phase_6_for_portfolio(portfolio_id, target_date)
+            result["phases"]["phase_6_stress"] = {
+                "success": True,
+                "duration_seconds": round(time.time() - phase_start, 2),
+                **phase_6_result,
+            }
+            logger.info(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 6 complete")
+        except Exception as e:
+            logger.error(f"{V2_LOG_PREFIX} [ONBOARDING] Phase 6 error: {e}", exc_info=True)
+            result["phases"]["phase_6_stress"] = {
+                "success": False,
+                "error": str(e),
+                "duration_seconds": round(time.time() - phase_start, 2),
+            }
+            result["errors"].append(f"Phase 6: {e}")
+
+        # Determine overall success
+        result["success"] = all(
+            p.get("success", False) for p in result["phases"].values()
+        )
+
+    except Exception as e:
+        logger.error(f"{V2_LOG_PREFIX} [ONBOARDING] Unexpected error: {e}", exc_info=True)
+        result["success"] = False
+        result["errors"].append(str(e))
+
+    result["duration_seconds"] = round(time.time() - start_time, 2)
+    logger.info(
+        f"{V2_LOG_PREFIX} [ONBOARDING] Portfolio refresh complete: "
+        f"success={result['success']}, duration={result['duration_seconds']}s"
+    )
+
+    return result
+
+
+async def _run_phase_4_for_portfolio(
+    portfolio_id: UUID,
+    target_date: date,
+) -> Dict[str, Any]:
+    """
+    Run P&L calculations for a single portfolio using price cache.
+
+    Uses existing pnl_calculator.calculate_all_portfolios_pnl() with
+    portfolio_ids=[portfolio_id] to scope to single portfolio.
+
+    Args:
+        portfolio_id: Portfolio to calculate
+        target_date: Calculation date
+
+    Returns:
+        Dict with calculation results
+    """
+    result = await pnl_calculator.calculate_all_portfolios_pnl(
+        calculation_date=target_date,
+        db=None,  # Let it create its own session
+        portfolio_ids=[str(portfolio_id)],  # Single portfolio
+        price_cache=symbol_cache._price_cache,  # Use V2 cache
+    )
+
+    return {
+        "snapshots_created": result.get("snapshots_created", 0),
+        "positions_updated": result.get("positions_updated", 0),
+    }
+
+
+async def _run_phase_5_for_portfolio(
+    portfolio_id: UUID,
+    target_date: date,
+) -> Dict[str, Any]:
+    """
+    Run factor aggregation for a single portfolio using factor cache.
+
+    Uses existing get_portfolio_factor_exposures() and store_portfolio_factor_exposures()
+    to aggregate symbol-level factors to portfolio-level.
+
+    Args:
+        portfolio_id: Portfolio to aggregate
+        target_date: Calculation date
+
+    Returns:
+        Dict with aggregation results
+    """
+    from app.services.portfolio_factor_service import (
+        get_portfolio_factor_exposures,
+        store_portfolio_factor_exposures
+    )
+
+    factors_stored = 0
+
+    async with get_async_session() as db:
+        # Get Ridge factors (aggregated from symbol-level)
+        ridge_result = await get_portfolio_factor_exposures(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=target_date,
+            use_delta_adjusted=False,
+            include_ridge=True,
+            include_spread=False,
+            include_ols=False
+        )
+
+        ridge_betas = ridge_result.get('ridge_betas', {})
+        metadata = ridge_result.get('metadata', {})
+        portfolio_equity = metadata.get('portfolio_equity', 0.0)
+
+        if ridge_betas:
+            await store_portfolio_factor_exposures(
+                db=db,
+                portfolio_id=portfolio_id,
+                portfolio_betas=ridge_betas,
+                calculation_date=target_date,
+                portfolio_equity=portfolio_equity
+            )
+            factors_stored += len(ridge_betas)
+
+        # Get Spread factors (aggregated from symbol-level)
+        spread_result = await get_portfolio_factor_exposures(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=target_date,
+            use_delta_adjusted=False,
+            include_ridge=False,
+            include_spread=True,
+            include_ols=False
+        )
+
+        spread_betas = spread_result.get('spread_betas', {})
+
+        if spread_betas:
+            await store_portfolio_factor_exposures(
+                db=db,
+                portfolio_id=portfolio_id,
+                portfolio_betas=spread_betas,
+                calculation_date=target_date,
+                portfolio_equity=portfolio_equity
+            )
+            factors_stored += len(spread_betas)
+
+        # Get OLS factors (Market Beta 90D, IR Beta, Provider Beta 1Y)
+        ols_result = await get_portfolio_factor_exposures(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=target_date,
+            use_delta_adjusted=False,
+            include_ridge=False,
+            include_spread=False,
+            include_ols=True
+        )
+
+        ols_betas = ols_result.get('ols_betas', {})
+
+        if ols_betas:
+            await store_portfolio_factor_exposures(
+                db=db,
+                portfolio_id=portfolio_id,
+                portfolio_betas=ols_betas,
+                calculation_date=target_date,
+                portfolio_equity=portfolio_equity
+            )
+            factors_stored += len(ols_betas)
+
+        # Commit transaction
+        if factors_stored > 0:
+            await db.commit()
+
+    return {
+        "factors_stored": factors_stored,
+        "ridge_count": len(ridge_betas),
+        "spread_count": len(spread_betas),
+        "ols_count": len(ols_betas),
+    }
+
+
+async def _run_phase_6_for_portfolio(
+    portfolio_id: UUID,
+    target_date: date,
+) -> Dict[str, Any]:
+    """
+    Run stress tests for a single portfolio.
+
+    Uses existing run_comprehensive_stress_test() and save_stress_test_results().
+
+    Args:
+        portfolio_id: Portfolio to test
+        target_date: Calculation date
+
+    Returns:
+        Dict with stress test results
+    """
+    from app.calculations.stress_testing import (
+        run_comprehensive_stress_test,
+        save_stress_test_results
+    )
+
+    scenarios_saved = 0
+
+    async with get_async_session() as db:
+        # Run comprehensive stress test
+        stress_results = await run_comprehensive_stress_test(
+            db=db,
+            portfolio_id=portfolio_id,
+            calculation_date=target_date
+        )
+
+        # Check if results were returned
+        if not stress_results:
+            return {"scenarios_saved": 0, "skipped": True, "reason": "no_results"}
+
+        # Check if stress test was skipped
+        stress_test_data = stress_results.get('stress_test_results', {})
+        if stress_test_data.get('skipped'):
+            reason = stress_test_data.get('reason', 'unknown')
+            return {"scenarios_saved": 0, "skipped": True, "reason": reason}
+
+        # Save results to database
+        scenarios_tested = stress_results.get('config_metadata', {}).get('scenarios_tested', 0)
+        if scenarios_tested > 0:
+            scenarios_saved = await save_stress_test_results(
+                db=db,
+                portfolio_id=portfolio_id,
+                stress_test_results=stress_results
+            )
+
+    return {
+        "scenarios_saved": scenarios_saved,
+        "skipped": False,
+    }
