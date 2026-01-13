@@ -22,6 +22,7 @@ Created: 2025-12-20
 Part of Symbol Factor Universe Architecture (Phase 2)
 """
 import asyncio
+import sys
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Dict, List, Optional, Any, Set
@@ -756,12 +757,21 @@ async def _process_batches(
 
     # Process batches with limited concurrency
     semaphore = asyncio.Semaphore(MAX_CONCURRENT_BATCHES)
+    completed_batches = 0
+    total_batches = len(batches)
 
-    async def limited_process_batch(batch: List[str]) -> Dict[str, Any]:
+    async def limited_process_batch(batch_idx: int, batch: List[str]) -> Dict[str, Any]:
+        nonlocal completed_batches
         async with semaphore:
-            return await process_batch(batch)
+            result = await process_batch(batch)
+            completed_batches += 1
+            # Progress update every batch
+            pct = (completed_batches / total_batches) * 100
+            print(f"  [{calculation_method.upper()}] Batch {completed_batches}/{total_batches} ({pct:.0f}%) - {result['success']} ok, {result['failed']} fail")
+            sys.stdout.flush()
+            return result
 
-    batch_tasks = [limited_process_batch(batch) for batch in batches]
+    batch_tasks = [limited_process_batch(i, batch) for i, batch in enumerate(batches)]
     batch_results = await asyncio.gather(*batch_tasks, return_exceptions=True)
 
     # Aggregate results
