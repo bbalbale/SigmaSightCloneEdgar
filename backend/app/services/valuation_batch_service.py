@@ -225,6 +225,7 @@ class ValuationBatchService:
                     metrics = valuations[symbol]
 
                     # PostgreSQL UPSERT: INSERT ... ON CONFLICT DO UPDATE
+                    now = datetime.utcnow()
                     stmt = insert(CompanyProfile).values(
                         symbol=symbol,
                         pe_ratio=metrics.get('pe_ratio'),
@@ -234,7 +235,8 @@ class ValuationBatchService:
                         week_52_low=metrics.get('week_52_low'),
                         market_cap=metrics.get('market_cap'),
                         dividend_yield=metrics.get('dividend_yield'),
-                        updated_at=datetime.utcnow(),
+                        last_updated=now,
+                        updated_at=now,
                     ).on_conflict_do_update(
                         index_elements=['symbol'],
                         set_={
@@ -245,7 +247,8 @@ class ValuationBatchService:
                             'week_52_low': metrics.get('week_52_low'),
                             'market_cap': metrics.get('market_cap'),
                             'dividend_yield': metrics.get('dividend_yield'),
-                            'updated_at': datetime.utcnow(),
+                            'last_updated': now,
+                            'updated_at': now,
                         }
                     )
                     await db.execute(stmt)
