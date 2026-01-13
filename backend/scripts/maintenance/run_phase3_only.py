@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
-Run Phase 3 + Portfolio Refresh
+Run Phase 3 + Portfolio Refresh (Phases 3-6)
 
 Use this when Phase 0/1 (valuations/prices) already succeeded but Phase 3 failed.
 Runs:
-- Phase 3: Factor calculations (Ridge + Spread)
-- Portfolio Refresh: Snapshots and P&L for all portfolios
+- Phase 3: Factor calculations (Ridge + Spread) for symbols
+- Portfolio Refresh:
+  - Phase 3: Snapshots and P&L for all portfolios
+  - Phase 4: Correlation calculations
+  - Phase 5: Factor aggregation (symbol -> portfolio level)
+  - Phase 6: Stress test calculations
 
 Usage:
     # Railway SSH
@@ -98,10 +102,10 @@ async def run_phase3_and_portfolio_refresh(calc_date: date = None):
         raise
 
     # =========================================================================
-    # PORTFOLIO REFRESH: Snapshots and P&L
+    # PORTFOLIO REFRESH: Phases 3-6
     # =========================================================================
     print("\n" + "=" * 60)
-    print("[PORTFOLIO REFRESH] Snapshots and P&L")
+    print("[PORTFOLIO REFRESH] Phases 3-6 (Snapshots, Correlations, Factors, Stress)")
     print("-" * 60)
     sys.stdout.flush()
 
@@ -114,16 +118,32 @@ async def run_phase3_and_portfolio_refresh(calc_date: date = None):
         )
 
         print(f"\n[PORTFOLIO REFRESH COMPLETE]")
-        print(f"  Success:    {portfolio_result.get('success', False)}")
-        print(f"  Portfolios: {portfolio_result.get('portfolios_processed', 0)}")
-        print(f"  Snapshots:  {portfolio_result.get('snapshots_created', 0)}")
-        print(f"  Duration:   {portfolio_result.get('duration_seconds', 0):.1f}s")
+        print(f"  Success:        {portfolio_result.get('success', False)}")
+        print(f"  Portfolios:     {portfolio_result.get('portfolios_processed', 0)}")
+        print(f"  Total Duration: {portfolio_result.get('duration_seconds', 0):.1f}s")
+        print()
+        print(f"  Phase Results:")
+        print(f"    Phase 3 (Snapshots):    {portfolio_result.get('snapshots_created', 0)} created")
+        print(f"    Phase 4 (Correlations): {portfolio_result.get('correlations_calculated', 0)} calculated")
+        phase_durations = portfolio_result.get('phase_durations', {})
+        phase5_status = "completed" if 'phase_5_factor_aggregation' in phase_durations else "skipped"
+        print(f"    Phase 5 (Factors):      {phase5_status}")
+        print(f"    Phase 6 (Stress Tests): {portfolio_result.get('stress_tests_calculated', 0)} calculated")
+
+        # Show phase durations if available
+        if phase_durations:
+            print()
+            print(f"  Phase Durations:")
+            for phase_name, duration in phase_durations.items():
+                print(f"    {phase_name}: {duration:.1f}s")
         sys.stdout.flush()
 
         if portfolio_result.get('errors'):
-            print(f"\n  Errors:")
+            print(f"\n  Errors ({len(portfolio_result['errors'])} total):")
             for err in portfolio_result['errors'][:5]:
                 print(f"    - {err}")
+            if len(portfolio_result['errors']) > 5:
+                print(f"    ... and {len(portfolio_result['errors']) - 5} more")
 
     except Exception as e:
         print(f"\n[ERROR] Portfolio refresh failed: {e}")
@@ -136,9 +156,15 @@ async def run_phase3_and_portfolio_refresh(calc_date: date = None):
     print("\n" + "=" * 60)
     print("  ALL COMPLETE")
     print("=" * 60)
-    print(f"Date:              {calc_date}")
-    print(f"Phase 3:           {phase3_result.get('calculated', 0)} calculated, {phase3_result.get('failed', 0)} failed")
-    print(f"Portfolio Refresh: {portfolio_result.get('snapshots_created', 0)} snapshots created")
+    print(f"Date:                    {calc_date}")
+    print(f"Symbol Phase 3:          {phase3_result.get('calculated', 0)} calculated, {phase3_result.get('failed', 0)} failed")
+    print(f"Portfolio Phase 3:       {portfolio_result.get('snapshots_created', 0)} snapshots")
+    print(f"Portfolio Phase 4:       {portfolio_result.get('correlations_calculated', 0)} correlations")
+    pf_phase_durations = portfolio_result.get('phase_durations', {})
+    pf_phase5 = "completed" if 'phase_5_factor_aggregation' in pf_phase_durations else "skipped"
+    print(f"Portfolio Phase 5:       {pf_phase5}")
+    print(f"Portfolio Phase 6:       {portfolio_result.get('stress_tests_calculated', 0)} stress tests")
+    print(f"Total Duration:          {portfolio_result.get('duration_seconds', 0):.1f}s")
     print("=" * 60)
 
     return {
