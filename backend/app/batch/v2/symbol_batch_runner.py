@@ -774,6 +774,9 @@ async def _run_phase_3_factors(symbols: List[str], calc_date: date, price_cache=
         # Extract results
         ridge_results = result.get("ridge_results", {})
         spread_results = result.get("spread_results", {})
+        market_beta_results = result.get("market_beta_results", {})
+        ir_beta_results = result.get("ir_beta_results", {})
+        provider_beta_results = result.get("provider_beta_results", {})
 
         ridge_calculated = ridge_results.get("calculated", 0)
         ridge_cached = ridge_results.get("cached", 0)
@@ -783,14 +786,29 @@ async def _run_phase_3_factors(symbols: List[str], calc_date: date, price_cache=
         spread_cached = spread_results.get("cached", 0)
         spread_failed = spread_results.get("failed", 0)
 
-        total_calculated = ridge_calculated + spread_calculated
-        total_cached = ridge_cached + spread_cached
-        total_failed = ridge_failed + spread_failed
+        market_beta_calculated = market_beta_results.get("calculated", 0)
+        market_beta_cached = market_beta_results.get("cached", 0)
+        market_beta_failed = market_beta_results.get("failed", 0)
+
+        ir_beta_calculated = ir_beta_results.get("calculated", 0)
+        ir_beta_cached = ir_beta_results.get("cached", 0)
+        ir_beta_failed = ir_beta_results.get("failed", 0)
+
+        provider_beta_calculated = provider_beta_results.get("calculated", 0)
+        provider_beta_cached = provider_beta_results.get("cached", 0)
+        provider_beta_failed = provider_beta_results.get("failed", 0)
+
+        total_calculated = ridge_calculated + spread_calculated + market_beta_calculated + ir_beta_calculated + provider_beta_calculated
+        total_cached = ridge_cached + spread_cached + market_beta_cached + ir_beta_cached + provider_beta_cached
+        total_failed = ridge_failed + spread_failed + market_beta_failed + ir_beta_failed + provider_beta_failed
 
         # Print logging for Railway visibility
         print(f"[PHASE3] Complete: calculated={total_calculated}, cached={total_cached}, failed={total_failed}")
         print(f"[PHASE3] Ridge: calc={ridge_calculated}, cached={ridge_cached}, fail={ridge_failed}")
         print(f"[PHASE3] Spread: calc={spread_calculated}, cached={spread_cached}, fail={spread_failed}")
+        print(f"[PHASE3] Market Beta: calc={market_beta_calculated}, cached={market_beta_cached}, fail={market_beta_failed}")
+        print(f"[PHASE3] IR Beta: calc={ir_beta_calculated}, cached={ir_beta_cached}, fail={ir_beta_failed}")
+        print(f"[PHASE3] Provider Beta: calc={provider_beta_calculated}, cached={provider_beta_cached}, fail={provider_beta_failed}")
         sys.stdout.flush()
 
         logger.info(
@@ -802,6 +820,15 @@ async def _run_phase_3_factors(symbols: List[str], calc_date: date, price_cache=
         )
         logger.info(
             f"{V2_LOG_PREFIX}   Spread: calc={spread_calculated}, cached={spread_cached}, fail={spread_failed}"
+        )
+        logger.info(
+            f"{V2_LOG_PREFIX}   Market Beta: calc={market_beta_calculated}, cached={market_beta_cached}, fail={market_beta_failed}"
+        )
+        logger.info(
+            f"{V2_LOG_PREFIX}   IR Beta: calc={ir_beta_calculated}, cached={ir_beta_cached}, fail={ir_beta_failed}"
+        )
+        logger.info(
+            f"{V2_LOG_PREFIX}   Provider Beta: calc={provider_beta_calculated}, cached={provider_beta_cached}, fail={provider_beta_failed}"
         )
 
         errors = result.get("errors", [])
@@ -816,6 +843,9 @@ async def _run_phase_3_factors(symbols: List[str], calc_date: date, price_cache=
             "failed": total_failed,
             "ridge_results": ridge_results,
             "spread_results": spread_results,
+            "market_beta_results": market_beta_results,
+            "ir_beta_results": ir_beta_results,
+            "provider_beta_results": provider_beta_results,
             "errors": errors,
         }
 

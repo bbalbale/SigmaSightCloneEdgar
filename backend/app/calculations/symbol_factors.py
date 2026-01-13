@@ -57,6 +57,7 @@ from app.constants.factors import (
     QUALITY_FLAG_FULL_HISTORY,
     QUALITY_FLAG_LIMITED_HISTORY,
 )
+from app.calculations.regression_utils import run_single_factor_regression
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -67,6 +68,12 @@ logger = get_logger(__name__)
 BATCH_SIZE = 50  # Symbols per batch (was 15, increased for full universe)
 MAX_CONCURRENT_BATCHES = 8  # Concurrent DB connections (was 5, safe for Railway)
 DEFAULT_REGULARIZATION_ALPHA = 1.0
+
+# OLS Beta factors (simple single-factor regressions)
+MARKET_BETA_FACTOR_NAME = "Market Beta (90D)"
+IR_BETA_FACTOR_NAME = "IR Beta"
+PROVIDER_BETA_FACTOR_NAME = "Provider Beta (1Y)"  # From company_profiles table
+BETA_CAP_LIMIT = 5.0  # Cap betas at ±5.0
 
 
 async def get_all_active_symbols(db: AsyncSession) -> List[str]:
@@ -524,6 +531,257 @@ async def calculate_symbol_spread_factors(
         }
 
 
+async def calculate_symbol_market_beta(
+    db: AsyncSession,
+    symbol: str,
+    spy_returns: pd.Series,
+    calculation_date: date,
+    factor_name_to_id: Dict[str, UUID],
+    price_cache=None
+) -> Dict[str, Any]:
+    """
+    Calculate Market Beta for a single symbol using OLS regression vs SPY.
+
+    Market Beta = Cov(Symbol_Return, SPY_Return) / Var(SPY_Return)
+
+    Args:
+        db: Database session
+        symbol: Symbol to calculate beta for
+        spy_returns: Pre-fetched SPY returns (passed in for efficiency)
+        calculation_date: Calculation date
+        factor_name_to_id: Mapping of factor names to UUIDs
+        price_cache: Optional price cache
+
+    Returns:
+        Dict with beta, r_squared, success, etc.
+    """
+    # Fetch symbol returns
+    start_date = calculation_date - timedelta(days=REGRESSION_WINDOW_DAYS + 30)
+
+    symbol_returns_df = await get_returns(
+        db=db,
+        symbols=[symbol],
+        start_date=start_date,
+        end_date=calculation_date,
+        align_dates=True,
+        price_cache=price_cache
+    )
+
+    if symbol_returns_df.empty or symbol not in symbol_returns_df.columns:
+        return {
+            'symbol': symbol,
+            'success': False,
+            'error': f'No return data for {symbol}',
+            'beta': 0.0,
+            'r_squared': 0.0,
+            'observations': 0
+        }
+
+    symbol_returns = symbol_returns_df[symbol]
+
+    # Align with SPY returns
+    common_dates = spy_returns.index.intersection(symbol_returns.index)
+    if len(common_dates) < MIN_REGRESSION_DAYS:
+        return {
+            'symbol': symbol,
+            'success': False,
+            'error': f'Insufficient aligned data: {len(common_dates)} days',
+            'beta': 0.0,
+            'r_squared': 0.0,
+            'observations': len(common_dates)
+        }
+
+    symbol_returns_aligned = symbol_returns.loc[common_dates]
+    spy_returns_aligned = spy_returns.loc[common_dates]
+
+    # Run OLS regression
+    regression_result = run_single_factor_regression(
+        y=symbol_returns_aligned.values,
+        x=spy_returns_aligned.values,
+        cap=BETA_CAP_LIMIT,
+        confidence=0.10,
+        return_diagnostics=True
+    )
+
+    # Persist to database
+    quality_flag = (
+        QUALITY_FLAG_FULL_HISTORY if len(common_dates) >= MIN_REGRESSION_DAYS
+        else QUALITY_FLAG_LIMITED_HISTORY
+    )
+
+    records_stored = await persist_symbol_factors(
+        db=db,
+        symbol=symbol,
+        factor_betas={MARKET_BETA_FACTOR_NAME: regression_result['beta']},
+        calculation_date=calculation_date,
+        factor_name_to_id=factor_name_to_id,
+        calculation_method='ols_market',
+        r_squared=regression_result['r_squared'],
+        observations=len(common_dates),
+        quality_flag=quality_flag,
+        regularization_alpha=None,
+        regression_window_days=REGRESSION_WINDOW_DAYS
+    )
+
+    return {
+        'symbol': symbol,
+        'success': True,
+        'beta': regression_result['beta'],
+        'r_squared': regression_result['r_squared'],
+        'observations': len(common_dates),
+        'records_stored': records_stored
+    }
+
+
+async def calculate_symbol_ir_beta(
+    db: AsyncSession,
+    symbol: str,
+    tlt_returns: pd.Series,
+    calculation_date: date,
+    factor_name_to_id: Dict[str, UUID],
+    price_cache=None
+) -> Dict[str, Any]:
+    """
+    Calculate IR Beta for a single symbol using OLS regression vs TLT (bond ETF).
+
+    IR Beta measures sensitivity to interest rate changes (via TLT as proxy).
+    TLT moves inversely to rates: rates up → TLT down.
+
+    Args:
+        db: Database session
+        symbol: Symbol to calculate beta for
+        tlt_returns: Pre-fetched TLT returns (passed in for efficiency)
+        calculation_date: Calculation date
+        factor_name_to_id: Mapping of factor names to UUIDs
+        price_cache: Optional price cache
+
+    Returns:
+        Dict with beta, r_squared, success, etc.
+    """
+    # Fetch symbol returns
+    start_date = calculation_date - timedelta(days=REGRESSION_WINDOW_DAYS + 30)
+
+    symbol_returns_df = await get_returns(
+        db=db,
+        symbols=[symbol],
+        start_date=start_date,
+        end_date=calculation_date,
+        align_dates=True,
+        price_cache=price_cache
+    )
+
+    if symbol_returns_df.empty or symbol not in symbol_returns_df.columns:
+        return {
+            'symbol': symbol,
+            'success': False,
+            'error': f'No return data for {symbol}',
+            'beta': 0.0,
+            'r_squared': 0.0,
+            'observations': 0
+        }
+
+    symbol_returns = symbol_returns_df[symbol]
+
+    # Align with TLT returns
+    common_dates = tlt_returns.index.intersection(symbol_returns.index)
+    if len(common_dates) < MIN_REGRESSION_DAYS:
+        return {
+            'symbol': symbol,
+            'success': False,
+            'error': f'Insufficient aligned data: {len(common_dates)} days',
+            'beta': 0.0,
+            'r_squared': 0.0,
+            'observations': len(common_dates)
+        }
+
+    symbol_returns_aligned = symbol_returns.loc[common_dates]
+    tlt_returns_aligned = tlt_returns.loc[common_dates]
+
+    # Run OLS regression
+    regression_result = run_single_factor_regression(
+        y=symbol_returns_aligned.values,
+        x=tlt_returns_aligned.values,
+        cap=BETA_CAP_LIMIT,
+        confidence=0.10,
+        return_diagnostics=True
+    )
+
+    # Persist to database
+    quality_flag = (
+        QUALITY_FLAG_FULL_HISTORY if len(common_dates) >= MIN_REGRESSION_DAYS
+        else QUALITY_FLAG_LIMITED_HISTORY
+    )
+
+    records_stored = await persist_symbol_factors(
+        db=db,
+        symbol=symbol,
+        factor_betas={IR_BETA_FACTOR_NAME: regression_result['beta']},
+        calculation_date=calculation_date,
+        factor_name_to_id=factor_name_to_id,
+        calculation_method='ols_ir',
+        r_squared=regression_result['r_squared'],
+        observations=len(common_dates),
+        quality_flag=quality_flag,
+        regularization_alpha=None,
+        regression_window_days=REGRESSION_WINDOW_DAYS
+    )
+
+    return {
+        'symbol': symbol,
+        'success': True,
+        'beta': regression_result['beta'],
+        'r_squared': regression_result['r_squared'],
+        'observations': len(common_dates),
+        'records_stored': records_stored
+    }
+
+
+async def store_symbol_provider_beta(
+    db: AsyncSession,
+    symbol: str,
+    provider_beta: float,
+    calculation_date: date,
+    factor_name_to_id: Dict[str, UUID],
+) -> Dict[str, Any]:
+    """
+    Store Provider Beta (1Y) from company_profiles table as a symbol factor exposure.
+
+    Provider Beta is the 1-year beta from data providers (Yahoo Finance, FMP, etc.)
+    stored in the company_profiles.beta column. We just copy it to symbol_factor_exposures.
+
+    Args:
+        db: Database session
+        symbol: Symbol to store beta for
+        provider_beta: Beta value from company_profiles
+        calculation_date: Calculation date
+        factor_name_to_id: Mapping of factor names to UUIDs
+
+    Returns:
+        Dict with success status
+    """
+    # Persist to database
+    records_stored = await persist_symbol_factors(
+        db=db,
+        symbol=symbol,
+        factor_betas={PROVIDER_BETA_FACTOR_NAME: provider_beta},
+        calculation_date=calculation_date,
+        factor_name_to_id=factor_name_to_id,
+        calculation_method='provider',
+        r_squared=None,  # No R² for provider beta
+        observations=252,  # Assume 1 year of data
+        quality_flag=QUALITY_FLAG_FULL_HISTORY,
+        regularization_alpha=None,
+        regression_window_days=252  # 1 year
+    )
+
+    return {
+        'symbol': symbol,
+        'success': True,
+        'beta': provider_beta,
+        'records_stored': records_stored
+    }
+
+
 async def _load_factor_definitions(db: AsyncSession) -> Dict[str, UUID]:
     """Load factor name to ID mapping from database."""
     stmt = select(FactorDefinition.name, FactorDefinition.id)
@@ -536,20 +794,33 @@ async def calculate_universe_factors(
     regularization_alpha: float = DEFAULT_REGULARIZATION_ALPHA,
     calculate_ridge: bool = True,
     calculate_spread: bool = True,
+    calculate_market_beta: bool = True,
+    calculate_ir_beta: bool = True,
+    calculate_provider_beta: bool = True,
     price_cache=None,
     symbols: Optional[List[str]] = None,  # NEW: Override symbol list for scoped mode
 ) -> Dict[str, Any]:
     """
     Calculate factor betas for all symbols in the universe using parallel batches.
 
-    This is the main entry point for Phase 0.5 of batch processing.
+    This is the main entry point for Phase 3 of batch processing.
     Uses the safe parallelization pattern: each batch gets its own session.
+
+    Calculates 5 types of factors:
+    1. Ridge factors (6 style factors): Value, Growth, Momentum, Quality, Size, Low Volatility
+    2. Spread factors (4 long-short spreads): Growth-Value, Momentum, Quality, Size
+    3. Market Beta (90D): OLS regression vs SPY
+    4. IR Beta: OLS regression vs TLT (bond ETF proxy for interest rates)
+    5. Provider Beta (1Y): From company_profiles table (Yahoo Finance/FMP data)
 
     Args:
         calculation_date: Date for the calculation
         regularization_alpha: L2 penalty for Ridge (default 1.0)
         calculate_ridge: Whether to calculate Ridge factors
         calculate_spread: Whether to calculate Spread factors
+        calculate_market_beta: Whether to calculate Market Beta (OLS vs SPY)
+        calculate_ir_beta: Whether to calculate IR Beta (OLS vs TLT)
+        calculate_provider_beta: Whether to store Provider Beta from company_profiles
         price_cache: Optional price cache
         symbols: Optional list of symbols to process. If provided, overrides
                  get_all_active_symbols() (used for single-portfolio scoped mode)
@@ -559,6 +830,9 @@ async def calculate_universe_factors(
         - symbols_processed: Total symbols processed
         - ridge_results: Ridge calculation summary
         - spread_results: Spread calculation summary
+        - market_beta_results: Market Beta calculation summary
+        - ir_beta_results: IR Beta calculation summary
+        - provider_beta_results: Provider Beta summary
         - errors: List of errors
     """
     logger.info(f"Starting universe factor calculation for {calculation_date}")
@@ -568,6 +842,9 @@ async def calculate_universe_factors(
         'symbols_processed': 0,
         'ridge_results': {'calculated': 0, 'cached': 0, 'failed': 0},
         'spread_results': {'calculated': 0, 'cached': 0, 'failed': 0},
+        'market_beta_results': {'calculated': 0, 'cached': 0, 'failed': 0},
+        'ir_beta_results': {'calculated': 0, 'cached': 0, 'failed': 0},
+        'provider_beta_results': {'calculated': 0, 'cached': 0, 'failed': 0},
         'errors': []
     }
 
@@ -678,12 +955,183 @@ async def calculate_universe_factors(
                 results['spread_results']['failed'] = spread_batch_results['failed']
                 results['errors'].extend(spread_batch_results['errors'])
 
+    # Step 4: Calculate Market Beta (OLS vs SPY)
+    if calculate_market_beta:
+        logger.info("Phase 3c: Calculating Market Beta for universe")
+
+        # Check which symbols need calculation
+        async with AsyncSessionLocal() as db:
+            symbols_needing_market_beta = await get_uncached_symbols(
+                db, all_symbols, calculation_date, 'ols_market'
+            )
+
+        results['market_beta_results']['cached'] = len(all_symbols) - len(symbols_needing_market_beta)
+
+        if symbols_needing_market_beta:
+            # Fetch SPY returns ONCE
+            async with AsyncSessionLocal() as db:
+                start_date = calculation_date - timedelta(days=REGRESSION_WINDOW_DAYS + 30)
+                spy_returns_df = await get_returns(
+                    db=db,
+                    symbols=['SPY'],
+                    start_date=start_date,
+                    end_date=calculation_date,
+                    align_dates=True,
+                    price_cache=price_cache
+                )
+
+            if spy_returns_df.empty or 'SPY' not in spy_returns_df.columns:
+                logger.error("No SPY returns available for Market Beta")
+                results['errors'].append("No SPY returns available")
+            else:
+                spy_returns = spy_returns_df['SPY']
+                calculated = 0
+                failed = 0
+
+                # Process symbols (sequential for OLS - simpler than batching)
+                for symbol in symbols_needing_market_beta:
+                    try:
+                        async with AsyncSessionLocal() as db:
+                            result = await calculate_symbol_market_beta(
+                                db=db,
+                                symbol=symbol,
+                                spy_returns=spy_returns,
+                                calculation_date=calculation_date,
+                                factor_name_to_id=factor_name_to_id,
+                                price_cache=price_cache
+                            )
+                            await db.commit()
+
+                            if result['success']:
+                                calculated += 1
+                            else:
+                                failed += 1
+                    except Exception as e:
+                        failed += 1
+                        logger.warning(f"Market Beta failed for {symbol}: {e}")
+
+                results['market_beta_results']['calculated'] = calculated
+                results['market_beta_results']['failed'] = failed
+
+    # Step 5: Calculate IR Beta (OLS vs TLT)
+    if calculate_ir_beta:
+        logger.info("Phase 3d: Calculating IR Beta for universe")
+
+        # Check which symbols need calculation
+        async with AsyncSessionLocal() as db:
+            symbols_needing_ir_beta = await get_uncached_symbols(
+                db, all_symbols, calculation_date, 'ols_ir'
+            )
+
+        results['ir_beta_results']['cached'] = len(all_symbols) - len(symbols_needing_ir_beta)
+
+        if symbols_needing_ir_beta:
+            # Fetch TLT returns ONCE
+            async with AsyncSessionLocal() as db:
+                start_date = calculation_date - timedelta(days=REGRESSION_WINDOW_DAYS + 30)
+                tlt_returns_df = await get_returns(
+                    db=db,
+                    symbols=['TLT'],
+                    start_date=start_date,
+                    end_date=calculation_date,
+                    align_dates=True,
+                    price_cache=price_cache
+                )
+
+            if tlt_returns_df.empty or 'TLT' not in tlt_returns_df.columns:
+                logger.error("No TLT returns available for IR Beta")
+                results['errors'].append("No TLT returns available")
+            else:
+                tlt_returns = tlt_returns_df['TLT']
+                calculated = 0
+                failed = 0
+
+                # Process symbols (sequential for OLS - simpler than batching)
+                for symbol in symbols_needing_ir_beta:
+                    try:
+                        async with AsyncSessionLocal() as db:
+                            result = await calculate_symbol_ir_beta(
+                                db=db,
+                                symbol=symbol,
+                                tlt_returns=tlt_returns,
+                                calculation_date=calculation_date,
+                                factor_name_to_id=factor_name_to_id,
+                                price_cache=price_cache
+                            )
+                            await db.commit()
+
+                            if result['success']:
+                                calculated += 1
+                            else:
+                                failed += 1
+                    except Exception as e:
+                        failed += 1
+                        logger.warning(f"IR Beta failed for {symbol}: {e}")
+
+                results['ir_beta_results']['calculated'] = calculated
+                results['ir_beta_results']['failed'] = failed
+
+    # Step 6: Store Provider Beta (1Y) from company_profiles
+    if calculate_provider_beta:
+        logger.info("Phase 3e: Storing Provider Beta from company_profiles")
+        from app.models.market_data import CompanyProfile
+
+        # Check which symbols need calculation
+        async with AsyncSessionLocal() as db:
+            symbols_needing_provider_beta = await get_uncached_symbols(
+                db, all_symbols, calculation_date, 'provider'
+            )
+
+        results['provider_beta_results']['cached'] = len(all_symbols) - len(symbols_needing_provider_beta)
+
+        if symbols_needing_provider_beta:
+            # Fetch all provider betas from company_profiles in one query
+            async with AsyncSessionLocal() as db:
+                stmt = select(CompanyProfile.symbol, CompanyProfile.beta).where(
+                    and_(
+                        CompanyProfile.symbol.in_(symbols_needing_provider_beta),
+                        CompanyProfile.beta.isnot(None),
+                        CompanyProfile.beta != 0
+                    )
+                )
+                result = await db.execute(stmt)
+                provider_betas = {row.symbol: float(row.beta) for row in result.all()}
+
+            if not provider_betas:
+                logger.warning("No provider betas found in company_profiles")
+            else:
+                calculated = 0
+                failed = 0
+
+                # Store each provider beta
+                for symbol, beta in provider_betas.items():
+                    try:
+                        async with AsyncSessionLocal() as db:
+                            await store_symbol_provider_beta(
+                                db=db,
+                                symbol=symbol,
+                                provider_beta=beta,
+                                calculation_date=calculation_date,
+                                factor_name_to_id=factor_name_to_id
+                            )
+                            await db.commit()
+                            calculated += 1
+                    except Exception as e:
+                        failed += 1
+                        logger.warning(f"Provider Beta failed for {symbol}: {e}")
+
+                results['provider_beta_results']['calculated'] = calculated
+                results['provider_beta_results']['failed'] = failed + (len(symbols_needing_provider_beta) - len(provider_betas))
+
     # Log summary
     logger.info(
         f"Universe factor calculation complete: "
         f"{results['symbols_processed']} symbols, "
         f"Ridge: {results['ridge_results']}, "
-        f"Spread: {results['spread_results']}"
+        f"Spread: {results['spread_results']}, "
+        f"Market Beta: {results['market_beta_results']}, "
+        f"IR Beta: {results['ir_beta_results']}, "
+        f"Provider Beta: {results['provider_beta_results']}"
     )
 
     return results
