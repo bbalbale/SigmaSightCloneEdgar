@@ -81,7 +81,7 @@ async def clean_date_data(target_date: date, dry_run: bool = False):
                 text("""
                     SELECT COUNT(*) FROM company_profiles
                     WHERE DATE(updated_at) = :target_date
-                    AND (pe_ratio IS NOT NULL OR pb_ratio IS NOT NULL)
+                    AND pe_ratio IS NOT NULL
                 """),
                 {"target_date": target_date}
             )
@@ -97,14 +97,13 @@ async def clean_date_data(target_date: date, dry_run: bool = False):
                     text("""
                         UPDATE company_profiles
                         SET pe_ratio = NULL,
-                            pb_ratio = NULL,
-                            ps_ratio = NULL,
-                            peg_ratio = NULL,
-                            enterprise_value = NULL,
-                            ev_to_ebitda = NULL,
-                            ev_to_revenue = NULL,
-                            price_to_book = NULL,
-                            price_to_sales = NULL
+                            forward_pe = NULL,
+                            dividend_yield = NULL,
+                            beta = NULL,
+                            week_52_high = NULL,
+                            week_52_low = NULL,
+                            target_mean_price = NULL,
+                            recommendation_mean = NULL
                         WHERE DATE(updated_at) = :target_date
                     """),
                     {"target_date": target_date}
