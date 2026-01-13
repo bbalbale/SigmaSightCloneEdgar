@@ -28,6 +28,7 @@ from app.models.market_data import FactorDefinition, FactorExposure, PositionGre
 from app.models.symbol_analytics import SymbolFactorExposure
 from app.calculations.symbol_factors import load_symbol_betas
 from app.calculations.market_data import get_position_value
+from app.cache.symbol_cache import symbol_cache
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -46,6 +47,52 @@ OLS_FACTORS = {
     'IR Beta': 'ols_ir',
     'Provider Beta (1Y)': 'provider',
 }
+
+# All factor names for reference
+ALL_FACTOR_NAMES = set(RIDGE_FACTORS) | set(SPREAD_FACTORS) | set(OLS_FACTORS.keys())
+
+
+async def load_symbol_betas_from_cache(
+    symbols: List[str],
+    calculation_date: date,
+    factor_names: Optional[List[str]] = None,
+    db: Optional[AsyncSession] = None
+) -> Dict[str, Dict[str, float]]:
+    """
+    Load symbol betas from in-memory cache (with DB fallback).
+
+    This is faster than load_symbol_betas() for batch processing since
+    the cache is pre-populated after Phase 3 via refresh_factors().
+
+    Args:
+        symbols: List of symbols to load
+        calculation_date: Date to load betas for
+        factor_names: Optional list of factor names to include (filters results)
+        db: Optional DB session for fallback if cache miss
+
+    Returns:
+        {symbol: {factor_name: beta_value}}
+    """
+    if not symbols:
+        return {}
+
+    result: Dict[str, Dict[str, float]] = {}
+
+    for symbol in symbols:
+        # Get all factors for this symbol from cache
+        symbol_factors = await symbol_cache.get_factors(symbol, calculation_date, db)
+
+        if symbol_factors:
+            # Filter by factor_names if specified
+            if factor_names:
+                filtered = {k: v for k, v in symbol_factors.items() if k in factor_names}
+                if filtered:
+                    result[symbol] = filtered
+            else:
+                result[symbol] = symbol_factors
+
+    logger.debug(f"Loaded betas from cache for {len(result)}/{len(symbols)} symbols")
+    return result
 
 
 @dataclass
@@ -284,12 +331,12 @@ async def get_portfolio_factor_exposures(
     # Initialize variables for symbol tracking
     ridge_betas = {}
     spread_betas = {}
-    symbols_with_any_ols = set()
+    ols_betas = {}
 
-    # Load Ridge betas
+    # Load Ridge betas from cache (filter by factor names)
     if include_ridge:
-        ridge_betas = await load_symbol_betas(
-            db, symbols, calculation_date, 'ridge_regression'
+        ridge_betas = await load_symbol_betas_from_cache(
+            symbols, calculation_date, RIDGE_FACTORS, db
         )
         results['data_quality']['symbols_with_ridge'] = len(ridge_betas)
 
@@ -300,10 +347,10 @@ async def get_portfolio_factor_exposures(
         results['ridge_betas'] = ridge_portfolio_betas
         results['factor_betas'].update(ridge_portfolio_betas)
 
-    # Load Spread betas
+    # Load Spread betas from cache (filter by factor names)
     if include_spread:
-        spread_betas = await load_symbol_betas(
-            db, symbols, calculation_date, 'spread_regression'
+        spread_betas = await load_symbol_betas_from_cache(
+            symbols, calculation_date, SPREAD_FACTORS, db
         )
         results['data_quality']['symbols_with_spread'] = len(spread_betas)
 
@@ -314,26 +361,18 @@ async def get_portfolio_factor_exposures(
         results['spread_betas'] = spread_portfolio_betas
         results['factor_betas'].update(spread_portfolio_betas)
 
-    # Load OLS betas (Market Beta 90D, IR Beta, Provider Beta 1Y)
+    # Load OLS betas from cache (Market Beta 90D, IR Beta, Provider Beta 1Y)
     if include_ols:
-        ols_portfolio_betas = {}
+        ols_factor_names = list(OLS_FACTORS.keys())
+        ols_betas = await load_symbol_betas_from_cache(
+            symbols, calculation_date, ols_factor_names, db
+        )
+        results['data_quality']['symbols_with_ols'] = len(ols_betas)
 
-        for factor_name, calc_method in OLS_FACTORS.items():
-            ols_betas = await load_symbol_betas(
-                db, symbols, calculation_date, calc_method
-            )
-
-            if ols_betas:
-                symbols_with_any_ols.update(ols_betas.keys())
-                # Aggregate this OLS factor
-                factor_portfolio_betas = aggregate_symbol_betas_to_portfolio(
-                    position_weights, ols_betas, use_delta_adjusted
-                )
-                # OLS factors return single-factor dict per symbol, so aggregate returns single factor
-                if factor_name in factor_portfolio_betas:
-                    ols_portfolio_betas[factor_name] = factor_portfolio_betas[factor_name]
-
-        results['data_quality']['symbols_with_ols'] = len(symbols_with_any_ols)
+        # Aggregate OLS factors
+        ols_portfolio_betas = aggregate_symbol_betas_to_portfolio(
+            position_weights, ols_betas, use_delta_adjusted
+        )
         results['ols_betas'] = ols_portfolio_betas
         results['factor_betas'].update(ols_portfolio_betas)
 
@@ -341,7 +380,7 @@ async def get_portfolio_factor_exposures(
     all_loaded = set()
     all_loaded.update(ridge_betas.keys())
     all_loaded.update(spread_betas.keys())
-    all_loaded.update(symbols_with_any_ols)
+    all_loaded.update(ols_betas.keys())
     results['data_quality']['symbols_missing'] = len(symbols) - len(all_loaded)
 
     logger.info(
