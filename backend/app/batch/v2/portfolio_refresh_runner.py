@@ -190,21 +190,34 @@ async def run_portfolio_refresh(
         # Step 3: Initialize unified V2 cache (prices + factors)
         unified_cache = await _initialize_unified_cache(target_date)
 
-        # Phase 3: Create snapshots for all portfolios
+        # Phase 3: Create snapshots and populate risk analytics
+        # Step 1: Create base snapshots with P&L data
         print(f"{V2_LOG_PREFIX} Phase 3: Creating portfolio snapshots...")
         sys.stdout.flush()
         phase_start = datetime.now()
         refresh_result = await _refresh_all_portfolios(target_date, unified_cache)
-        phase_durations["phase_3_snapshots"] = (datetime.now() - phase_start).total_seconds()
-        print(f"{V2_LOG_PREFIX} Phase 3 complete: {refresh_result.get('snapshots_created', 0)} snapshots in {phase_durations['phase_3_snapshots']:.1f}s")
-        sys.stdout.flush()
 
         result.portfolios_processed = refresh_result.get("portfolios_processed", 0)
         result.snapshots_created = refresh_result.get("snapshots_created", 0)
         result.errors = refresh_result.get("errors", [])
 
-        # Get portfolio IDs for Phase 4 and 5
+        # Get portfolio IDs for analytics
         portfolio_ids = await _get_active_portfolio_ids()
+
+        # Step 2: Update snapshots with risk analytics (beta, volatility, concentration)
+        print(f"{V2_LOG_PREFIX} Phase 3: Updating snapshots with risk analytics...")
+        sys.stdout.flush()
+        analytics_result = await _run_snapshot_analytics(
+            portfolio_ids, target_date, unified_cache
+        )
+
+        phase_durations["phase_3_snapshots"] = (datetime.now() - phase_start).total_seconds()
+        snapshots_updated = analytics_result.get('updated', 0)
+        print(f"{V2_LOG_PREFIX} Phase 3 complete: {result.snapshots_created} snapshots, {snapshots_updated} with analytics in {phase_durations['phase_3_snapshots']:.1f}s")
+        sys.stdout.flush()
+
+        if analytics_result.get("errors"):
+            result.errors.extend(analytics_result["errors"])
 
         # Phase 4: Calculate correlations for all portfolios
         print(f"{V2_LOG_PREFIX} Phase 4: Calculating correlations for {len(portfolio_ids)} portfolios...")
@@ -669,6 +682,214 @@ async def _run_correlations_for_all_portfolios(
 
     return {
         "calculated": calculated,
+        "skipped": skipped,
+        "failed": failed,
+        "errors": errors,
+    }
+
+
+# =============================================================================
+# PHASE 3 HELPER: SNAPSHOT ANALYTICS (BETA, VOLATILITY, CONCENTRATION)
+# =============================================================================
+
+async def _run_snapshot_analytics(
+    portfolio_ids: List[UUID],
+    target_date: date,
+    unified_cache: SymbolCacheService,
+) -> Dict[str, Any]:
+    """
+    Update snapshots with risk analytics (Phase 3 Step 2).
+
+    After base snapshots are created with P&L data, this step
+    calculates and updates the deferred risk analytics fields:
+    - Market Beta (90D) via OLS regression
+    - Provider Beta (1Y) from company profiles
+    - Volatility metrics (21d, 63d, expected, trend)
+    - Concentration metrics (HHI, effective positions, top 3/10)
+
+    Args:
+        portfolio_ids: List of portfolio IDs to process
+        target_date: Calculation date
+        unified_cache: V2 unified cache with prices and factors
+
+    Returns:
+        Dict with update results
+    """
+    from app.calculations.market_beta import (
+        calculate_portfolio_market_beta,
+        calculate_portfolio_provider_beta,
+    )
+    from app.calculations.volatility_analytics import calculate_portfolio_volatility_batch
+    from app.calculations.sector_analysis import calculate_concentration_metrics
+    from app.models.snapshots import PortfolioSnapshot
+    from sqlalchemy import select, and_
+    from decimal import Decimal
+
+    logger.info(f"{V2_LOG_PREFIX} Phase 3 analytics: Snapshot analytics for {len(portfolio_ids)} portfolios")
+
+    updated = 0
+    skipped = 0
+    failed = 0
+    errors = []
+
+    for i, portfolio_id in enumerate(portfolio_ids, 1):
+        try:
+            async with get_async_session() as db:
+                # Get existing snapshot for this date
+                snapshot_stmt = select(PortfolioSnapshot).where(
+                    and_(
+                        PortfolioSnapshot.portfolio_id == portfolio_id,
+                        PortfolioSnapshot.snapshot_date == target_date
+                    )
+                )
+                result = await db.execute(snapshot_stmt)
+                snapshot = result.scalar_one_or_none()
+
+                if not snapshot:
+                    skipped += 1
+                    logger.debug(f"{V2_LOG_PREFIX} No snapshot for portfolio {portfolio_id} on {target_date}")
+                    continue
+
+                updates_made = False
+
+                # 1. Calculate Market Beta (90D)
+                try:
+                    beta_result = await calculate_portfolio_market_beta(
+                        db=db,
+                        portfolio_id=portfolio_id,
+                        calculation_date=target_date,
+                        persist=False,  # We'll update snapshot directly
+                        price_cache=unified_cache._price_cache
+                    )
+
+                    if beta_result and beta_result.get('success'):
+                        portfolio_beta = beta_result.get('portfolio_beta') or beta_result.get('market_beta')
+                        if portfolio_beta is not None:
+                            snapshot.beta_calculated_90d = Decimal(str(portfolio_beta))
+                            updates_made = True
+
+                        r_squared = beta_result.get('r_squared')
+                        if r_squared is not None:
+                            snapshot.beta_calculated_90d_r_squared = Decimal(str(r_squared))
+
+                        observations = beta_result.get('observations')
+                        if observations is not None:
+                            snapshot.beta_calculated_90d_observations = observations
+
+                        logger.debug(f"Updated beta for portfolio {portfolio_id}: {portfolio_beta:.3f}")
+
+                except Exception as e:
+                    logger.warning(f"Market beta failed for {portfolio_id}: {e}")
+
+                # 2. Calculate Provider Beta (1Y)
+                try:
+                    provider_result = await calculate_portfolio_provider_beta(
+                        db=db,
+                        portfolio_id=portfolio_id,
+                        calculation_date=target_date
+                    )
+
+                    if provider_result and provider_result.get('success'):
+                        provider_beta = provider_result.get('portfolio_beta')
+                        if provider_beta is not None:
+                            snapshot.beta_provider_1y = Decimal(str(provider_beta))
+                            updates_made = True
+                            logger.debug(f"Updated provider beta for portfolio {portfolio_id}: {provider_beta:.3f}")
+
+                except Exception as e:
+                    logger.warning(f"Provider beta failed for {portfolio_id}: {e}")
+
+                # 3. Calculate Volatility
+                try:
+                    vol_result = await calculate_portfolio_volatility_batch(
+                        db=db,
+                        portfolio_id=portfolio_id,
+                        calculation_date=target_date,
+                        price_cache=unified_cache._price_cache
+                    )
+
+                    if vol_result and vol_result.get('success'):
+                        portfolio_vol = vol_result.get('portfolio_volatility', {})
+
+                        vol_21d = portfolio_vol.get('realized_volatility_21d')
+                        if vol_21d is not None:
+                            snapshot.realized_volatility_21d = Decimal(str(vol_21d))
+                            updates_made = True
+
+                        vol_63d = portfolio_vol.get('realized_volatility_63d')
+                        if vol_63d is not None:
+                            snapshot.realized_volatility_63d = Decimal(str(vol_63d))
+
+                        expected_21d = portfolio_vol.get('expected_volatility_21d')
+                        if expected_21d is not None:
+                            snapshot.expected_volatility_21d = Decimal(str(expected_21d))
+
+                        trend = portfolio_vol.get('volatility_trend')
+                        if trend is not None:
+                            snapshot.volatility_trend = trend
+
+                        percentile = portfolio_vol.get('volatility_percentile')
+                        if percentile is not None:
+                            snapshot.volatility_percentile = Decimal(str(percentile))
+
+                        logger.debug(f"Updated volatility for portfolio {portfolio_id}")
+
+                except Exception as e:
+                    logger.warning(f"Volatility failed for {portfolio_id}: {e}")
+
+                # 4. Calculate Concentration Metrics (if not already set)
+                if snapshot.hhi is None:
+                    try:
+                        conc_result = await calculate_concentration_metrics(
+                            db=db,
+                            portfolio_id=portfolio_id
+                        )
+
+                        if conc_result and conc_result.get('success'):
+                            hhi = conc_result.get('hhi')
+                            if hhi is not None:
+                                snapshot.hhi = Decimal(str(hhi))
+                                updates_made = True
+
+                            eff_num = conc_result.get('effective_num_positions')
+                            if eff_num is not None:
+                                snapshot.effective_num_positions = Decimal(str(eff_num))
+
+                            top_3 = conc_result.get('top_3_concentration')
+                            if top_3 is not None:
+                                snapshot.top_3_concentration = Decimal(str(top_3))
+
+                            top_10 = conc_result.get('top_10_concentration')
+                            if top_10 is not None:
+                                snapshot.top_10_concentration = Decimal(str(top_10))
+
+                            logger.debug(f"Updated concentration for portfolio {portfolio_id}")
+
+                    except Exception as e:
+                        logger.warning(f"Concentration metrics failed for {portfolio_id}: {e}")
+
+                # Commit if any updates were made
+                if updates_made:
+                    await db.commit()
+                    updated += 1
+                else:
+                    skipped += 1
+
+            if i % 10 == 0 or i == len(portfolio_ids):
+                logger.info(f"{V2_LOG_PREFIX} Phase 3 analytics progress: {i}/{len(portfolio_ids)}")
+
+        except Exception as e:
+            failed += 1
+            error_msg = f"Snapshot analytics failed for {portfolio_id}: {str(e)[:100]}"
+            errors.append(error_msg)
+            logger.warning(f"{V2_LOG_PREFIX} {error_msg}")
+
+    logger.info(
+        f"{V2_LOG_PREFIX} Phase 3 analytics complete: updated={updated}, skipped={skipped}, failed={failed}"
+    )
+
+    return {
+        "updated": updated,
         "skipped": skipped,
         "failed": failed,
         "errors": errors,

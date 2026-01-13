@@ -724,6 +724,9 @@ async def _run_phase_0_company_profiles(symbols: List[str], calc_date: date) -> 
 
     Performance: ~5 minutes for 1250 symbols (vs 30+ min with individual calls)
 
+    Optimization: Skips symbols that already have fresh data (updated today).
+    This makes historical recalculations nearly instant.
+
     Note: Full company profile sync (sector, industry, etc.) is handled separately
     as documented in PlanningDocs/V2BatchArchitecture/NextSteps.md
 
@@ -735,12 +738,44 @@ async def _run_phase_0_company_profiles(symbols: List[str], calc_date: date) -> 
         Dict with sync results
     """
     from app.services.valuation_batch_service import valuation_batch_service
+    from app.models.market_data import CompanyProfile
+    from sqlalchemy import select, and_, func
+    from datetime import datetime, timedelta
 
     logger.info(f"{V2_LOG_PREFIX} Phase 0: Daily valuation metrics for {len(symbols)} symbols")
 
     try:
+        # Check which symbols already have fresh data (updated within last 24 hours)
+        # This makes historical recalculations nearly instant
+        async with get_async_session() as db:
+            freshness_threshold = datetime.utcnow() - timedelta(hours=24)
+            stmt = select(CompanyProfile.symbol).where(
+                and_(
+                    CompanyProfile.symbol.in_(symbols),
+                    CompanyProfile.last_updated >= freshness_threshold,
+                    CompanyProfile.beta.isnot(None)  # Has valuation data
+                )
+            )
+            result = await db.execute(stmt)
+            fresh_symbols = {row[0] for row in result.fetchall()}
+
+        # Only fetch stale symbols
+        stale_symbols = [s for s in symbols if s not in fresh_symbols]
+
+        if not stale_symbols:
+            logger.info(f"{V2_LOG_PREFIX} Phase 0: All {len(symbols)} symbols have fresh data, skipping fetch")
+            return {
+                "synced": len(symbols),
+                "updated": 0,
+                "created": 0,
+                "failed": 0,
+                "skipped_fresh": len(fresh_symbols),
+            }
+
+        logger.info(f"{V2_LOG_PREFIX} Phase 0: {len(fresh_symbols)} fresh, fetching {len(stale_symbols)} stale symbols")
+
         # Fetch valuation metrics in batch (efficient - ~5 min for 1250 symbols)
-        valuations = await valuation_batch_service.fetch_daily_valuations(symbols)
+        valuations = await valuation_batch_service.fetch_daily_valuations(stale_symbols)
 
         # Update company_profiles table with valuation data
         async with get_async_session() as db:
@@ -749,13 +784,13 @@ async def _run_phase_0_company_profiles(symbols: List[str], calc_date: date) -> 
                 valuations=valuations,
             )
 
-        synced = update_result.get("total_processed", 0)
+        synced = update_result.get("total_processed", 0) + len(fresh_symbols)
         failed = update_result.get("failed", 0)
         updated = update_result.get("updated", 0)
         created = update_result.get("created", 0)
 
         logger.info(
-            f"{V2_LOG_PREFIX} Phase 0 complete: synced={synced} (updated={updated}, created={created}), failed={failed}"
+            f"{V2_LOG_PREFIX} Phase 0 complete: synced={synced} (updated={updated}, created={created}, fresh={len(fresh_symbols)}), failed={failed}"
         )
 
         return {
@@ -763,6 +798,7 @@ async def _run_phase_0_company_profiles(symbols: List[str], calc_date: date) -> 
             "updated": updated,
             "created": created,
             "failed": failed,
+            "skipped_fresh": len(fresh_symbols),
         }
 
     except Exception as e:
