@@ -19,7 +19,7 @@ import asyncio
 import argparse
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, date
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
@@ -27,7 +27,7 @@ from sqlalchemy import text
 from app.database import get_async_session
 
 
-async def clean_date_data(target_date: str, dry_run: bool = False):
+async def clean_date_data(target_date: date, dry_run: bool = False):
     """Clean all calculation data for a specific date."""
 
     print("=" * 60)
@@ -130,11 +130,11 @@ if __name__ == "__main__":
     parser.add_argument("--dry-run", action="store_true", help="Show what would be deleted without deleting")
     args = parser.parse_args()
 
-    # Validate date format
+    # Parse and validate date format
     try:
-        datetime.strptime(args.date, "%Y-%m-%d")
+        target_date = datetime.strptime(args.date, "%Y-%m-%d").date()
     except ValueError:
         print(f"Error: Invalid date format '{args.date}'. Use YYYY-MM-DD format.")
         sys.exit(1)
 
-    asyncio.run(clean_date_data(args.date, dry_run=args.dry_run))
+    asyncio.run(clean_date_data(target_date, dry_run=args.dry_run))
