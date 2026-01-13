@@ -4,15 +4,16 @@ V2 Portfolio Refresh Runner
 Runs at 9:30 PM ET (30 minutes after symbol batch) to refresh all portfolios:
 1. Wait for symbol batch completion
 2. Wait for pending symbol onboarding
-3. Create snapshots for all portfolios using cached data (Phase 3)
-4. Calculate position correlations for all portfolios (Phase 4)
-5. Aggregate symbol factors to portfolio level (Phase 5)
-6. Calculate stress tests for all portfolios (Phase 6)
+3. Initialize unified V2 cache (prices + factors)
+4. Create snapshots for all portfolios using cached data (Phase 3)
+5. Calculate position correlations for all portfolios (Phase 4)
+6. Aggregate symbol factors to portfolio level (Phase 5)
+7. Calculate stress tests for all portfolios (Phase 6)
 
 Key Design Decisions:
 - Runs AFTER symbol batch to leverage cached prices and factors
+- Uses UNIFIED SymbolCacheService for both price and factor data (300x faster)
 - Uses existing PnLCalculator for snapshot creation
-- Uses PriceCache for fast price lookups (300x faster than DB)
 - Phase 5 reads from symbol_factor_exposures (V2 batch) and writes to factor_exposures
 - Phase 6 reads from factor_exposures for stress scenario calculations
 - Writes to: PortfolioSnapshot, CorrelationCalculation, PairwiseCorrelation,
@@ -47,7 +48,7 @@ from app.batch.batch_run_tracker import (
     BatchJob,
 )
 from app.batch.pnl_calculator import pnl_calculator
-from app.cache.price_cache import PriceCache
+from app.cache.symbol_cache import symbol_cache, SymbolCacheService
 
 logger = get_logger(__name__)
 
@@ -186,14 +187,14 @@ async def run_portfolio_refresh(
                     f"{V2_LOG_PREFIX} Symbol onboarding still pending, proceeding anyway"
                 )
 
-        # Step 3: Load price cache for fast lookups
-        price_cache = await _load_price_cache(target_date)
+        # Step 3: Initialize unified V2 cache (prices + factors)
+        unified_cache = await _initialize_unified_cache(target_date)
 
         # Phase 3: Create snapshots for all portfolios
         print(f"{V2_LOG_PREFIX} Phase 3: Creating portfolio snapshots...")
         sys.stdout.flush()
         phase_start = datetime.now()
-        refresh_result = await _refresh_all_portfolios(target_date, price_cache)
+        refresh_result = await _refresh_all_portfolios(target_date, unified_cache)
         phase_durations["phase_3_snapshots"] = (datetime.now() - phase_start).total_seconds()
         print(f"{V2_LOG_PREFIX} Phase 3 complete: {refresh_result.get('snapshots_created', 0)} snapshots in {phase_durations['phase_3_snapshots']:.1f}s")
         sys.stdout.flush()
@@ -210,7 +211,7 @@ async def run_portfolio_refresh(
         sys.stdout.flush()
         phase_start = datetime.now()
         correlation_result = await _run_correlations_for_all_portfolios(
-            portfolio_ids, target_date, price_cache
+            portfolio_ids, target_date, unified_cache
         )
         phase_durations["phase_4_correlations"] = (datetime.now() - phase_start).total_seconds()
         result.correlations_calculated = correlation_result.get("calculated", 0)
@@ -384,52 +385,40 @@ async def _wait_for_onboarding() -> bool:
 
 
 # =============================================================================
-# PRICE CACHE
+# UNIFIED SYMBOL CACHE (V2)
 # =============================================================================
 
-async def _load_price_cache(target_date: date) -> PriceCache:
+async def _initialize_unified_cache(target_date: date) -> SymbolCacheService:
     """
-    Load price cache from market_data_cache for fast lookups.
+    Initialize the unified V2 symbol cache with both prices and factors.
 
-    The PriceCache provides 300x faster price lookups compared to DB queries.
+    The V2 cache (SymbolCacheService) provides:
+    - _price_cache: 300x faster price lookups vs DB queries
+    - _factor_cache: In-memory factor data for fast aggregation
+    - DB fallback if cache miss
 
     Args:
-        target_date: Date to load prices for
+        target_date: Date to load data for
 
     Returns:
-        Initialized PriceCache
+        Initialized SymbolCacheService (same global instance)
     """
-    from app.models.market_data import MarketDataCache
+    logger.info(f"{V2_LOG_PREFIX} Initializing unified symbol cache for {target_date}")
 
-    logger.info(f"{V2_LOG_PREFIX} Loading price cache for {target_date}")
+    # Initialize the global symbol_cache if not already done
+    if not symbol_cache._initialized:
+        await symbol_cache.initialize_async(target_date)
 
-    price_cache = PriceCache()
-
-    async with get_async_session() as db:
-        # Load prices for target date and previous trading days (for P&L calculation)
-        start_date = target_date - timedelta(days=10)  # Lookback for previous prices
-
-        result = await db.execute(
-            select(MarketDataCache)
-            .where(
-                and_(
-                    MarketDataCache.date >= start_date,
-                    MarketDataCache.date <= target_date,
-                    MarketDataCache.close > 0,
-                )
-            )
-        )
-        records = result.scalars().all()
-
-        for record in records:
-            price_cache.set_price(record.symbol, record.date, record.close)
-
-    stats = price_cache.get_stats()
+    # Get health status for logging
+    health = symbol_cache.get_health_status()
     logger.info(
-        f"{V2_LOG_PREFIX} Price cache loaded: {stats.get('cached_prices', 0)} entries"
+        f"{V2_LOG_PREFIX} Unified cache status: "
+        f"symbols={health.get('symbols_cached', 0)}, "
+        f"dates={health.get('dates_cached', 0)}, "
+        f"factors={health.get('factor_cache_entries', 0)}"
     )
 
-    return price_cache
+    return symbol_cache
 
 
 # =============================================================================
@@ -438,26 +427,26 @@ async def _load_price_cache(target_date: date) -> PriceCache:
 
 async def _refresh_all_portfolios(
     target_date: date,
-    price_cache: PriceCache,
+    unified_cache: SymbolCacheService,
 ) -> Dict[str, Any]:
     """
     Refresh all active portfolios using existing PnLCalculator.
 
     Args:
         target_date: Date to refresh
-        price_cache: Pre-loaded price cache
+        unified_cache: V2 unified cache (SymbolCacheService) with prices and factors
 
     Returns:
         Dict with processing results
     """
     logger.info(f"{V2_LOG_PREFIX} Refreshing all portfolios for {target_date}")
 
-    # Use existing PnLCalculator
+    # Use existing PnLCalculator with the price cache component from unified cache
     result = await pnl_calculator.calculate_all_portfolios_pnl(
         calculation_date=target_date,
         db=None,  # Let it create its own session
         portfolio_ids=None,  # Process all portfolios
-        price_cache=price_cache,
+        price_cache=unified_cache._price_cache,  # Use price cache from unified V2 cache
     )
 
     return result
@@ -592,7 +581,7 @@ async def _aggregate_portfolio_factors(
 async def _run_correlations_for_all_portfolios(
     portfolio_ids: List[UUID],
     target_date: date,
-    price_cache: PriceCache,
+    unified_cache: SymbolCacheService,
 ) -> Dict[str, Any]:
     """
     Phase 4: Calculate position correlations for all portfolios.
@@ -605,7 +594,7 @@ async def _run_correlations_for_all_portfolios(
     Args:
         portfolio_ids: List of portfolio IDs to process
         target_date: Calculation date
-        price_cache: Pre-loaded price cache
+        unified_cache: V2 unified cache (SymbolCacheService) with prices and factors
 
     Returns:
         Dict with calculation results
@@ -622,7 +611,8 @@ async def _run_correlations_for_all_portfolios(
     for i, portfolio_id in enumerate(portfolio_ids, 1):
         try:
             async with get_async_session() as db:
-                correlation_service = CorrelationService(db, price_cache=price_cache)
+                # Use price cache from unified V2 cache
+                correlation_service = CorrelationService(db, price_cache=unified_cache._price_cache)
 
                 result = await correlation_service.calculate_portfolio_correlations(
                     portfolio_id=portfolio_id,

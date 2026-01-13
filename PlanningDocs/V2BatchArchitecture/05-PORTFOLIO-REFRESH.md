@@ -40,7 +40,11 @@ Portfolio Refresh (Cron Job 2)
 
 ### Key Dependencies
 
-- **Phase 4 (Correlations)**: Uses PriceCache for price lookups (300x faster)
+- **Unified V2 Cache**: `SymbolCacheService` provides both price and factor data in ONE cache
+  - `_price_cache`: PriceCache for 300x faster price lookups
+  - `_factor_cache`: In-memory symbol factor data for fast aggregation
+  - DB fallback if cache miss
+- **Phase 4 (Correlations)**: Uses unified cache's `_price_cache` for price lookups (300x faster)
 - **Phase 5 (Factor Aggregation)**: Reads from `symbol_factor_exposures`, writes to `factor_exposures`
 - **Phase 6 (Stress Tests)**: Reads from `factor_exposures` (portfolio-level factors)
 
