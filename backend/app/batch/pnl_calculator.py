@@ -99,28 +99,22 @@ class PnLCalculator:
     ) -> Dict[str, Any]:
         """Process all portfolios with provided session and optional price cache"""
 
-        # Get all active portfolios - eagerly load id and name to avoid lazy-load issues
-        from sqlalchemy.orm import load_only
-        query = (
-            select(Portfolio)
-            .options(load_only(Portfolio.id, Portfolio.name))
-            .where(Portfolio.deleted_at.is_(None))
-        )
+        # Get all active portfolios - select columns directly to avoid ORM lazy loading
+        # Using tuple results instead of ORM objects prevents greenlet_spawn errors
+        query = select(Portfolio.id, Portfolio.name).where(Portfolio.deleted_at.is_(None))
         if portfolio_ids is not None:
             query = query.where(Portfolio.id.in_(portfolio_ids))
         result = await db.execute(query)
-        portfolios = result.scalars().all()
+        portfolio_rows = result.all()  # Returns list of tuples (id, name)
 
-        logger.debug(f"Found {len(portfolios)} active portfolios")
+        logger.debug(f"Found {len(portfolio_rows)} active portfolios")
 
         portfolios_processed = 0
         snapshots_created = 0
         errors = []
 
-        for portfolio in portfolios:
-            # Store name/id before try block to avoid lazy-load issues in exception handler
-            portfolio_name = portfolio.name
-            portfolio_id = portfolio.id
+        for portfolio_id, portfolio_name in portfolio_rows:
+            # portfolio_id and portfolio_name are plain Python values, no lazy loading
             try:
                 result = await self.calculate_portfolio_pnl(
                     portfolio_id=portfolio_id,
