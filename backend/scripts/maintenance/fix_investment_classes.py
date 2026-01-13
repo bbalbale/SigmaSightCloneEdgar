@@ -69,7 +69,7 @@ async def fix_investment_classes(dry_run: bool = True):
         for symbol in SHOULD_BE_PRIVATE:
             # Check current state
             result = await db.execute(
-                select(Position.id, Position.symbol, Position.investment_class, Position.name)
+                select(Position.id, Position.symbol, Position.investment_class)
                 .where(Position.symbol == symbol)
             )
             rows = result.fetchall()
@@ -79,8 +79,7 @@ async def fix_investment_classes(dry_run: bool = True):
                 continue
 
             for row in rows:
-                pos_id, pos_symbol, current_class, name = row
-                name = name or ""
+                pos_id, pos_symbol, current_class = row
 
                 if current_class == "PRIVATE":
                     print(f"    {symbol:25} Already PRIVATE - OK")
@@ -103,7 +102,7 @@ async def fix_investment_classes(dry_run: bool = True):
         for symbol in SHOULD_BE_OPTIONS:
             # Check current state
             result = await db.execute(
-                select(Position.id, Position.symbol, Position.investment_class, Position.name)
+                select(Position.id, Position.symbol, Position.investment_class)
                 .where(Position.symbol == symbol)
             )
             rows = result.fetchall()
@@ -113,8 +112,7 @@ async def fix_investment_classes(dry_run: bool = True):
                 continue
 
             for row in rows:
-                pos_id, pos_symbol, current_class, name = row
-                name = name or ""
+                pos_id, pos_symbol, current_class = row
 
                 if current_class == "OPTIONS":
                     print(f"    {symbol:25} Already OPTIONS - OK")

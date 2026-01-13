@@ -59,7 +59,7 @@ async def check_symbols():
                     Position.symbol,
                     Position.investment_class,
                     Position.position_type,
-                    Position.name
+                    Position.underlying_symbol
                 ).where(Position.symbol == symbol)
             )
             rows = result.fetchall()
@@ -70,8 +70,8 @@ async def check_symbols():
                 for row in rows:
                     inv_class = row[1] or "NULL"
                     pos_type = row[2] or "NULL"
-                    name = row[3] or ""
-                    print(f"  {symbol:25} class={inv_class:10} type={pos_type:10} name={name[:30]}")
+                    underlying = row[3] or ""
+                    print(f"  {symbol:25} class={inv_class:10} type={pos_type:10} underlying={underlying}")
 
     print()
     print("=" * 70)
