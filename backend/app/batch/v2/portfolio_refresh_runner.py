@@ -30,6 +30,7 @@ from app.core.logging import get_logger
 from app.core.datetime_utils import utc_now
 from app.core.trading_calendar import (
     get_most_recent_trading_day,
+    get_most_recent_completed_trading_day,
     is_trading_day,
 )
 from app.database import get_async_session, AsyncSessionLocal
@@ -118,9 +119,9 @@ async def run_portfolio_refresh(
     start_time = datetime.now()
     job_id = str(uuid4())
 
-    # Determine target date
+    # Determine target date (use completed trading day to respect market hours)
     if target_date is None:
-        target_date = get_most_recent_trading_day()
+        target_date = get_most_recent_completed_trading_day()
 
     logger.info(
         f"{V2_LOG_PREFIX} Starting portfolio refresh (job_id={job_id}, target={target_date})"

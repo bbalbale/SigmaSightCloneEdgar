@@ -28,7 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.core.logging import get_logger
 from app.core.datetime_utils import utc_now
-from app.core.trading_calendar import get_most_recent_trading_day
+from app.core.trading_calendar import get_most_recent_trading_day, get_most_recent_completed_trading_day
 from app.database import get_async_session, AsyncSessionLocal
 from app.models.symbol_analytics import SymbolUniverse
 from app.batch.batch_run_tracker import (
@@ -296,8 +296,8 @@ class SymbolOnboardingQueue:
         logger.info(f"{V2_LOG_PREFIX} Processing {symbol}")
 
         try:
-            # Get calculation date
-            calc_date = get_most_recent_trading_day()
+            # Get calculation date (use completed trading day to respect market hours)
+            calc_date = get_most_recent_completed_trading_day()
 
             # Fetch prices for symbol
             await self._fetch_symbol_prices(symbol, calc_date)

@@ -4,8 +4,17 @@ Trading Calendar Utility
 Determines whether a date is a valid US stock market trading day.
 Excludes weekends and major US stock market holidays.
 """
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import List
+
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    from backports.zoneinfo import ZoneInfo
+
+# US Eastern timezone for market hours
+US_EASTERN = ZoneInfo("America/New_York")
+MARKET_CLOSE_HOUR = 16  # 4pm ET
 
 # Major US stock market holidays (approximate - does not account for observed dates shifting)
 # For production, consider using pandas_market_calendars library
@@ -121,6 +130,38 @@ def get_most_recent_trading_day(from_date: date = None) -> date:
 
     # Fallback: return the original date
     return from_date
+
+
+def get_most_recent_completed_trading_day() -> date:
+    """
+    Get the most recent trading day where market has CLOSED.
+
+    This accounts for market hours:
+    - If today is a trading day AND it's after 4pm ET → return today
+    - Otherwise → return the previous trading day
+
+    Use this for batch processing and data fetching to ensure we only
+    fetch data for days where the market has closed.
+
+    Returns:
+        Most recent completed trading day
+    """
+    now_et = datetime.now(US_EASTERN)
+    today = now_et.date()
+
+    # If today is a trading day and market has closed (after 4pm ET)
+    if is_trading_day(today) and now_et.hour >= MARKET_CLOSE_HOUR:
+        return today
+
+    # Otherwise, find the previous trading day
+    current = today - timedelta(days=1)
+    for _ in range(7):
+        if is_trading_day(current):
+            return current
+        current -= timedelta(days=1)
+
+    # Fallback (should never reach here)
+    return today
 
 
 def get_next_trading_day(from_date: date = None) -> date:
