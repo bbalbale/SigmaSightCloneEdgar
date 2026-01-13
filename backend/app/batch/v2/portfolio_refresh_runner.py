@@ -626,6 +626,8 @@ async def _run_correlations_for_all_portfolios(
                     skipped += 1
                     logger.debug(f"{V2_LOG_PREFIX} Correlations skipped for portfolio {portfolio_id} (no public positions)")
                 else:
+                    # CRITICAL: Commit the transaction (CorrelationService doesn't commit)
+                    await db.commit()
                     calculated += 1
 
             if i % 10 == 0 or i == len(portfolio_ids):

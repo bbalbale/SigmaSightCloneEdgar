@@ -47,8 +47,6 @@ CALC_TABLES = [
     ("symbol_factor_exposures", "calculation_date", False),      # V2 symbol-level factors
     ("portfolio_snapshots", "snapshot_date", False),             # P&L snapshots
     ("factor_exposures", "calculation_date", False),             # Portfolio-level factors
-    ("correlation_calculations", "calculation_date", True),      # DateTime column - needs DATE() cast
-    ("pairwise_correlations", "calculation_date", True),         # DateTime column - needs DATE() cast
     ("stress_test_results", "calculation_date", False),          # Stress test results
     ("position_greeks", "calculation_date", False),              # Options greeks
     ("position_factor_exposures", "calculation_date", False),    # V1 position-level factors
@@ -56,8 +54,10 @@ CALC_TABLES = [
     ("position_interest_rate_betas", "calculation_date", False), # IR betas
     ("position_volatility", "calculation_date", False),          # Volatility metrics (singular!)
     ("market_risk_scenarios", "calculation_date", False),        # Risk scenarios
-    ("factor_correlations", "calculation_date", False),          # Factor correlations
 ]
+
+# Special handling: pairwise_correlations -> correlation_calculations (no CASCADE)
+# Must delete pairwise_correlations BEFORE correlation_calculations
 
 
 async def clear_calcs_for_date(target_date: date, dry_run: bool = False):
@@ -72,6 +72,68 @@ async def clear_calcs_for_date(target_date: date, dry_run: bool = False):
     total_deleted = 0
     results = {}
 
+    # =========================================================================
+    # SPECIAL: Handle correlation tables (pairwise -> correlation_calculations)
+    # pairwise_correlations has no date column, links via correlation_calculation_id
+    # Must delete pairwise first (no CASCADE on FK)
+    # =========================================================================
+    async with get_async_session() as db:
+        try:
+            # Count pairwise_correlations to delete (via join)
+            count_sql = text("""
+                SELECT COUNT(*) FROM pairwise_correlations pc
+                JOIN correlation_calculations cc ON pc.correlation_calculation_id = cc.id
+                WHERE DATE(cc.calculation_date) = :target_date
+            """)
+            count_result = await db.execute(count_sql, {"target_date": target_date})
+            pc_count = count_result.scalar() or 0
+
+            if pc_count == 0:
+                print(f"  [SKIP] pairwise_correlations: No rows for {target_date}")
+            elif dry_run:
+                print(f"  [DRY]  pairwise_correlations: Would delete {pc_count} rows")
+            else:
+                delete_sql = text("""
+                    DELETE FROM pairwise_correlations
+                    WHERE correlation_calculation_id IN (
+                        SELECT id FROM correlation_calculations
+                        WHERE DATE(calculation_date) = :target_date
+                    )
+                """)
+                await db.execute(delete_sql, {"target_date": target_date})
+                await db.commit()
+                print(f"  [OK]   pairwise_correlations: Deleted {pc_count} rows")
+                total_deleted += pc_count
+            results["pairwise_correlations"] = pc_count
+        except Exception as e:
+            print(f"  [ERR]  pairwise_correlations: {e}")
+            results["pairwise_correlations"] = 0
+
+    # Now delete correlation_calculations
+    async with get_async_session() as db:
+        try:
+            count_sql = text("SELECT COUNT(*) FROM correlation_calculations WHERE DATE(calculation_date) = :target_date")
+            count_result = await db.execute(count_sql, {"target_date": target_date})
+            cc_count = count_result.scalar() or 0
+
+            if cc_count == 0:
+                print(f"  [SKIP] correlation_calculations: No rows for {target_date}")
+            elif dry_run:
+                print(f"  [DRY]  correlation_calculations: Would delete {cc_count} rows")
+            else:
+                delete_sql = text("DELETE FROM correlation_calculations WHERE DATE(calculation_date) = :target_date")
+                await db.execute(delete_sql, {"target_date": target_date})
+                await db.commit()
+                print(f"  [OK]   correlation_calculations: Deleted {cc_count} rows")
+                total_deleted += cc_count
+            results["correlation_calculations"] = cc_count
+        except Exception as e:
+            print(f"  [ERR]  correlation_calculations: {e}")
+            results["correlation_calculations"] = 0
+
+    # =========================================================================
+    # REGULAR: Handle tables with direct date columns
+    # =========================================================================
     for table_name, date_column, use_date_cast in CALC_TABLES:
         # Use separate session per table to isolate transactions
         async with get_async_session() as db:
