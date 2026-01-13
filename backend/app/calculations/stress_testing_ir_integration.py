@@ -3,6 +3,7 @@ Interest Rate Beta Integration for Stress Testing
 Fetches IR betas and calculates IR shock impacts
 
 Created: 2025-10-18
+Updated: 2026-01-13 - V2 architecture: Use symbol_factor_exposures instead of position_interest_rate_betas
 Integrates with: stress_testing.py for comprehensive stress testing
 """
 from datetime import date
@@ -14,11 +15,15 @@ from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.positions import Position
-from app.models.market_data import PositionInterestRateBeta
+from app.models.symbol_analytics import SymbolFactorExposure
+from app.models.factors import FactorDefinition
 from app.calculations.market_data import get_position_value
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Factor name for IR Beta (must match what V2 Phase 3 uses)
+IR_BETA_FACTOR_NAME = "IR Beta"
 
 
 async def get_portfolio_ir_beta(
@@ -28,9 +33,11 @@ async def get_portfolio_ir_beta(
     max_staleness_days: int = 7
 ) -> Dict[str, Any]:
     """
-    Get portfolio-level IR beta from stored position IR betas.
+    Get portfolio-level IR beta from V2 symbol_factor_exposures table.
 
-    Calculates equity-weighted average IR beta for stress testing.
+    V2 Architecture: IR betas are calculated per SYMBOL (not per position).
+    This function looks up each position's symbol, finds its IR beta in
+    symbol_factor_exposures, then calculates equity-weighted average.
 
     Args:
         db: Database session
@@ -66,7 +73,7 @@ async def get_portfolio_ir_beta(
 
         portfolio_equity = float(portfolio.equity_balance)
 
-        # Get active positions
+        # Get active positions (exclude PRIVATE - they have no IR beta)
         positions_stmt = select(Position).where(
             and_(
                 Position.portfolio_id == portfolio_id,
@@ -83,37 +90,62 @@ async def get_portfolio_ir_beta(
                 'error': 'No active positions found'
             }
 
-        # Fetch most recent IR betas for these positions
+        # Filter to PUBLIC positions only (PRIVATE/OPTIONS don't have IR betas)
+        public_positions = [
+            p for p in positions
+            if p.investment_class is None or p.investment_class == "PUBLIC"
+        ]
+
+        if not public_positions:
+            return {
+                'success': False,
+                'error': 'No PUBLIC positions found (all PRIVATE/OPTIONS)'
+            }
+
+        # Get unique symbols from positions
+        symbols = list(set(p.symbol.upper() for p in public_positions if p.symbol))
+
+        # Get factor_id for IR Beta
+        factor_stmt = select(FactorDefinition).where(FactorDefinition.name == IR_BETA_FACTOR_NAME)
+        factor_result = await db.execute(factor_stmt)
+        ir_beta_factor = factor_result.scalar_one_or_none()
+
+        if not ir_beta_factor:
+            return {
+                'success': False,
+                'error': f'Factor definition "{IR_BETA_FACTOR_NAME}" not found'
+            }
+
+        # Fetch IR betas for these symbols from symbol_factor_exposures
         # Allow some staleness (default 7 days)
         min_date = calculation_date - timedelta(days=max_staleness_days)
 
-        position_ids = [p.id for p in positions]
-
-        # Get latest IR beta for each position
-        ir_beta_stmt = select(PositionInterestRateBeta).where(
+        ir_beta_stmt = select(SymbolFactorExposure).where(
             and_(
-                PositionInterestRateBeta.position_id.in_(position_ids),
-                PositionInterestRateBeta.calculation_date >= min_date,
-                PositionInterestRateBeta.calculation_date <= calculation_date
+                SymbolFactorExposure.symbol.in_(symbols),
+                SymbolFactorExposure.factor_id == ir_beta_factor.id,
+                SymbolFactorExposure.calculation_date >= min_date,
+                SymbolFactorExposure.calculation_date <= calculation_date
             )
-        ).order_by(PositionInterestRateBeta.calculation_date.desc())
+        ).order_by(SymbolFactorExposure.calculation_date.desc())
 
         ir_beta_result = await db.execute(ir_beta_stmt)
         all_ir_betas = ir_beta_result.scalars().all()
 
-        # Build map of position_id -> latest IR beta
-        position_ir_betas = {}
-        position_ir_dates = {}
+        # Build map of symbol -> latest IR beta
+        symbol_ir_betas = {}
+        symbol_ir_dates = {}
 
         for ir_beta_record in all_ir_betas:
-            if ir_beta_record.position_id not in position_ir_betas:
-                position_ir_betas[ir_beta_record.position_id] = float(ir_beta_record.ir_beta)
-                position_ir_dates[ir_beta_record.position_id] = ir_beta_record.calculation_date
+            symbol = ir_beta_record.symbol.upper()
+            if symbol not in symbol_ir_betas:
+                symbol_ir_betas[symbol] = float(ir_beta_record.beta_value)
+                symbol_ir_dates[symbol] = ir_beta_record.calculation_date
 
-        if not position_ir_betas:
+        if not symbol_ir_betas:
             return {
                 'success': False,
-                'error': f'No IR betas found for any positions (checked {max_staleness_days} days back)'
+                'error': f'No IR betas found in symbol_factor_exposures (checked {max_staleness_days} days back for {len(symbols)} symbols)'
             }
 
         # Calculate equity-weighted portfolio IR beta
@@ -121,24 +153,25 @@ async def get_portfolio_ir_beta(
         total_weight = 0.0
         positions_with_beta = 0
 
-        for position in positions:
-            if position.id in position_ir_betas:
+        for position in public_positions:
+            symbol = position.symbol.upper() if position.symbol else None
+            if symbol and symbol in symbol_ir_betas:
                 market_value = float(get_position_value(position, signed=False, recalculate=True))
                 weight = market_value / portfolio_equity
 
-                ir_beta = position_ir_betas[position.id]
+                ir_beta = symbol_ir_betas[symbol]
                 total_weighted_ir_beta += ir_beta * weight
                 total_weight += weight
                 positions_with_beta += 1
 
         # Get most recent IR beta calculation date
-        latest_ir_date = max(position_ir_dates.values()) if position_ir_dates else calculation_date
+        latest_ir_date = max(symbol_ir_dates.values()) if symbol_ir_dates else calculation_date
 
         result = {
             'portfolio_ir_beta': total_weighted_ir_beta,
             'ir_beta_date': latest_ir_date,
             'positions_with_beta': positions_with_beta,
-            'total_positions': len(positions),
+            'total_positions': len(public_positions),
             'portfolio_equity': portfolio_equity,
             'total_weight': total_weight,
             'success': True
@@ -146,7 +179,7 @@ async def get_portfolio_ir_beta(
 
         logger.info(
             f"Portfolio IR beta: {total_weighted_ir_beta:.4f} "
-            f"({positions_with_beta}/{len(positions)} positions, beta date: {latest_ir_date})"
+            f"({positions_with_beta}/{len(public_positions)} PUBLIC positions, beta date: {latest_ir_date})"
         )
 
         return result
@@ -169,7 +202,7 @@ async def calculate_ir_shock_impact(
     """
     Calculate portfolio P&L impact from interest rate shock.
 
-    Uses stored IR betas from position_interest_rate_betas table.
+    V2 Architecture: Uses IR betas from symbol_factor_exposures table (symbol-level).
 
     Formula:
         IR P&L = Portfolio Value × IR Beta × Shock (in decimal)
