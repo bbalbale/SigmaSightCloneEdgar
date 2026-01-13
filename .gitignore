@@ -131,3 +131,7 @@ test_screenshots/
 # Development artifacts
 cookies.txt
 *.cachetmpclaude-*
+
+# Claude Code temp files
+tmpclaude-*
+**/tmpclaude-*
