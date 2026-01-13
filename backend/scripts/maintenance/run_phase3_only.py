@@ -70,12 +70,20 @@ async def run_phase3_and_portfolio_refresh(calc_date: date = None):
     print("      Factor definitions verified")
     sys.stdout.flush()
 
+    # Step 2.5: Initialize price cache for 300x speedup
+    print("[2.5/3] Initializing price cache (200 days)...")
+    sys.stdout.flush()
+    from app.cache.symbol_cache import symbol_cache
+    await symbol_cache.initialize_async(target_date=calc_date)
+    print(f"        Cache ready: {len(symbol_cache._symbols_loaded)} symbols")
+    sys.stdout.flush()
+
     # Step 3: Run Phase 3
     print("[3/3] Running factor calculations...")
     sys.stdout.flush()
 
     try:
-        phase3_result = await _run_phase_3_factors(symbols, calc_date)
+        phase3_result = await _run_phase_3_factors(symbols, calc_date, symbol_cache._price_cache)
 
         print(f"\n[PHASE 3 COMPLETE]")
         print(f"  Calculated: {phase3_result.get('calculated', 0)}")

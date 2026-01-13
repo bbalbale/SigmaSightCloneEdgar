@@ -420,12 +420,21 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
             "reason": "Moved to NextSteps - needs optimization",
         }
 
+        # Initialize unified cache after Phase 1 (loads prices from market_data_cache)
+        # This provides 300x speedup for Phase 3 factor calculations
+        print(f"{V2_LOG_PREFIX}   Initializing price cache (200 days)...")
+        sys.stdout.flush()
+        from app.cache.symbol_cache import symbol_cache
+        await symbol_cache.initialize_async(target_date=calc_date)
+        print(f"{V2_LOG_PREFIX}   Cache ready: {len(symbol_cache._symbols_loaded)} symbols")
+        sys.stdout.flush()
+
         # Phase 3: Factor calculations
         print(f"{V2_LOG_PREFIX}   Phase 3: Factor calculations...")
         sys.stdout.flush()
         phase_start = datetime.now()
         try:
-            phase_3_result = await _run_phase_3_factors(symbols, calc_date)
+            phase_3_result = await _run_phase_3_factors(symbols, calc_date, symbol_cache._price_cache)
             factors_calculated = phase_3_result.get("calculated", 0)
             print(f"{V2_LOG_PREFIX}   Phase 3 complete: {factors_calculated} calculated")
             sys.stdout.flush()
@@ -719,7 +728,7 @@ async def _run_phase_2_fundamentals(symbols: List[str], calc_date: date) -> Dict
         raise
 
 
-async def _run_phase_3_factors(symbols: List[str], calc_date: date) -> Dict[str, Any]:
+async def _run_phase_3_factors(symbols: List[str], calc_date: date, price_cache=None) -> Dict[str, Any]:
     """
     Phase 3: Calculate factor exposures for all equity symbols.
 
@@ -733,6 +742,7 @@ async def _run_phase_3_factors(symbols: List[str], calc_date: date) -> Dict[str,
     Args:
         symbols: List of symbols to calculate
         calc_date: Calculation date
+        price_cache: Optional PriceCache for 300x faster price lookups
 
     Returns:
         Dict with calculation results
@@ -743,7 +753,7 @@ async def _run_phase_3_factors(symbols: List[str], calc_date: date) -> Dict[str,
 
     # Print logging for Railway visibility
     print(f"[PHASE3] Starting factor calculations for {len(symbols)} symbols...")
-    print(f"[PHASE3] Date: {calc_date}, Ridge=True, Spread=True")
+    print(f"[PHASE3] Date: {calc_date}, Ridge=True, Spread=True, cache={'enabled' if price_cache else 'disabled'}")
     sys.stdout.flush()
 
     try:
@@ -757,7 +767,7 @@ async def _run_phase_3_factors(symbols: List[str], calc_date: date) -> Dict[str,
             regularization_alpha=1.0,  # Default L2 penalty for Ridge
             calculate_ridge=True,
             calculate_spread=True,
-            price_cache=None,  # Will create its own if needed
+            price_cache=price_cache,  # V2: Use unified cache for 300x speedup
             symbols=symbols,  # Use our pre-computed symbol list
         )
 
