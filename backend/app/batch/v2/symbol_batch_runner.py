@@ -438,6 +438,15 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
             factors_calculated = phase_3_result.get("calculated", 0)
             print(f"{V2_LOG_PREFIX}   Phase 3 complete: {factors_calculated} calculated")
             sys.stdout.flush()
+
+            # Refresh factor cache with newly calculated factors
+            # This ensures Phase 5 aggregation and user onboarding use fresh data
+            print(f"{V2_LOG_PREFIX}   Refreshing factor cache...")
+            sys.stdout.flush()
+            await symbol_cache.refresh_factors(calc_date)
+            print(f"{V2_LOG_PREFIX}   Factor cache refreshed")
+            sys.stdout.flush()
+
             phases["phase_3_factors"] = {
                 "success": True,
                 "duration_seconds": (datetime.now() - phase_start).total_seconds(),

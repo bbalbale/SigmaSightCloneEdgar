@@ -413,6 +413,21 @@ class SymbolCacheService:
         self._initialized = False
         logger.info(f"{V2_LOG_PREFIX} Cache cleared")
 
+    async def refresh_factors(self, target_date: date):
+        """
+        Refresh factor cache with latest data from DB.
+
+        Call this after Phase 3 factor calculations complete to ensure
+        Phase 5 aggregation uses freshly calculated factors.
+        """
+        old_count = len(self._factor_cache)
+        self._factor_cache.clear()
+        await self._load_factors(target_date)
+        new_count = len(self._factor_cache)
+        logger.info(
+            f"{V2_LOG_PREFIX} Factor cache refreshed: {old_count} -> {new_count} entries"
+        )
+
 
 # =============================================================================
 # GLOBAL INSTANCE
