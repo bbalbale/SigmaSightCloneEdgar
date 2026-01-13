@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 from app.batch.v2.symbol_batch_runner import (
     _run_phase_3_factors,
-    _collect_symbols_to_process,
+    _get_symbols_to_process,
     ensure_factor_definitions,
 )
 from app.batch.v2.portfolio_refresh_runner import run_portfolio_refresh
@@ -55,7 +55,7 @@ async def run_phase3_and_portfolio_refresh(calc_date: date = None):
     # Step 1: Collect symbols
     print("[1/3] Collecting symbols to process...")
     sys.stdout.flush()
-    symbols = await _collect_symbols_to_process()
+    symbols = await _get_symbols_to_process()
     print(f"      Found {len(symbols)} symbols")
     sys.stdout.flush()
 
