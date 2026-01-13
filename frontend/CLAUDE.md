@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Last Updated**: 2025-12-21
+**Last Updated**: 2026-01-12
 
 ## Project Overview
 
@@ -11,6 +11,26 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > 🤖 **CRITICAL**: The backend uses **OpenAI Responses API**, NOT Chat Completions API.
 
 > 🤖 **CRITICAL**: Never commit changes unless explicitly told to do so.
+
+### Database Schema Verification (MANDATORY - for backend API calls)
+
+**BEFORE writing code that calls backend APIs, Claude MUST:**
+
+1. **Check the backend model files first** - Never guess field names in API responses
+   ```bash
+   # Check columns for any model
+   cd ../backend && uv run python -c "
+   from app.models.positions import Position
+   print([c.name for c in Position.__table__.columns])
+   "
+   ```
+
+2. **Model files to reference:**
+   - `backend/app/models/users.py` - User, Portfolio
+   - `backend/app/models/positions.py` - Position, PositionType
+   - `backend/app/models/market_data.py` - CompanyProfile, PositionGreeks, etc.
+
+3. **If Claude writes code with wrong field names, STOP and check the model file**
 
 **Current Status**: Multi-page application with 6 authenticated pages operational. Features include real-time portfolio analytics, AI Analytical Reasoning (Claude Sonnet 4), target price management, sector tagging with auto-tag service, and comprehensive risk metrics integration.
 
@@ -755,6 +775,47 @@ await tagsApi.tagPosition(positionId, tagId)
 // ❌ WRONG - strategiesApi is deprecated
 import strategiesApi from '@/services/strategiesApi'  // DON'T USE
 ```
+
+---
+
+## Windows + asyncpg Compatibility (Backend Scripts)
+
+**The backend develops on Windows and deploys to Railway (Linux).** When writing or running backend scripts that use asyncpg, use this template:
+
+### Required Script Template
+
+```python
+#!/usr/bin/env python
+"""Script description here"""
+import sys
+import asyncio
+
+# REQUIRED for Windows + asyncpg compatibility
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+from sqlalchemy import select
+from app.database import get_async_session
+from app.models.positions import Position  # Always read model file first!
+
+async def main():
+    async with get_async_session() as db:
+        result = await db.execute(select(Position))
+        positions = result.scalars().all()
+        print(f"Found {len(positions)} positions")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Key Rules
+1. **Always add the Windows event loop policy** at the top of scripts before any async imports
+2. **Use `async with get_async_session()`** - never call session methods outside the context manager
+3. **Use `Path` objects for file paths** - avoids Windows backslash issues:
+   ```python
+   from pathlib import Path
+   file_path = Path(__file__).parent / "data" / "file.json"
+   ```
 
 ---
 

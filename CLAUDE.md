@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Last Updated**: 2025-12-21
+**Last Updated**: 2026-01-12
 
 ## Project Overview
 
@@ -24,6 +24,28 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **NEVER push to any branch without explicit user permission**
 - **NEVER assume branch syncing** - only push to branches the user specifically requests
 - Always wait for user confirmation before `git push`, `git commit`, or merging branches
+
+### Database Schema Verification (MANDATORY)
+
+**BEFORE writing ANY database-related code, Claude MUST:**
+
+1. **Read the actual model file first** - Never guess column names
+   ```bash
+   # Check columns for any model
+   cd backend && uv run python -c "
+   from app.models.positions import Position
+   print([c.name for c in Position.__table__.columns])
+   "
+   ```
+
+2. **Model files to check before database work:**
+   - `backend/app/models/users.py` - User, Portfolio
+   - `backend/app/models/positions.py` - Position, PositionType
+   - `backend/app/models/market_data.py` - CompanyProfile, PositionGreeks, etc.
+   - `backend/app/models/tags_v2.py` - TagV2
+   - `backend/app/models/position_tags.py` - PositionTag
+
+3. **If Claude writes code with wrong column names, STOP and read the model file**
 
 ---
 
@@ -575,6 +597,47 @@ railway run python audit_railway_calculations_verbose.py
 ```
 
 **Full Documentation**: See `backend/scripts/railway/README.md`
+
+---
+
+## Windows + asyncpg Compatibility
+
+**This codebase develops on Windows and deploys to Railway (Linux).** All standalone scripts using asyncpg MUST include the Windows event loop fix.
+
+### Required Script Template
+
+```python
+#!/usr/bin/env python
+"""Script description here"""
+import sys
+import asyncio
+
+# REQUIRED for Windows + asyncpg compatibility
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+from sqlalchemy import select
+from app.database import get_async_session
+from app.models.positions import Position  # Always read model file first!
+
+async def main():
+    async with get_async_session() as db:
+        result = await db.execute(select(Position))
+        positions = result.scalars().all()
+        print(f"Found {len(positions)} positions")
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+### Key Rules
+1. **Always add the Windows event loop policy** at the top of scripts before any async imports
+2. **Use `async with get_async_session()`** - never call session methods outside the context manager
+3. **Use `Path` objects for file paths** - avoids Windows backslash issues:
+   ```python
+   from pathlib import Path
+   file_path = Path(__file__).parent / "data" / "file.json"
+   ```
 
 ---
 
