@@ -122,14 +122,14 @@ async def check_valuation_data():
 
         # 5. Check market_data_cache for today's prices
         print("\n" + "-" * 60)
-        print("Market Data Cache (today's prices):")
+        print("Market Data Cache (recent prices):")
         print("-" * 60)
 
         cache_result = await db.execute(
             text("""
                 SELECT COUNT(DISTINCT symbol)
                 FROM market_data_cache
-                WHERE data_date = :today
+                WHERE date = :today
             """),
             {"today": today}
         )
@@ -142,7 +142,7 @@ async def check_valuation_data():
             text("""
                 SELECT COUNT(DISTINCT symbol)
                 FROM market_data_cache
-                WHERE data_date = :yesterday
+                WHERE date = :yesterday
             """),
             {"yesterday": yesterday}
         )
@@ -156,7 +156,7 @@ async def check_valuation_data():
                 text("""
                     SELECT COUNT(DISTINCT symbol)
                     FROM market_data_cache
-                    WHERE data_date = :friday
+                    WHERE date = :friday
                 """),
                 {"friday": friday}
             )
