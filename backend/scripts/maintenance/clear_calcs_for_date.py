@@ -41,21 +41,22 @@ from app.database import get_async_session
 
 
 # Tables to clear with their date column names
-# Format: (table_name, date_column)
+# Format: (table_name, date_column, use_date_cast)
+# use_date_cast=True for DateTime columns that need DATE() cast
 CALC_TABLES = [
-    ("symbol_factor_exposures", "calculation_date"),      # V2 symbol-level factors
-    ("portfolio_snapshots", "snapshot_date"),             # P&L snapshots
-    ("factor_exposures", "calculation_date"),             # Portfolio-level factors
-    ("correlation_calculations", "calculation_date"),     # Correlation matrices
-    ("pairwise_correlations", "calculation_date"),        # Pairwise correlations
-    ("stress_test_results", "calculation_date"),          # Stress test results
-    ("position_greeks", "calculation_date"),              # Options greeks
-    ("position_factor_exposures", "calculation_date"),    # V1 position-level factors
-    ("position_market_betas", "calc_date"),               # Market betas
-    ("position_interest_rate_betas", "calculation_date"), # IR betas
-    ("position_volatilities", "calculation_date"),        # Volatility metrics
-    ("market_risk_scenarios", "calculation_date"),        # Risk scenarios
-    ("factor_correlations", "calculation_date"),          # Factor correlations
+    ("symbol_factor_exposures", "calculation_date", False),      # V2 symbol-level factors
+    ("portfolio_snapshots", "snapshot_date", False),             # P&L snapshots
+    ("factor_exposures", "calculation_date", False),             # Portfolio-level factors
+    ("correlation_calculations", "calculation_date", True),      # DateTime column - needs DATE() cast
+    ("pairwise_correlations", "calculation_date", True),         # DateTime column - needs DATE() cast
+    ("stress_test_results", "calculation_date", False),          # Stress test results
+    ("position_greeks", "calculation_date", False),              # Options greeks
+    ("position_factor_exposures", "calculation_date", False),    # V1 position-level factors
+    ("position_market_betas", "calc_date", False),               # Market betas
+    ("position_interest_rate_betas", "calculation_date", False), # IR betas
+    ("position_volatility", "calculation_date", False),          # Volatility metrics (singular!)
+    ("market_risk_scenarios", "calculation_date", False),        # Risk scenarios
+    ("factor_correlations", "calculation_date", False),          # Factor correlations
 ]
 
 
@@ -72,10 +73,16 @@ async def clear_calcs_for_date(target_date: date, dry_run: bool = False):
     results = {}
 
     async with get_async_session() as db:
-        for table_name, date_column in CALC_TABLES:
+        for table_name, date_column, use_date_cast in CALC_TABLES:
             try:
+                # Build WHERE clause - use DATE() cast for DateTime columns
+                if use_date_cast:
+                    where_clause = f"DATE({date_column}) = :target_date"
+                else:
+                    where_clause = f"{date_column} = :target_date"
+
                 # Count rows to delete
-                count_sql = text(f"SELECT COUNT(*) FROM {table_name} WHERE {date_column} = :target_date")
+                count_sql = text(f"SELECT COUNT(*) FROM {table_name} WHERE {where_clause}")
                 count_result = await db.execute(count_sql, {"target_date": target_date})
                 count = count_result.scalar() or 0
 
@@ -89,7 +96,7 @@ async def clear_calcs_for_date(target_date: date, dry_run: bool = False):
                     results[table_name] = count
                 else:
                     # Delete rows for the specific date
-                    delete_sql = text(f"DELETE FROM {table_name} WHERE {date_column} = :target_date")
+                    delete_sql = text(f"DELETE FROM {table_name} WHERE {where_clause}")
                     await db.execute(delete_sql, {"target_date": target_date})
                     print(f"  [OK]   {table_name}: Deleted {count} rows")
                     results[table_name] = count
@@ -101,7 +108,7 @@ async def clear_calcs_for_date(target_date: date, dry_run: bool = False):
                 if "does not exist" in error_msg or "relation" in error_msg.lower():
                     print(f"  [SKIP] {table_name}: Table does not exist")
                 else:
-                    print(f"  [ERR]  {table_name}: {error_msg[:60]}")
+                    print(f"  [ERR]  {table_name}: {error_msg}")
                 results[table_name] = 0
 
         # Commit all deletions
