@@ -18,16 +18,13 @@ Health Check Support:
 Reference: PlanningDocs/V2BatchArchitecture/06-PORTFOLIO-CACHE.md
 """
 
-import asyncio
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Dict, Optional, Any, Set, Tuple
-from uuid import UUID
 
-from sqlalchemy import select, and_, desc
+from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.core.logging import get_logger
 from app.core.datetime_utils import utc_now
 from app.database import get_async_session
@@ -292,10 +289,11 @@ class SymbolCacheService:
             )
             price = result.scalar_one_or_none()
 
-            # Cache the result
+            # Cache the result (consistent with set_price - updates both sets)
             if price is not None:
                 self._price_cache.set_price(symbol, price_date, price)
                 self._symbols_loaded.add(symbol)
+                self._dates_loaded.add(price_date)
 
             return price
 
@@ -313,10 +311,11 @@ class SymbolCacheService:
             )
             price = result.scalar_one_or_none()
 
-            # Cache the result
+            # Cache the result (consistent with set_price - updates both sets)
             if price is not None:
                 self._price_cache.set_price(symbol, price_date, price)
                 self._symbols_loaded.add(symbol)
+                self._dates_loaded.add(price_date)
 
             return price
 
