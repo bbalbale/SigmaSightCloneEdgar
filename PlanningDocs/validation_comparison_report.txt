@@ -1,0 +1,555 @@
+================================================================================
+V2 BATCH VALIDATION COMPARISON REPORT
+================================================================================
+Generated: 2026-01-13T21:01:44.692551
+Baseline captured: 2026-01-13T18:34:47.944946+00:00
+Date range: 2026-01-01 to 2026-01-12
+
+--------------------------------------------------------------------------------
+SUMMARY
+--------------------------------------------------------------------------------
+Total field comparisons: 903
+Matches: 472
+Mismatches: 431
+Missing in new data: 0
+Extra in new data: 0
+Success rate: 52.27%
+
+[FAIL] VALIDATION FAILED - V2 batch produces different results
+
+--------------------------------------------------------------------------------
+MISMATCHES
+--------------------------------------------------------------------------------
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: net_asset_value
+    Old: 535799.08
+    New: 536714.23
+    Diff: 915.150000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: long_value
+    Old: 533599.0
+    New: 534514.16
+    Diff: 915.160000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: short_value
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: gross_exposure
+    Old: 533599.0
+    New: 534514.16
+    Diff: 915.160000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: net_exposure
+    Old: 533599.0
+    New: 534514.16
+    Diff: 915.160000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: daily_pnl
+    Old: -1194.55
+    New: -279.4
+    Diff: 915.150000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: cumulative_pnl
+    Old: 50799.08
+    New: 51714.23
+    Diff: 915.150000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: daily_realized_pnl
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: cumulative_realized_pnl
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: daily_capital_flow
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: cumulative_capital_flow
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: equity_balance
+    Old: 535799.08
+    New: 536714.23
+    Diff: 915.150000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: portfolio_delta
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: portfolio_gamma
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: portfolio_theta
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: portfolio_vega
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: daily_return
+    Old: -0.002225
+    New: -0.00052
+    Diff: 0.001705 (tolerance: 0.0001)
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: realized_volatility_21d
+    Old: 0.0876
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: realized_volatility_63d
+    Old: 0.122
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: expected_volatility_21d
+    Old: 0.0817
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: beta_calculated_90d
+    Old: 0.9168
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: beta_calculated_90d_r_squared
+    Old: 0.4301
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: beta_provider_1y
+    Old: 0.9132
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: hhi
+    Old: 945.6026
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: effective_num_positions
+    Old: 10.58
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: top_3_concentration
+    Old: 0.405
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: top_10_concentration
+    Old: 0.8094
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-02
+    Field: beta_calculated_90d_observations
+    Old: 82
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: net_asset_value
+    Old: 538383.19
+    New: 541045.61
+    Diff: 2662.420000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: cash_value
+    Old: 1284.92
+    New: 2200.07
+    Diff: 915.150000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: long_value
+    Old: 537098.27
+    New: 538845.54
+    Diff: 1747.270000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: short_value
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: gross_exposure
+    Old: 537098.27
+    New: 538845.54
+    Diff: 1747.270000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: net_exposure
+    Old: 537098.27
+    New: 538845.54
+    Diff: 1747.270000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: daily_pnl
+    Old: 2584.11
+    New: 4331.38
+    Diff: 1747.270000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: cumulative_pnl
+    Old: 53383.19
+    New: 56045.61
+    Diff: 2662.420000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: daily_realized_pnl
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: cumulative_realized_pnl
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: daily_capital_flow
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: cumulative_capital_flow
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: equity_balance
+    Old: 538383.19
+    New: 541045.61
+    Diff: 2662.420000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: portfolio_delta
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: portfolio_gamma
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: portfolio_theta
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: portfolio_vega
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: daily_return
+    Old: 0.004823
+    New: 0.00807
+    Diff: 0.003247 (tolerance: 0.0001)
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: realized_volatility_21d
+    Old: 0.0874
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: realized_volatility_63d
+    Old: 0.1224
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: expected_volatility_21d
+    Old: 0.0701
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: beta_calculated_90d
+    Old: 0.925
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: beta_calculated_90d_r_squared
+    Old: 0.4326
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: beta_provider_1y
+    Old: 0.9157
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: hhi
+    Old: 944.9744
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: effective_num_positions
+    Old: 10.58
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: top_3_concentration
+    Old: 0.405
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: top_10_concentration
+    Old: 0.8096
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-05
+    Field: beta_calculated_90d_observations
+    Old: 81
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: net_asset_value
+    Old: 539720.59
+    New: 542383.01
+    Diff: 2662.420000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: cash_value
+    Old: 0.0
+    New: 2200.07
+    Diff: 2200.070000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: short_value
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: cumulative_pnl
+    Old: 54720.59
+    New: 57383.01
+    Diff: 2662.420000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: daily_realized_pnl
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: cumulative_realized_pnl
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: daily_capital_flow
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: cumulative_capital_flow
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: equity_balance
+    Old: 539720.59
+    New: 542383.01
+    Diff: 2662.420000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: portfolio_delta
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: portfolio_gamma
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: portfolio_theta
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: portfolio_vega
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: realized_volatility_21d
+    Old: 0.0924
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: realized_volatility_63d
+    Old: 0.1227
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: expected_volatility_21d
+    Old: 0.0838
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: beta_calculated_90d
+    Old: 0.9231
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: beta_calculated_90d_r_squared
+    Old: 0.4333
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: beta_provider_1y
+    Old: 0.9199
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-06
+    Field: beta_calculated_90d_observations
+    Old: 83
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: net_asset_value
+    Old: 539028.77
+    New: 541691.19
+    Diff: 2662.420000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: cash_value
+    Old: 0.0
+    New: 2200.07
+    Diff: 2200.070000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: short_value
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: cumulative_pnl
+    Old: 54028.77
+    New: 56691.19
+    Diff: 2662.420000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: daily_realized_pnl
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: cumulative_realized_pnl
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: daily_capital_flow
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: cumulative_capital_flow
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: equity_balance
+    Old: 539028.77
+    New: 541691.19
+    Diff: 2662.420000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: portfolio_delta
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: portfolio_gamma
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: portfolio_theta
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: portfolio_vega
+    Old: 0.0
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: realized_volatility_21d
+    Old: 0.0814
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: realized_volatility_63d
+    Old: 0.1221
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: expected_volatility_21d
+    Old: 0.0783
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: beta_calculated_90d
+    Old: 0.9209
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: beta_calculated_90d_r_squared
+    Old: 0.433
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: beta_provider_1y
+    Old: 0.9197
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-07
+    Field: beta_calculated_90d_observations
+    Old: 83
+    New: None
+
+  Snapshot 1d8ddd95.../2026-01-08
+    Field: net_asset_value
+    Old: 539464.09
+    New: 541939.62
+    Diff: 2475.530000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-08
+    Field: cash_value
+    Old: 0.0
+    New: 2200.08
+    Diff: 2200.080000 (tolerance: 0.01)
+
+  Snapshot 1d8ddd95.../2026-01-08
+    Field: long_value
+    Old: 541412.98
+    New: 539739.54
+    Diff: 1673.440000 (tolerance: 0.01)
+
+  ... and 331 more mismatches
+
+================================================================================
+END OF REPORT
+================================================================================
