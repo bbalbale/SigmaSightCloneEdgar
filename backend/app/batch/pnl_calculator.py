@@ -113,9 +113,12 @@ class PnLCalculator:
         errors = []
 
         for portfolio in portfolios:
+            # Store name/id before try block to avoid lazy-load issues in exception handler
+            portfolio_name = portfolio.name
+            portfolio_id = portfolio.id
             try:
                 result = await self.calculate_portfolio_pnl(
-                    portfolio_id=portfolio.id,
+                    portfolio_id=portfolio_id,
                     calculation_date=calculation_date,
                     db=db,
                     price_cache=price_cache  # Pass cache to portfolio processing
@@ -125,21 +128,21 @@ class PnLCalculator:
                 if isinstance(result, dict):
                     if result.get("status") == "skipped":
                         # Idempotency working as designed - not an error
-                        logger.debug(f"{portfolio.name}: Skipped (duplicate run)")
+                        logger.debug(f"{portfolio_name}: Skipped (duplicate run)")
                         continue
                     # Other dict responses treated as errors
-                    errors.append(f"{portfolio.name}: {result.get('message', 'Unknown error')}")
+                    errors.append(f"{portfolio_name}: {result.get('message', 'Unknown error')}")
                 elif result is True:
                     # Success
                     portfolios_processed += 1
                     snapshots_created += 1
                 elif result is False:
                     # Legacy False return (should not happen with new code)
-                    errors.append(f"{portfolio.name}: Failed to create snapshot")
+                    errors.append(f"{portfolio_name}: Failed to create snapshot")
 
             except Exception as e:
-                logger.error(f"Error processing portfolio {portfolio.name}: {e}")
-                errors.append(f"{portfolio.name}: {str(e)}")
+                logger.error(f"Error processing portfolio {portfolio_name}: {e}")
+                errors.append(f"{portfolio_name}: {str(e)}")
 
         return {
             'success': len(errors) == 0,
