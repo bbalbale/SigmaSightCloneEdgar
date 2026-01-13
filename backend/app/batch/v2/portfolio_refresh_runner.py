@@ -549,7 +549,9 @@ async def _aggregate_portfolio_factors(
                         portfolio_equity=portfolio_equity
                     )
 
+                # CRITICAL: Commit the transaction (store_portfolio_factor_exposures doesn't commit)
                 if ridge_betas or spread_betas:
+                    await db.commit()
                     calculated += 1
                 else:
                     skipped += 1
