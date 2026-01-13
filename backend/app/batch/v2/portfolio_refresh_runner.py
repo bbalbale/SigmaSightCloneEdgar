@@ -4,14 +4,19 @@ V2 Portfolio Refresh Runner
 Runs at 9:30 PM ET (30 minutes after symbol batch) to refresh all portfolios:
 1. Wait for symbol batch completion
 2. Wait for pending symbol onboarding
-3. Create snapshots for all portfolios using cached data
-4. Calculate portfolio-level analytics
+3. Create snapshots for all portfolios using cached data (Phase 3)
+4. Calculate position correlations for all portfolios (Phase 4)
+5. Aggregate symbol factors to portfolio level (Phase 5)
+6. Calculate stress tests for all portfolios (Phase 6)
 
 Key Design Decisions:
 - Runs AFTER symbol batch to leverage cached prices and factors
 - Uses existing PnLCalculator for snapshot creation
 - Uses PriceCache for fast price lookups (300x faster than DB)
-- Writes to existing tables (PortfolioSnapshot, etc.)
+- Phase 5 reads from symbol_factor_exposures (V2 batch) and writes to factor_exposures
+- Phase 6 reads from factor_exposures for stress scenario calculations
+- Writes to: PortfolioSnapshot, CorrelationCalculation, PairwiseCorrelation,
+  FactorExposure, StressTestResult
 
 Reference: PlanningDocs/V2BatchArchitecture/05-PORTFOLIO-REFRESH.md
 """
@@ -72,14 +77,19 @@ class PortfolioRefreshResult:
     target_date: date
     portfolios_processed: int = 0
     snapshots_created: int = 0
+    correlations_calculated: int = 0
+    stress_tests_calculated: int = 0
     errors: List[str] = None
     duration_seconds: float = 0.0
     waited_for_symbol_batch: bool = False
     waited_for_onboarding: bool = False
+    phase_durations: Dict[str, float] = None
 
     def __post_init__(self):
         if self.errors is None:
             self.errors = []
+        if self.phase_durations is None:
+            self.phase_durations = {}
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -87,10 +97,13 @@ class PortfolioRefreshResult:
             "target_date": self.target_date.isoformat(),
             "portfolios_processed": self.portfolios_processed,
             "snapshots_created": self.snapshots_created,
+            "correlations_calculated": self.correlations_calculated,
+            "stress_tests_calculated": self.stress_tests_calculated,
             "errors": self.errors,
             "duration_seconds": self.duration_seconds,
             "waited_for_symbol_batch": self.waited_for_symbol_batch,
             "waited_for_onboarding": self.waited_for_onboarding,
+            "phase_durations": self.phase_durations,
         }
 
 
@@ -150,6 +163,9 @@ async def run_portfolio_refresh(
     )
 
     try:
+        import sys
+        phase_durations = {}
+
         # Step 1: Wait for symbol batch (if enabled)
         if wait_for_symbol_batch:
             batch_complete = await _wait_for_symbol_batch(target_date)
@@ -173,16 +189,73 @@ async def run_portfolio_refresh(
         # Step 3: Load price cache for fast lookups
         price_cache = await _load_price_cache(target_date)
 
-        # Step 4: Process all portfolios
+        # Phase 3: Create snapshots for all portfolios
+        print(f"{V2_LOG_PREFIX} Phase 3: Creating portfolio snapshots...")
+        sys.stdout.flush()
+        phase_start = datetime.now()
         refresh_result = await _refresh_all_portfolios(target_date, price_cache)
+        phase_durations["phase_3_snapshots"] = (datetime.now() - phase_start).total_seconds()
+        print(f"{V2_LOG_PREFIX} Phase 3 complete: {refresh_result.get('snapshots_created', 0)} snapshots in {phase_durations['phase_3_snapshots']:.1f}s")
+        sys.stdout.flush()
 
         result.portfolios_processed = refresh_result.get("portfolios_processed", 0)
         result.snapshots_created = refresh_result.get("snapshots_created", 0)
         result.errors = refresh_result.get("errors", [])
+
+        # Get portfolio IDs for Phase 4 and 5
+        portfolio_ids = await _get_active_portfolio_ids()
+
+        # Phase 4: Calculate correlations for all portfolios
+        print(f"{V2_LOG_PREFIX} Phase 4: Calculating correlations for {len(portfolio_ids)} portfolios...")
+        sys.stdout.flush()
+        phase_start = datetime.now()
+        correlation_result = await _run_correlations_for_all_portfolios(
+            portfolio_ids, target_date, price_cache
+        )
+        phase_durations["phase_4_correlations"] = (datetime.now() - phase_start).total_seconds()
+        result.correlations_calculated = correlation_result.get("calculated", 0)
+        print(f"{V2_LOG_PREFIX} Phase 4 complete: {result.correlations_calculated} correlations in {phase_durations['phase_4_correlations']:.1f}s")
+        sys.stdout.flush()
+
+        if correlation_result.get("errors"):
+            result.errors.extend(correlation_result["errors"])
+
+        # Phase 5: Aggregate symbol factors to portfolio level
+        # This MUST happen before stress tests since they read from factor_exposures table
+        print(f"{V2_LOG_PREFIX} Phase 5: Aggregating symbol factors to portfolio level...")
+        sys.stdout.flush()
+        phase_start = datetime.now()
+        factor_agg_result = await _aggregate_portfolio_factors(
+            portfolio_ids, target_date
+        )
+        phase_durations["phase_5_factor_aggregation"] = (datetime.now() - phase_start).total_seconds()
+        print(f"{V2_LOG_PREFIX} Phase 5 complete: {factor_agg_result.get('calculated', 0)} portfolios in {phase_durations['phase_5_factor_aggregation']:.1f}s")
+        sys.stdout.flush()
+
+        if factor_agg_result.get("errors"):
+            result.errors.extend(factor_agg_result["errors"])
+
+        # Phase 6: Calculate stress tests for all portfolios
+        print(f"{V2_LOG_PREFIX} Phase 6: Calculating stress tests for {len(portfolio_ids)} portfolios...")
+        sys.stdout.flush()
+        phase_start = datetime.now()
+        stress_result = await _run_stress_tests_for_all_portfolios(
+            portfolio_ids, target_date
+        )
+        phase_durations["phase_6_stress_tests"] = (datetime.now() - phase_start).total_seconds()
+        result.stress_tests_calculated = stress_result.get("calculated", 0)
+        print(f"{V2_LOG_PREFIX} Phase 6 complete: {result.stress_tests_calculated} stress tests in {phase_durations['phase_6_stress_tests']:.1f}s")
+        sys.stdout.flush()
+
+        if stress_result.get("errors"):
+            result.errors.extend(stress_result["errors"])
+
+        # Finalize results
+        result.phase_durations = phase_durations
         result.success = refresh_result.get("success", False)
         result.duration_seconds = (datetime.now() - start_time).total_seconds()
 
-        # Step 5: Record completion
+        # Step 6: Record completion
         await _record_portfolio_refresh_completion(target_date, result, job_id)
 
         # Mark job complete
@@ -388,6 +461,295 @@ async def _refresh_all_portfolios(
     )
 
     return result
+
+
+async def _get_active_portfolio_ids() -> List[UUID]:
+    """
+    Get all active (non-deleted) portfolio IDs.
+
+    Returns:
+        List of portfolio UUIDs
+    """
+    async with get_async_session() as db:
+        result = await db.execute(
+            select(Portfolio.id).where(Portfolio.deleted_at.is_(None))
+        )
+        return [row[0] for row in result.fetchall()]
+
+
+# =============================================================================
+# PHASE 4: CORRELATIONS
+# =============================================================================
+
+async def _aggregate_portfolio_factors(
+    portfolio_ids: List[UUID],
+    target_date: date,
+) -> Dict[str, Any]:
+    """
+    Phase 5: Aggregate symbol-level factors to portfolio-level.
+
+    Uses pre-computed symbol factors from symbol_factor_exposures table
+    (populated by V2 symbol batch Phase 3) and aggregates them by position
+    weight to create portfolio-level factor exposures.
+
+    This MUST run before stress tests, which read from factor_exposures table.
+
+    Args:
+        portfolio_ids: List of portfolio IDs to process
+        target_date: Calculation date
+
+    Returns:
+        Dict with aggregation results
+    """
+    from app.services.portfolio_factor_service import (
+        get_portfolio_factor_exposures,
+        store_portfolio_factor_exposures
+    )
+
+    logger.info(f"{V2_LOG_PREFIX} Phase 5: Factor aggregation for {len(portfolio_ids)} portfolios")
+
+    calculated = 0
+    skipped = 0
+    failed = 0
+    errors = []
+
+    for i, portfolio_id in enumerate(portfolio_ids, 1):
+        try:
+            async with get_async_session() as db:
+                # Get Ridge factors (aggregated from symbol-level)
+                ridge_result = await get_portfolio_factor_exposures(
+                    db=db,
+                    portfolio_id=portfolio_id,
+                    calculation_date=target_date,
+                    use_delta_adjusted=False,
+                    include_ridge=True,
+                    include_spread=False
+                )
+
+                ridge_betas = ridge_result.get('ridge_betas', {})
+                metadata = ridge_result.get('metadata', {})
+                portfolio_equity = metadata.get('portfolio_equity', 0.0)
+
+                if ridge_betas:
+                    await store_portfolio_factor_exposures(
+                        db=db,
+                        portfolio_id=portfolio_id,
+                        portfolio_betas=ridge_betas,
+                        calculation_date=target_date,
+                        portfolio_equity=portfolio_equity
+                    )
+
+                # Get Spread factors (aggregated from symbol-level)
+                spread_result = await get_portfolio_factor_exposures(
+                    db=db,
+                    portfolio_id=portfolio_id,
+                    calculation_date=target_date,
+                    use_delta_adjusted=False,
+                    include_ridge=False,
+                    include_spread=True
+                )
+
+                spread_betas = spread_result.get('spread_betas', {})
+
+                if spread_betas:
+                    await store_portfolio_factor_exposures(
+                        db=db,
+                        portfolio_id=portfolio_id,
+                        portfolio_betas=spread_betas,
+                        calculation_date=target_date,
+                        portfolio_equity=portfolio_equity
+                    )
+
+                if ridge_betas or spread_betas:
+                    calculated += 1
+                else:
+                    skipped += 1
+                    logger.debug(f"{V2_LOG_PREFIX} No factors for portfolio {portfolio_id}")
+
+            if i % 10 == 0 or i == len(portfolio_ids):
+                logger.info(f"{V2_LOG_PREFIX} Phase 5 progress: {i}/{len(portfolio_ids)}")
+
+        except Exception as e:
+            failed += 1
+            error_msg = f"Factor aggregation failed for {portfolio_id}: {str(e)[:100]}"
+            errors.append(error_msg)
+            logger.warning(f"{V2_LOG_PREFIX} {error_msg}")
+
+    logger.info(
+        f"{V2_LOG_PREFIX} Phase 5 complete: calculated={calculated}, skipped={skipped}, failed={failed}"
+    )
+
+    return {
+        "calculated": calculated,
+        "skipped": skipped,
+        "failed": failed,
+        "errors": errors,
+    }
+
+
+
+
+async def _run_correlations_for_all_portfolios(
+    portfolio_ids: List[UUID],
+    target_date: date,
+    price_cache: PriceCache,
+) -> Dict[str, Any]:
+    """
+    Phase 4: Calculate position correlations for all portfolios.
+
+    Uses CorrelationService.calculate_portfolio_correlations() which:
+    - Calculates pairwise correlations between positions
+    - Stores results in CorrelationCalculation and PairwiseCorrelation tables
+    - Gracefully skips portfolios with < 2 public positions
+
+    Args:
+        portfolio_ids: List of portfolio IDs to process
+        target_date: Calculation date
+        price_cache: Pre-loaded price cache
+
+    Returns:
+        Dict with calculation results
+    """
+    from app.services.correlation_service import CorrelationService
+
+    logger.info(f"{V2_LOG_PREFIX} Phase 4: Correlations for {len(portfolio_ids)} portfolios")
+
+    calculated = 0
+    skipped = 0
+    failed = 0
+    errors = []
+
+    for i, portfolio_id in enumerate(portfolio_ids, 1):
+        try:
+            async with get_async_session() as db:
+                correlation_service = CorrelationService(db, price_cache=price_cache)
+
+                result = await correlation_service.calculate_portfolio_correlations(
+                    portfolio_id=portfolio_id,
+                    calculation_date=target_date
+                )
+
+                # CorrelationService returns None if no public positions (graceful skip)
+                if result is None:
+                    skipped += 1
+                    logger.debug(f"{V2_LOG_PREFIX} Correlations skipped for portfolio {portfolio_id} (no public positions)")
+                else:
+                    calculated += 1
+
+            if i % 10 == 0 or i == len(portfolio_ids):
+                logger.info(f"{V2_LOG_PREFIX} Phase 4 progress: {i}/{len(portfolio_ids)}")
+
+        except Exception as e:
+            failed += 1
+            error_msg = f"Correlation failed for {portfolio_id}: {str(e)[:100]}"
+            errors.append(error_msg)
+            logger.warning(f"{V2_LOG_PREFIX} {error_msg}")
+
+    logger.info(
+        f"{V2_LOG_PREFIX} Phase 4 complete: calculated={calculated}, skipped={skipped}, failed={failed}"
+    )
+
+    return {
+        "calculated": calculated,
+        "skipped": skipped,
+        "failed": failed,
+        "errors": errors,
+    }
+
+
+# =============================================================================
+# PHASE 5: STRESS TESTS
+# =============================================================================
+
+async def _run_stress_tests_for_all_portfolios(
+    portfolio_ids: List[UUID],
+    target_date: date,
+) -> Dict[str, Any]:
+    """
+    Phase 5: Calculate stress tests for all portfolios.
+
+    Uses run_comprehensive_stress_test() and save_stress_test_results() which:
+    - Runs 10+ stress scenarios (market crash, interest rate shock, etc.)
+    - Uses factor correlations for impact calculation
+    - Stores results in StressTestResult table
+
+    Args:
+        portfolio_ids: List of portfolio IDs to process
+        target_date: Calculation date
+
+    Returns:
+        Dict with calculation results
+    """
+    from app.calculations.stress_testing import (
+        run_comprehensive_stress_test,
+        save_stress_test_results
+    )
+
+    logger.info(f"{V2_LOG_PREFIX} Phase 5: Stress tests for {len(portfolio_ids)} portfolios")
+
+    calculated = 0
+    skipped = 0
+    failed = 0
+    errors = []
+
+    for i, portfolio_id in enumerate(portfolio_ids, 1):
+        try:
+            async with get_async_session() as db:
+                # Run comprehensive stress test
+                stress_results = await run_comprehensive_stress_test(
+                    db=db,
+                    portfolio_id=portfolio_id,
+                    calculation_date=target_date
+                )
+
+                # Check if results were returned
+                if not stress_results:
+                    skipped += 1
+                    logger.debug(f"{V2_LOG_PREFIX} Stress test skipped for portfolio {portfolio_id} (no results)")
+                    continue
+
+                # Check if stress test was skipped (happens for portfolios with no factor exposures)
+                stress_test_data = stress_results.get('stress_test_results', {})
+                if stress_test_data.get('skipped'):
+                    skipped += 1
+                    reason = stress_test_data.get('reason', 'unknown')
+                    logger.debug(f"{V2_LOG_PREFIX} Stress test skipped for portfolio {portfolio_id}: {reason}")
+                    continue
+
+                # Save results to database
+                scenarios_tested = stress_results.get('config_metadata', {}).get('scenarios_tested', 0)
+                if scenarios_tested > 0:
+                    saved_count = await save_stress_test_results(
+                        db=db,
+                        portfolio_id=portfolio_id,
+                        stress_test_results=stress_results
+                    )
+                    if saved_count > 0:
+                        calculated += 1
+                    else:
+                        skipped += 1
+                else:
+                    skipped += 1
+
+            if i % 10 == 0 or i == len(portfolio_ids):
+                logger.info(f"{V2_LOG_PREFIX} Phase 5 progress: {i}/{len(portfolio_ids)}")
+
+        except Exception as e:
+            failed += 1
+            error_msg = f"Stress test failed for {portfolio_id}: {str(e)[:100]}"
+            errors.append(error_msg)
+            logger.warning(f"{V2_LOG_PREFIX} {error_msg}")
+
+    logger.info(
+        f"{V2_LOG_PREFIX} Phase 5 complete: calculated={calculated}, skipped={skipped}, failed={failed}"
+    )
+
+    return {
+        "calculated": calculated,
+        "skipped": skipped,
+        "failed": failed,
+        "errors": errors,
+    }
 
 
 # =============================================================================

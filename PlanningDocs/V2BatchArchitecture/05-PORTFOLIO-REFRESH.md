@@ -2,11 +2,47 @@
 
 ## Overview
 
-Second daily cron job that runs AFTER symbol batch completes. Creates snapshots and updates market values for all portfolios that need them.
+Second daily cron job that runs AFTER symbol batch completes. Creates snapshots, calculates correlations, aggregates factors, and runs stress tests for all portfolios.
 
 **Trigger**: 9:30 PM ET (30 min after symbol batch starts)
 **Prerequisite**: Symbol batch must have completed successfully
 **Duration**: ~5-15 min depending on portfolio count
+
+---
+
+## V2 Implementation (January 2026)
+
+The V2 portfolio refresh runs 6 phases:
+
+| Phase | Name | Description | Tables Written |
+|-------|------|-------------|----------------|
+| 3 | Snapshots | Create daily P&L snapshots using cached prices | `portfolio_snapshots` |
+| 4 | Correlations | Calculate position-to-position correlations | `correlation_calculations`, `pairwise_correlations` |
+| 5 | Factor Aggregation | Aggregate symbol factors to portfolio level | `factor_exposures` |
+| 6 | Stress Tests | Run stress scenarios using portfolio factors | `stress_test_results` |
+
+### Data Flow
+
+```
+Symbol Batch (Cron Job 1)
+    │
+    ├─► market_data_cache (prices)
+    └─► symbol_factor_exposures (symbol-level factors)
+            │
+            ▼
+Portfolio Refresh (Cron Job 2)
+    │
+    ├─► Phase 3: PriceCache → portfolio_snapshots
+    ├─► Phase 4: PriceCache → correlation_calculations, pairwise_correlations
+    ├─► Phase 5: symbol_factor_exposures → factor_exposures (aggregated)
+    └─► Phase 6: factor_exposures → stress_test_results
+```
+
+### Key Dependencies
+
+- **Phase 4 (Correlations)**: Uses PriceCache for price lookups (300x faster)
+- **Phase 5 (Factor Aggregation)**: Reads from `symbol_factor_exposures`, writes to `factor_exposures`
+- **Phase 6 (Stress Tests)**: Reads from `factor_exposures` (portfolio-level factors)
 
 ---
 
