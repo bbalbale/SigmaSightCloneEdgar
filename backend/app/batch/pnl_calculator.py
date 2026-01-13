@@ -99,8 +99,13 @@ class PnLCalculator:
     ) -> Dict[str, Any]:
         """Process all portfolios with provided session and optional price cache"""
 
-        # Get all active portfolios
-        query = select(Portfolio).where(Portfolio.deleted_at.is_(None))
+        # Get all active portfolios - eagerly load id and name to avoid lazy-load issues
+        from sqlalchemy.orm import load_only
+        query = (
+            select(Portfolio)
+            .options(load_only(Portfolio.id, Portfolio.name))
+            .where(Portfolio.deleted_at.is_(None))
+        )
         if portfolio_ids is not None:
             query = query.where(Portfolio.id.in_(portfolio_ids))
         result = await db.execute(query)
