@@ -117,7 +117,8 @@ async def populate_snapshot_data(
     calculation_date: date,
     skip_pnl_calculation: bool = False,
     skip_provider_beta: bool = False,
-    skip_sector_analysis: bool = False
+    skip_sector_analysis: bool = False,
+    equity_override: Optional[Decimal] = None,
 ) -> PortfolioSnapshot:
     """
     Populate an existing placeholder snapshot with real calculation data.
@@ -137,6 +138,9 @@ async def populate_snapshot_data(
         skip_pnl_calculation: If True, skip P&L calculation (for V3 batch processor)
         skip_provider_beta: If True, skip provider beta calculation (for historical backfills)
         skip_sector_analysis: If True, skip sector analysis (for historical backfills)
+        equity_override: If provided, use this equity value instead of querying portfolio.
+                         This ensures cash calculation uses the correct (updated) equity
+                         when called from pnl_calculator after equity rollforward.
 
     Returns:
         The populated snapshot with is_complete=True
@@ -196,15 +200,28 @@ async def populate_snapshot_data(
     aggregations = calculate_portfolio_exposures(positions_list)
 
     # Get portfolio object for equity_balance
-    portfolio_result = await db.execute(
-        select(PortfolioModel).where(PortfolioModel.id == portfolio_id)
-    )
-    portfolio = portfolio_result.scalar_one_or_none()
-    if not portfolio:
-        raise ValueError(f"Portfolio {portfolio_id} not found")
-
-    today_equity = portfolio.equity_balance or Decimal('0')
-    logger.debug(f"Using portfolio equity_balance from session: ${float(today_equity):,.2f}")
+    # CRITICAL FIX (2026-01-13): Use equity_override if provided to ensure cash
+    # calculation uses the correct (updated) equity after P&L rollforward.
+    # Re-querying the portfolio can return stale data in some session scenarios.
+    if equity_override is not None:
+        today_equity = equity_override
+        logger.debug(f"Using equity_override for cash calculation: ${float(today_equity):,.2f}")
+        # Still need to verify portfolio exists
+        portfolio_result = await db.execute(
+            select(PortfolioModel).where(PortfolioModel.id == portfolio_id)
+        )
+        portfolio = portfolio_result.scalar_one_or_none()
+        if not portfolio:
+            raise ValueError(f"Portfolio {portfolio_id} not found")
+    else:
+        portfolio_result = await db.execute(
+            select(PortfolioModel).where(PortfolioModel.id == portfolio_id)
+        )
+        portfolio = portfolio_result.scalar_one_or_none()
+        if not portfolio:
+            raise ValueError(f"Portfolio {portfolio_id} not found")
+        today_equity = portfolio.equity_balance or Decimal('0')
+        logger.debug(f"Using portfolio equity_balance from session: ${float(today_equity):,.2f}")
 
     # Step 4: Calculate P&L (skip if requested by V3 batch processor)
     if skip_pnl_calculation:

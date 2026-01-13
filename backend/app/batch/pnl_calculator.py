@@ -294,7 +294,8 @@ class PnLCalculator:
                 calculation_date=calculation_date,
                 skip_pnl_calculation=True,  # V3: We handle P&L calculation here
                 skip_provider_beta=is_historical,  # Only calculate on current/final date
-                skip_sector_analysis=is_historical  # Only calculate on current/final date
+                skip_sector_analysis=is_historical,  # Only calculate on current/final date
+                equity_override=new_equity,  # CRITICAL: Pass updated equity for correct cash calculation
             )
 
             # Update the snapshot's P&L fields with our calculated equity values
