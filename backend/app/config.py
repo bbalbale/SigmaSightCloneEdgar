@@ -76,6 +76,7 @@ class Settings(BaseSettings):
     
     # New market data providers (Section 1.4.9)
     FMP_API_KEY: str = Field(default="", env="FMP_API_KEY")  # Financial Modeling Prep
+    TRADEFEEDS_API_KEY: str = Field(default="", env="TRADEFEEDS_API_KEY")  # TradeFeed (archived)
 
     # YFinance settings (no API key required)
     USE_YFINANCE: bool = Field(default=True, env="USE_YFINANCE")  # Primary provider for stocks
