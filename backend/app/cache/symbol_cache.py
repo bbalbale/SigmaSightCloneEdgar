@@ -41,7 +41,7 @@ V2_LOG_PREFIX = "[V2_SYMBOL_CACHE]"
 
 # Cold start configuration
 MAX_COLD_START_WAIT_SECONDS = 30  # Max wait for readiness check
-DEFAULT_CACHE_LOOKBACK_DAYS = 10  # Days of price history to cache
+DEFAULT_CACHE_LOOKBACK_DAYS = 100  # Days of price history to cache (supports 90-day correlation lookback)
 
 
 # =============================================================================

@@ -611,7 +611,7 @@ async def _run_correlations_for_all_portfolios(
     for i, portfolio_id in enumerate(portfolio_ids, 1):
         try:
             async with get_async_session() as db:
-                # Use price cache from unified V2 cache
+                # Use price cache from unified V2 cache (100 days lookback supports 90-day correlations)
                 correlation_service = CorrelationService(db, price_cache=unified_cache._price_cache)
 
                 result = await correlation_service.calculate_portfolio_correlations(
