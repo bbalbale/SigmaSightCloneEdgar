@@ -163,6 +163,65 @@ async def check_valuation_data():
             symbols_friday = friday_result.scalar()
             print(f"Symbols with price data for {friday} (last Friday): {symbols_friday}")
 
+        # 6. Detailed price data analysis
+        print("\n" + "-" * 60)
+        print("Price Data Details:")
+        print("-" * 60)
+
+        # Total rows and date range
+        stats_result = await db.execute(
+            text("""
+                SELECT
+                    COUNT(*) as total_rows,
+                    COUNT(DISTINCT symbol) as unique_symbols,
+                    MIN(date) as earliest_date,
+                    MAX(date) as latest_date
+                FROM market_data_cache
+            """)
+        )
+        stats = stats_result.fetchone()
+        total_rows, unique_symbols, earliest, latest = stats
+        print(f"Total price rows: {total_rows:,}")
+        print(f"Unique symbols: {unique_symbols}")
+        print(f"Date range: {earliest} to {latest}")
+
+        # Most recent 5 trading dates with counts
+        print("\nMost recent trading dates:")
+        recent_dates_result = await db.execute(
+            text("""
+                SELECT date, COUNT(DISTINCT symbol) as symbol_count
+                FROM market_data_cache
+                GROUP BY date
+                ORDER BY date DESC
+                LIMIT 5
+            """)
+        )
+        recent_dates = recent_dates_result.fetchall()
+        for d, count in recent_dates:
+            print(f"  {d}: {count} symbols")
+
+        # Sample prices for major symbols (latest date)
+        print("\nSample prices (latest available):")
+        sample_symbols = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'NVDA', 'SPY', 'QQQ', 'IWM']
+        sample_result = await db.execute(
+            text("""
+                SELECT DISTINCT ON (symbol) symbol, date, close, volume
+                FROM market_data_cache
+                WHERE symbol = ANY(:symbols)
+                ORDER BY symbol, date DESC
+            """),
+            {"symbols": sample_symbols}
+        )
+        samples = sample_result.fetchall()
+        if samples:
+            print(f"  {'Symbol':<8} {'Date':<12} {'Close':>10} {'Volume':>15}")
+            print("  " + "-" * 50)
+            for symbol, dt, close, volume in sorted(samples, key=lambda x: x[0]):
+                vol_str = f"{volume:,}" if volume else "N/A"
+                print(f"  {symbol:<8} {str(dt):<12} {float(close):>10.2f} {vol_str:>15}")
+        else:
+            print("  No sample prices found for major symbols")
+
     print("\n" + "=" * 60)
     print("  CHECK COMPLETE")
     print("=" * 60)
