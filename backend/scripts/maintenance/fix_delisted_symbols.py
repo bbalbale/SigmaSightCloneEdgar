@@ -71,10 +71,11 @@ async def fix_renamed_symbols(dry_run: bool = True) -> dict:
     """Update renamed symbols across all relevant tables.
 
     Uses separate sessions per table to avoid transaction cascade failures.
+    If new symbol already exists, deletes old symbol row instead of renaming.
     """
     from app.database import get_async_session
 
-    results = {"renamed": [], "errors": [], "updated_tables": []}
+    results = {"renamed": [], "errors": [], "updated_tables": [], "deleted": []}
 
     tables_to_update = [
         "symbol_universe",
@@ -88,34 +89,57 @@ async def fix_renamed_symbols(dry_run: bool = True) -> dict:
         print(f"\n  Renaming {old_symbol} → {new_symbol}:")
 
         for table in tables_to_update:
-            try:
-                # Use separate session for each table to avoid cascade failures
-                async with get_async_session() as db:
-                    # Check if old symbol exists in table
-                    check = await db.execute(
+            # Use separate session for each table
+            async with get_async_session() as db:
+                try:
+                    # Check if OLD symbol exists
+                    old_check = await db.execute(
                         text(f"SELECT COUNT(*) FROM {table} WHERE symbol = :symbol"),
                         {"symbol": old_symbol}
                     )
-                    count = check.scalar()
+                    old_count = old_check.scalar() or 0
 
-                    if count and count > 0:
+                    if old_count == 0:
+                        print(f"    [SKIP] No {old_symbol} in {table}")
+                        continue
+
+                    # Check if NEW symbol already exists
+                    new_check = await db.execute(
+                        text(f"SELECT COUNT(*) FROM {table} WHERE symbol = :symbol"),
+                        {"symbol": new_symbol}
+                    )
+                    new_count = new_check.scalar() or 0
+
+                    if new_count > 0:
+                        # New symbol exists - delete old symbol rows
                         if dry_run:
-                            print(f"    [DRY RUN] Would update {count} rows in {table}")
+                            print(f"    [DRY RUN] {new_symbol} exists, would DELETE {old_count} {old_symbol} rows in {table}")
+                        else:
+                            await db.execute(
+                                text(f"DELETE FROM {table} WHERE symbol = :old"),
+                                {"old": old_symbol}
+                            )
+                            await db.commit()
+                            print(f"    [OK] {new_symbol} exists, DELETED {old_count} {old_symbol} rows in {table}")
+                            results["deleted"].append(f"{table}: {old_count} rows")
+                    else:
+                        # New symbol doesn't exist - rename
+                        if dry_run:
+                            print(f"    [DRY RUN] Would rename {old_count} rows in {table}")
                         else:
                             await db.execute(
                                 text(f"UPDATE {table} SET symbol = :new WHERE symbol = :old"),
                                 {"old": old_symbol, "new": new_symbol}
                             )
                             await db.commit()
-                            print(f"    [OK] Updated {count} rows in {table}")
+                            print(f"    [OK] Renamed {old_count} rows in {table}")
                             results["updated_tables"].append(table)
-                    else:
-                        print(f"    [SKIP] No {old_symbol} in {table}")
 
-            except Exception as e:
-                # Table might not exist or other error - continue with next table
-                print(f"    [ERROR] {table}: {e}")
-                results["errors"].append(f"{table}: {str(e)}")
+                except Exception as e:
+                    # Rollback on error
+                    await db.rollback()
+                    print(f"    [ERROR] {table}: {e}")
+                    results["errors"].append(f"{table}: {str(e)}")
 
         results["renamed"].append(f"{old_symbol} → {new_symbol}")
 
@@ -154,7 +178,9 @@ async def main(dry_run: bool = True):
     print(f"Delisted: {delisted_results['delisted']}")
     print(f"Renamed: {renamed_results['renamed']}")
     if renamed_results.get('updated_tables'):
-        print(f"Tables updated: {renamed_results['updated_tables']}")
+        print(f"Tables renamed: {renamed_results['updated_tables']}")
+    if renamed_results.get('deleted'):
+        print(f"Old rows deleted: {renamed_results['deleted']}")
     if renamed_results.get('errors'):
         print(f"Errors: {renamed_results['errors']}")
     print("=" * 60)
