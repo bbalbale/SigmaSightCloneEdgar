@@ -59,7 +59,7 @@ async def run_phase3_and_portfolio_refresh(calc_date: date = None):
     # Step 1: Collect symbols
     print("[1/3] Collecting symbols to process...")
     sys.stdout.flush()
-    symbols = await _get_symbols_to_process()
+    symbols = await _get_symbols_to_process(calc_date)
     print(f"      Found {len(symbols)} symbols")
     sys.stdout.flush()
 

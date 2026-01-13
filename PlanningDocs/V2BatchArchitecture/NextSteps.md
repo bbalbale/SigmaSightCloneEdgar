@@ -294,10 +294,67 @@ Phase 2 is skipped in `symbol_batch_runner.py` with the message:
 
 ---
 
+## 7. Private Securities Handling (Priority: High)
+
+### Problem
+
+Private securities (investment class = PRIVATE) are included in the V2 batch calculations, but they:
+- Have no market data (prices, beta, etc.)
+- Always fail factor calculations (no price history)
+- Slow down the batch with unnecessary API calls and error handling
+- Generate noise in logs with expected failures
+
+### Current State
+
+Private securities are processed alongside public securities in:
+- Phase 1: Price fetching (always fails - no ticker)
+- Phase 3: Factor calculations (always fails - no price data)
+
+This adds ~10-30 seconds per private security in failed API lookups and error handling.
+
+### Proposed Solution
+
+**Option A: Filter Early (Recommended)**
+Filter out private securities at the start of symbol collection:
+```python
+# In _get_symbols_to_process()
+positions = await db.execute(
+    select(Position)
+    .where(Position.investment_class != InvestmentClass.PRIVATE)
+)
+```
+
+**Option B: Skip in Each Phase**
+Add investment_class check at the start of each calculation:
+```python
+if position.investment_class == InvestmentClass.PRIVATE:
+    return {"status": "skipped", "reason": "private_security"}
+```
+
+### Benefits
+
+- Faster batch execution (skip ~5-10 private securities)
+- Cleaner logs (no expected failures)
+- More accurate success/failure counts
+
+### Considerations
+
+- Private securities still need P&L tracking via manual entry
+- May want to track them separately for reporting
+- Should log that they were intentionally skipped
+
+### Estimated Effort
+
+- Implementation: 1-2 hours
+- Testing: 1 hour
+
+---
+
 ## Document History
 
 | Date | Author | Changes |
 |------|--------|---------|
+| 2026-01-13 | Claude | Added private securities handling section |
 | 2026-01-12 | Claude | Added fundamentals collection section (Phase 2 skipped) |
 | 2026-01-12 | Claude | Added new company profile creation section |
 | 2026-01-12 | Claude | Initial creation - Smart profile refresh planning |

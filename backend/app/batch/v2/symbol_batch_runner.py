@@ -23,7 +23,7 @@ from datetime import date, datetime, timedelta
 from typing import Dict, Any, List, Optional
 from uuid import uuid4
 
-from sqlalchemy import select, func, and_, desc
+from sqlalchemy import select, func, and_, or_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -357,7 +357,7 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
         # Get symbols to process
         print(f"{V2_LOG_PREFIX} Getting symbols to process...")
         sys.stdout.flush()
-        symbols = await _get_symbols_to_process()
+        symbols = await _get_symbols_to_process(calc_date)
         symbols_processed = len(symbols)
         print(f"{V2_LOG_PREFIX} Found {symbols_processed} symbols to process for {calc_date}")
         sys.stdout.flush()
@@ -481,26 +481,102 @@ async def _run_symbol_batch_for_date(calc_date: date) -> SymbolBatchResult:
 
 
 # =============================================================================
+# HELPER FUNCTIONS
+# =============================================================================
+
+import re
+
+# OCC Option Symbol Pattern: SYMBOL + YYMMDD + C/P + STRIKE (8 digits with implied decimal)
+# Examples: SPY250919C00460000, AAPL250815P00200000
+OPTION_TICKER_PATTERN = re.compile(r'^([A-Z]+)(\d{6})([CP])(\d{8})$')
+
+
+def parse_option_expiry(symbol: str) -> Optional[date]:
+    """
+    Parse option ticker to extract expiration date.
+
+    OCC format: SYMBOL + YYMMDD + C/P + STRIKE
+    Example: SPY250919C00460000 -> expires 2025-09-19
+
+    Returns:
+        Expiration date if valid option ticker, None otherwise
+    """
+    match = OPTION_TICKER_PATTERN.match(symbol.upper())
+    if not match:
+        return None
+
+    date_str = match.group(2)  # YYMMDD
+    try:
+        year = 2000 + int(date_str[:2])
+        month = int(date_str[2:4])
+        day = int(date_str[4:6])
+        return date(year, month, day)
+    except (ValueError, IndexError):
+        return None
+
+
+def is_expired_option(symbol: str, as_of_date: date) -> bool:
+    """
+    Check if a symbol is an expired option.
+
+    Args:
+        symbol: Ticker symbol to check
+        as_of_date: Date to check expiry against (typically today)
+
+    Returns:
+        True if symbol is an option that has expired, False otherwise
+    """
+    expiry = parse_option_expiry(symbol)
+    if expiry is None:
+        return False  # Not an option ticker
+    return expiry < as_of_date
+
+
+def filter_expired_options(symbols: List[str], as_of_date: date) -> tuple[List[str], List[str]]:
+    """
+    Filter out expired options from a list of symbols.
+
+    Returns:
+        Tuple of (valid_symbols, expired_symbols)
+    """
+    valid = []
+    expired = []
+    for symbol in symbols:
+        if is_expired_option(symbol, as_of_date):
+            expired.append(symbol)
+        else:
+            valid.append(symbol)
+    return valid, expired
+
+
+# =============================================================================
 # PHASE IMPLEMENTATIONS (Step 6-7 will fill these in)
 # =============================================================================
 
-async def _get_symbols_to_process() -> List[str]:
+async def _get_symbols_to_process(calc_date: date = None) -> List[str]:
     """
-    Get all symbols that need processing.
+    Get all symbols that need processing for factor calculations.
 
     Sources:
-    1. All symbols from active positions
+    1. All symbols from active positions (excluding PRIVATE and OPTIONS)
     2. Symbols in symbol_universe
     3. Factor ETF symbols (SPY, TLT, etc.)
+
+    Excludes:
+    - PRIVATE positions (no market data - see NextSteps.md #7)
+    - OPTIONS positions (need Greeks not factor calcs, expire)
+    - Expired options (detected by parsing ticker)
+    - Inactive symbols from symbol_universe
 
     Returns:
         Deduplicated list of uppercase symbols
     """
-    # TODO: Step 6 will implement this
-    # For now, return empty list (placeholder)
     from app.models.positions import Position
     from app.models.users import Portfolio
     from app.models.symbol_analytics import SymbolUniverse
+
+    if calc_date is None:
+        calc_date = date.today()
 
     symbols = set()
     inactive_symbols = set()
@@ -514,7 +590,9 @@ async def _get_symbols_to_process() -> List[str]:
         if inactive_symbols:
             logger.info(f"{V2_LOG_PREFIX} Excluding {len(inactive_symbols)} inactive symbols: {inactive_symbols}")
 
-        # Get symbols from active positions
+        # Get symbols from active positions (exclude PRIVATE and OPTIONS)
+        # PRIVATE: No market data (custom identifiers like BX_PRIVATE_EQUITY)
+        # OPTIONS: Need Greeks calculations, not factor regressions
         result = await db.execute(
             select(Position.symbol)
             .join(Portfolio, Portfolio.id == Position.portfolio_id)
@@ -522,12 +600,23 @@ async def _get_symbols_to_process() -> List[str]:
                 and_(
                     Portfolio.deleted_at.is_(None),
                     Position.exit_date.is_(None),
+                    # Exclude PRIVATE and OPTIONS - they don't have equity price history
+                    # PRIVATE: No ticker/market data (see NextSteps.md #7)
+                    # OPTIONS: Expire, need Greeks not factor calcs
+                    or_(
+                        Position.investment_class.is_(None),
+                        and_(
+                            Position.investment_class != "PRIVATE",
+                            Position.investment_class != "OPTIONS"
+                        )
+                    ),
                 )
             )
             .distinct()
         )
         position_symbols = [row[0].upper() for row in result.fetchall() if row[0]]
         symbols.update(position_symbols)
+        logger.info(f"{V2_LOG_PREFIX} Collected {len(position_symbols)} symbols from positions (excluding PRIVATE/OPTIONS)")
 
         # Get symbols from symbol_universe (active only)
         result = await db.execute(
@@ -543,8 +632,15 @@ async def _get_symbols_to_process() -> List[str]:
     factor_etfs = ["SPY", "TLT", "GLD", "USO", "UUP"]
     symbols.update(factor_etfs)
 
-    logger.info(f"{V2_LOG_PREFIX} Found {len(symbols)} unique symbols to process")
-    return list(symbols)
+    # Filter out any expired options that slipped through
+    # (safety net in case investment_class wasn't set correctly)
+    symbol_list = list(symbols)
+    valid_symbols, expired = filter_expired_options(symbol_list, calc_date)
+    if expired:
+        logger.info(f"{V2_LOG_PREFIX} Filtered out {len(expired)} expired options: {expired[:5]}{'...' if len(expired) > 5 else ''}")
+
+    logger.info(f"{V2_LOG_PREFIX} Found {len(valid_symbols)} unique symbols to process")
+    return valid_symbols
 
 
 async def _run_phase_0_company_profiles(symbols: List[str], calc_date: date) -> Dict[str, Any]:
