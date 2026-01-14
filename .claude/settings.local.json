@@ -146,7 +146,10 @@
       "Bash(ping:*)",
       "Bash(git -C \"C:\\\\Users\\\\BenBalbale\\\\CascadeProjects\\\\SigmaSight\" remote -v)",
       "Bash(git -C \"C:\\\\Users\\\\BenBalbale\\\\CascadeProjects\\\\SigmaSight\\\\frontend\" remote -v)",
-      "Bash(git -C \"C:\\\\Users\\\\BenBalbale\\\\CascadeProjects\\\\SigmaSight\" log --oneline origin/main -5)"
+      "Bash(git -C \"C:\\\\Users\\\\BenBalbale\\\\CascadeProjects\\\\SigmaSight\" log --oneline origin/main -5)",
+      "Bash(Get-Content \"C:\\\\Users\\\\BenBalbale\\\\.claude\\\\projects\\\\C--Users-BenBalbale-CascadeProjects-SigmaSight\\\\7a43a62f-6e28-41ca-a130-efdb13d6ffd8\\\\tool-results\\\\toolu_01RwCwBvvEdHCSi9yvsFFaX6.txt\" -Tail 50)",
+      "Bash(wc:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": [],

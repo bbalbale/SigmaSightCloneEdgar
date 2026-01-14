@@ -48,6 +48,14 @@ from app.batch.batch_run_tracker import (
     BatchJob,
 )
 from app.batch.pnl_calculator import pnl_calculator
+
+# =============================================================================
+# CONCURRENCY CONFIGURATION
+# =============================================================================
+# Maximum number of portfolios to process in parallel
+# Railway tested with 3 processes × 10 concurrent API calls = 30 total
+# Conservative default for database operations
+MAX_PORTFOLIO_CONCURRENCY = 10
 from app.cache.symbol_cache import symbol_cache, SymbolCacheService
 
 logger = get_logger(__name__)
@@ -483,39 +491,18 @@ async def _get_active_portfolio_ids() -> List[UUID]:
 # PHASE 4: CORRELATIONS
 # =============================================================================
 
-async def _aggregate_portfolio_factors(
-    portfolio_ids: List[UUID],
+async def _process_single_portfolio_factors(
+    portfolio_id: UUID,
     target_date: date,
+    semaphore: asyncio.Semaphore,
 ) -> Dict[str, Any]:
-    """
-    Phase 5: Aggregate symbol-level factors to portfolio-level.
-
-    Uses pre-computed symbol factors from symbol_factor_exposures table
-    (populated by V2 symbol batch Phase 3) and aggregates them by position
-    weight to create portfolio-level factor exposures.
-
-    This MUST run before stress tests, which read from factor_exposures table.
-
-    Args:
-        portfolio_ids: List of portfolio IDs to process
-        target_date: Calculation date
-
-    Returns:
-        Dict with aggregation results
-    """
+    """Process factor aggregation for a single portfolio (helper for parallel execution)."""
     from app.services.portfolio_factor_service import (
         get_portfolio_factor_exposures,
         store_portfolio_factor_exposures
     )
 
-    logger.info(f"{V2_LOG_PREFIX} Phase 5: Factor aggregation for {len(portfolio_ids)} portfolios")
-
-    calculated = 0
-    skipped = 0
-    failed = 0
-    errors = []
-
-    for i, portfolio_id in enumerate(portfolio_ids, 1):
+    async with semaphore:
         try:
             async with get_async_session() as db:
                 # Get Ridge factors (aggregated from symbol-level)
@@ -589,19 +576,70 @@ async def _aggregate_portfolio_factors(
                 # CRITICAL: Commit the transaction (store_portfolio_factor_exposures doesn't commit)
                 if ridge_betas or spread_betas or ols_betas:
                     await db.commit()
-                    calculated += 1
+                    return {"status": "calculated", "portfolio_id": portfolio_id}
                 else:
-                    skipped += 1
-                    logger.debug(f"{V2_LOG_PREFIX} No factors for portfolio {portfolio_id}")
-
-            if i % 10 == 0 or i == len(portfolio_ids):
-                logger.info(f"{V2_LOG_PREFIX} Phase 5 progress: {i}/{len(portfolio_ids)}")
+                    return {"status": "skipped", "portfolio_id": portfolio_id}
 
         except Exception as e:
+            return {
+                "status": "failed",
+                "portfolio_id": portfolio_id,
+                "error": f"Factor aggregation failed for {portfolio_id}: {str(e)[:100]}"
+            }
+
+
+async def _aggregate_portfolio_factors(
+    portfolio_ids: List[UUID],
+    target_date: date,
+) -> Dict[str, Any]:
+    """
+    Phase 5: Aggregate symbol-level factors to portfolio-level - PARALLEL.
+
+    Uses pre-computed symbol factors from symbol_factor_exposures table
+    (populated by V2 symbol batch Phase 3) and aggregates them by position
+    weight to create portfolio-level factor exposures.
+
+    This MUST run before stress tests, which read from factor_exposures table.
+
+    Args:
+        portfolio_ids: List of portfolio IDs to process
+        target_date: Calculation date
+
+    Returns:
+        Dict with aggregation results
+    """
+    logger.info(f"{V2_LOG_PREFIX} Phase 5: Factor aggregation for {len(portfolio_ids)} portfolios (parallel, max {MAX_PORTFOLIO_CONCURRENCY})")
+
+    # Use semaphore to limit concurrent database connections
+    semaphore = asyncio.Semaphore(MAX_PORTFOLIO_CONCURRENCY)
+
+    # Create tasks for all portfolios
+    tasks = [
+        _process_single_portfolio_factors(pid, target_date, semaphore)
+        for pid in portfolio_ids
+    ]
+
+    # Run all tasks in parallel
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Aggregate results
+    calculated = 0
+    skipped = 0
+    failed = 0
+    errors = []
+
+    for result in results:
+        if isinstance(result, Exception):
             failed += 1
-            error_msg = f"Factor aggregation failed for {portfolio_id}: {str(e)[:100]}"
-            errors.append(error_msg)
-            logger.warning(f"{V2_LOG_PREFIX} {error_msg}")
+            errors.append(str(result)[:100])
+        elif result.get("status") == "calculated":
+            calculated += 1
+        elif result.get("status") == "skipped":
+            skipped += 1
+        elif result.get("status") == "failed":
+            failed += 1
+            if result.get("error"):
+                errors.append(result["error"])
 
     logger.info(
         f"{V2_LOG_PREFIX} Phase 5 complete: calculated={calculated}, skipped={skipped}, failed={failed}"
@@ -617,13 +655,45 @@ async def _aggregate_portfolio_factors(
 
 
 
+async def _process_single_portfolio_correlations(
+    portfolio_id: UUID,
+    target_date: date,
+    unified_cache: SymbolCacheService,
+    semaphore: asyncio.Semaphore,
+) -> Dict[str, Any]:
+    """Process correlations for a single portfolio (helper for parallel execution)."""
+    from app.services.correlation_service import CorrelationService
+
+    async with semaphore:
+        try:
+            async with get_async_session() as db:
+                correlation_service = CorrelationService(db, price_cache=unified_cache._price_cache)
+                result = await correlation_service.calculate_portfolio_correlations(
+                    portfolio_id=portfolio_id,
+                    calculation_date=target_date
+                )
+
+                if result is None:
+                    return {"status": "skipped", "portfolio_id": portfolio_id}
+                else:
+                    await db.commit()
+                    return {"status": "calculated", "portfolio_id": portfolio_id}
+
+        except Exception as e:
+            return {
+                "status": "failed",
+                "portfolio_id": portfolio_id,
+                "error": f"Correlation failed for {portfolio_id}: {str(e)[:100]}"
+            }
+
+
 async def _run_correlations_for_all_portfolios(
     portfolio_ids: List[UUID],
     target_date: date,
     unified_cache: SymbolCacheService,
 ) -> Dict[str, Any]:
     """
-    Phase 4: Calculate position correlations for all portfolios.
+    Phase 4: Calculate position correlations for all portfolios - PARALLEL.
 
     Uses CorrelationService.calculate_portfolio_correlations() which:
     - Calculates pairwise correlations between positions
@@ -638,43 +708,38 @@ async def _run_correlations_for_all_portfolios(
     Returns:
         Dict with calculation results
     """
-    from app.services.correlation_service import CorrelationService
+    logger.info(f"{V2_LOG_PREFIX} Phase 4: Correlations for {len(portfolio_ids)} portfolios (parallel, max {MAX_PORTFOLIO_CONCURRENCY})")
 
-    logger.info(f"{V2_LOG_PREFIX} Phase 4: Correlations for {len(portfolio_ids)} portfolios")
+    # Use semaphore to limit concurrent database connections
+    semaphore = asyncio.Semaphore(MAX_PORTFOLIO_CONCURRENCY)
 
+    # Create tasks for all portfolios
+    tasks = [
+        _process_single_portfolio_correlations(pid, target_date, unified_cache, semaphore)
+        for pid in portfolio_ids
+    ]
+
+    # Run all tasks in parallel
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Aggregate results
     calculated = 0
     skipped = 0
     failed = 0
     errors = []
 
-    for i, portfolio_id in enumerate(portfolio_ids, 1):
-        try:
-            async with get_async_session() as db:
-                # Use price cache from unified V2 cache (100 days lookback supports 90-day correlations)
-                correlation_service = CorrelationService(db, price_cache=unified_cache._price_cache)
-
-                result = await correlation_service.calculate_portfolio_correlations(
-                    portfolio_id=portfolio_id,
-                    calculation_date=target_date
-                )
-
-                # CorrelationService returns None if no public positions (graceful skip)
-                if result is None:
-                    skipped += 1
-                    logger.debug(f"{V2_LOG_PREFIX} Correlations skipped for portfolio {portfolio_id} (no public positions)")
-                else:
-                    # CRITICAL: Commit the transaction (CorrelationService doesn't commit)
-                    await db.commit()
-                    calculated += 1
-
-            if i % 10 == 0 or i == len(portfolio_ids):
-                logger.info(f"{V2_LOG_PREFIX} Phase 4 progress: {i}/{len(portfolio_ids)}")
-
-        except Exception as e:
+    for result in results:
+        if isinstance(result, Exception):
             failed += 1
-            error_msg = f"Correlation failed for {portfolio_id}: {str(e)[:100]}"
-            errors.append(error_msg)
-            logger.warning(f"{V2_LOG_PREFIX} {error_msg}")
+            errors.append(str(result)[:100])
+        elif result.get("status") == "calculated":
+            calculated += 1
+        elif result.get("status") == "skipped":
+            skipped += 1
+        elif result.get("status") == "failed":
+            failed += 1
+            if result.get("error"):
+                errors.append(result["error"])
 
     logger.info(
         f"{V2_LOG_PREFIX} Phase 4 complete: calculated={calculated}, skipped={skipped}, failed={failed}"
@@ -692,29 +757,13 @@ async def _run_correlations_for_all_portfolios(
 # PHASE 3 HELPER: SNAPSHOT ANALYTICS (BETA, VOLATILITY, CONCENTRATION)
 # =============================================================================
 
-async def _run_snapshot_analytics(
-    portfolio_ids: List[UUID],
+async def _process_single_portfolio_analytics(
+    portfolio_id: UUID,
     target_date: date,
     unified_cache: SymbolCacheService,
+    semaphore: asyncio.Semaphore,
 ) -> Dict[str, Any]:
-    """
-    Update snapshots with risk analytics (Phase 3 Step 2).
-
-    After base snapshots are created with P&L data, this step
-    calculates and updates the deferred risk analytics fields:
-    - Market Beta (90D) via OLS regression
-    - Provider Beta (1Y) from company profiles
-    - Volatility metrics (21d, 63d, expected, trend)
-    - Concentration metrics (HHI, effective positions, top 3/10)
-
-    Args:
-        portfolio_ids: List of portfolio IDs to process
-        target_date: Calculation date
-        unified_cache: V2 unified cache with prices and factors
-
-    Returns:
-        Dict with update results
-    """
+    """Process analytics for a single portfolio (helper for parallel execution)."""
     from app.calculations.market_beta import (
         calculate_portfolio_market_beta,
         calculate_portfolio_provider_beta,
@@ -725,14 +774,7 @@ async def _run_snapshot_analytics(
     from sqlalchemy import select, and_
     from decimal import Decimal
 
-    logger.info(f"{V2_LOG_PREFIX} Phase 3 analytics: Snapshot analytics for {len(portfolio_ids)} portfolios")
-
-    updated = 0
-    skipped = 0
-    failed = 0
-    errors = []
-
-    for i, portfolio_id in enumerate(portfolio_ids, 1):
+    async with semaphore:
         try:
             async with get_async_session() as db:
                 # Get existing snapshot for this date
@@ -746,9 +788,7 @@ async def _run_snapshot_analytics(
                 snapshot = result.scalar_one_or_none()
 
                 if not snapshot:
-                    skipped += 1
-                    logger.debug(f"{V2_LOG_PREFIX} No snapshot for portfolio {portfolio_id} on {target_date}")
-                    continue
+                    return {"status": "skipped", "portfolio_id": portfolio_id}
 
                 updates_made = False
 
@@ -758,7 +798,7 @@ async def _run_snapshot_analytics(
                         db=db,
                         portfolio_id=portfolio_id,
                         calculation_date=target_date,
-                        persist=False,  # We'll update snapshot directly
+                        persist=False,
                         price_cache=unified_cache._price_cache
                     )
 
@@ -776,8 +816,6 @@ async def _run_snapshot_analytics(
                         if observations is not None:
                             snapshot.beta_calculated_90d_observations = observations
 
-                        logger.debug(f"Updated beta for portfolio {portfolio_id}: {portfolio_beta:.3f}")
-
                 except Exception as e:
                     logger.warning(f"Market beta failed for {portfolio_id}: {e}")
 
@@ -794,7 +832,6 @@ async def _run_snapshot_analytics(
                         if provider_beta is not None:
                             snapshot.beta_provider_1y = Decimal(str(provider_beta))
                             updates_made = True
-                            logger.debug(f"Updated provider beta for portfolio {portfolio_id}: {provider_beta:.3f}")
 
                 except Exception as e:
                     logger.warning(f"Provider beta failed for {portfolio_id}: {e}")
@@ -832,8 +869,6 @@ async def _run_snapshot_analytics(
                         if percentile is not None:
                             snapshot.volatility_percentile = Decimal(str(percentile))
 
-                        logger.debug(f"Updated volatility for portfolio {portfolio_id}")
-
                 except Exception as e:
                     logger.warning(f"Volatility failed for {portfolio_id}: {e}")
 
@@ -863,26 +898,79 @@ async def _run_snapshot_analytics(
                             if top_10 is not None:
                                 snapshot.top_10_concentration = Decimal(str(top_10))
 
-                            logger.debug(f"Updated concentration for portfolio {portfolio_id}")
-
                     except Exception as e:
                         logger.warning(f"Concentration metrics failed for {portfolio_id}: {e}")
 
                 # Commit if any updates were made
                 if updates_made:
                     await db.commit()
-                    updated += 1
+                    return {"status": "updated", "portfolio_id": portfolio_id}
                 else:
-                    skipped += 1
-
-            if i % 10 == 0 or i == len(portfolio_ids):
-                logger.info(f"{V2_LOG_PREFIX} Phase 3 analytics progress: {i}/{len(portfolio_ids)}")
+                    return {"status": "skipped", "portfolio_id": portfolio_id}
 
         except Exception as e:
+            return {
+                "status": "failed",
+                "portfolio_id": portfolio_id,
+                "error": f"Snapshot analytics failed for {portfolio_id}: {str(e)[:100]}"
+            }
+
+
+async def _run_snapshot_analytics(
+    portfolio_ids: List[UUID],
+    target_date: date,
+    unified_cache: SymbolCacheService,
+) -> Dict[str, Any]:
+    """
+    Update snapshots with risk analytics (Phase 3 Step 2) - PARALLEL.
+
+    After base snapshots are created with P&L data, this step
+    calculates and updates the deferred risk analytics fields:
+    - Market Beta (90D) via OLS regression
+    - Provider Beta (1Y) from company profiles
+    - Volatility metrics (21d, 63d, expected, trend)
+    - Concentration metrics (HHI, effective positions, top 3/10)
+
+    Args:
+        portfolio_ids: List of portfolio IDs to process
+        target_date: Calculation date
+        unified_cache: V2 unified cache with prices and factors
+
+    Returns:
+        Dict with update results
+    """
+    logger.info(f"{V2_LOG_PREFIX} Phase 3 analytics: Snapshot analytics for {len(portfolio_ids)} portfolios (parallel, max {MAX_PORTFOLIO_CONCURRENCY})")
+
+    # Use semaphore to limit concurrent database connections
+    semaphore = asyncio.Semaphore(MAX_PORTFOLIO_CONCURRENCY)
+
+    # Create tasks for all portfolios
+    tasks = [
+        _process_single_portfolio_analytics(pid, target_date, unified_cache, semaphore)
+        for pid in portfolio_ids
+    ]
+
+    # Run all tasks in parallel
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Aggregate results
+    updated = 0
+    skipped = 0
+    failed = 0
+    errors = []
+
+    for result in results:
+        if isinstance(result, Exception):
             failed += 1
-            error_msg = f"Snapshot analytics failed for {portfolio_id}: {str(e)[:100]}"
-            errors.append(error_msg)
-            logger.warning(f"{V2_LOG_PREFIX} {error_msg}")
+            errors.append(str(result)[:100])
+        elif result.get("status") == "updated":
+            updated += 1
+        elif result.get("status") == "skipped":
+            skipped += 1
+        elif result.get("status") == "failed":
+            failed += 1
+            if result.get("error"):
+                errors.append(result["error"])
 
     logger.info(
         f"{V2_LOG_PREFIX} Phase 3 analytics complete: updated={updated}, skipped={skipped}, failed={failed}"
@@ -900,12 +988,63 @@ async def _run_snapshot_analytics(
 # PHASE 5: STRESS TESTS
 # =============================================================================
 
+async def _process_single_portfolio_stress_test(
+    portfolio_id: UUID,
+    target_date: date,
+    semaphore: asyncio.Semaphore,
+) -> Dict[str, Any]:
+    """Process stress tests for a single portfolio (helper for parallel execution)."""
+    from app.calculations.stress_testing import (
+        run_comprehensive_stress_test,
+        save_stress_test_results
+    )
+
+    async with semaphore:
+        try:
+            async with get_async_session() as db:
+                # Run comprehensive stress test
+                stress_results = await run_comprehensive_stress_test(
+                    db=db,
+                    portfolio_id=portfolio_id,
+                    calculation_date=target_date
+                )
+
+                # Check if results were returned
+                if not stress_results:
+                    return {"status": "skipped", "portfolio_id": portfolio_id}
+
+                # Check if stress test was skipped
+                stress_test_data = stress_results.get('stress_test_results', {})
+                if stress_test_data.get('skipped'):
+                    return {"status": "skipped", "portfolio_id": portfolio_id}
+
+                # Save results to database
+                scenarios_tested = stress_results.get('config_metadata', {}).get('scenarios_tested', 0)
+                if scenarios_tested > 0:
+                    saved_count = await save_stress_test_results(
+                        db=db,
+                        portfolio_id=portfolio_id,
+                        stress_test_results=stress_results
+                    )
+                    if saved_count > 0:
+                        return {"status": "calculated", "portfolio_id": portfolio_id}
+
+                return {"status": "skipped", "portfolio_id": portfolio_id}
+
+        except Exception as e:
+            return {
+                "status": "failed",
+                "portfolio_id": portfolio_id,
+                "error": f"Stress test failed for {portfolio_id}: {str(e)[:100]}"
+            }
+
+
 async def _run_stress_tests_for_all_portfolios(
     portfolio_ids: List[UUID],
     target_date: date,
 ) -> Dict[str, Any]:
     """
-    Phase 5: Calculate stress tests for all portfolios.
+    Phase 5: Calculate stress tests for all portfolios - PARALLEL.
 
     Uses run_comprehensive_stress_test() and save_stress_test_results() which:
     - Runs 10+ stress scenarios (market crash, interest rate shock, etc.)
@@ -919,65 +1058,38 @@ async def _run_stress_tests_for_all_portfolios(
     Returns:
         Dict with calculation results
     """
-    from app.calculations.stress_testing import (
-        run_comprehensive_stress_test,
-        save_stress_test_results
-    )
+    logger.info(f"{V2_LOG_PREFIX} Phase 5: Stress tests for {len(portfolio_ids)} portfolios (parallel, max {MAX_PORTFOLIO_CONCURRENCY})")
 
-    logger.info(f"{V2_LOG_PREFIX} Phase 5: Stress tests for {len(portfolio_ids)} portfolios")
+    # Use semaphore to limit concurrent database connections
+    semaphore = asyncio.Semaphore(MAX_PORTFOLIO_CONCURRENCY)
 
+    # Create tasks for all portfolios
+    tasks = [
+        _process_single_portfolio_stress_test(pid, target_date, semaphore)
+        for pid in portfolio_ids
+    ]
+
+    # Run all tasks in parallel
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    # Aggregate results
     calculated = 0
     skipped = 0
     failed = 0
     errors = []
 
-    for i, portfolio_id in enumerate(portfolio_ids, 1):
-        try:
-            async with get_async_session() as db:
-                # Run comprehensive stress test
-                stress_results = await run_comprehensive_stress_test(
-                    db=db,
-                    portfolio_id=portfolio_id,
-                    calculation_date=target_date
-                )
-
-                # Check if results were returned
-                if not stress_results:
-                    skipped += 1
-                    logger.debug(f"{V2_LOG_PREFIX} Stress test skipped for portfolio {portfolio_id} (no results)")
-                    continue
-
-                # Check if stress test was skipped (happens for portfolios with no factor exposures)
-                stress_test_data = stress_results.get('stress_test_results', {})
-                if stress_test_data.get('skipped'):
-                    skipped += 1
-                    reason = stress_test_data.get('reason', 'unknown')
-                    logger.debug(f"{V2_LOG_PREFIX} Stress test skipped for portfolio {portfolio_id}: {reason}")
-                    continue
-
-                # Save results to database
-                scenarios_tested = stress_results.get('config_metadata', {}).get('scenarios_tested', 0)
-                if scenarios_tested > 0:
-                    saved_count = await save_stress_test_results(
-                        db=db,
-                        portfolio_id=portfolio_id,
-                        stress_test_results=stress_results
-                    )
-                    if saved_count > 0:
-                        calculated += 1
-                    else:
-                        skipped += 1
-                else:
-                    skipped += 1
-
-            if i % 10 == 0 or i == len(portfolio_ids):
-                logger.info(f"{V2_LOG_PREFIX} Phase 5 progress: {i}/{len(portfolio_ids)}")
-
-        except Exception as e:
+    for result in results:
+        if isinstance(result, Exception):
             failed += 1
-            error_msg = f"Stress test failed for {portfolio_id}: {str(e)[:100]}"
-            errors.append(error_msg)
-            logger.warning(f"{V2_LOG_PREFIX} {error_msg}")
+            errors.append(str(result)[:100])
+        elif result.get("status") == "calculated":
+            calculated += 1
+        elif result.get("status") == "skipped":
+            skipped += 1
+        elif result.get("status") == "failed":
+            failed += 1
+            if result.get("error"):
+                errors.append(result["error"])
 
     logger.info(
         f"{V2_LOG_PREFIX} Phase 5 complete: calculated={calculated}, skipped={skipped}, failed={failed}"
