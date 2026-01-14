@@ -4,7 +4,107 @@
 
 **Target**: Claude Code, Claude 3.5 Sonnet, Cursor, Windsurf, and other AI coding agents
 
-**Last Updated**: 2026-01-12
+**Last Updated**: 2026-01-13
+
+---
+
+# MANDATORY RULES - READ BEFORE DOING ANYTHING
+
+## Git Operations - NEVER VIOLATE
+
+| Rule | Description |
+|------|-------------|
+| **NEVER push without permission** | Always ask user before `git push` to any branch |
+| **NEVER commit without permission** | Always ask user before `git commit` |
+| **NEVER assume branch syncing** | Only push to branches the user specifically requests |
+| **Production runs on Railway** | Pushing to main triggers redeployment and kills running cron jobs |
+
+**Before ANY git operation, ASK:**
+> "Should I commit/push these changes to [branch]?"
+
+---
+
+## Platform - Windows Development, Railway Production
+
+| Environment | Platform | Notes |
+|-------------|----------|-------|
+| Development | **Windows** | Use `Path` objects for file paths |
+| Production | **Railway (Linux)** | Cron jobs run at 9 PM ET |
+
+### Windows asyncpg Fix - REQUIRED IN ALL SCRIPTS
+
+**ALL Python scripts using asyncpg MUST start with this BEFORE any other imports:**
+
+```python
+import sys
+import asyncio
+
+# REQUIRED for Windows + asyncpg compatibility - PUT THIS AT THE TOP
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
+# Now safe to import async database code
+from app.database import get_async_session
+```
+
+**Why:** Without this, scripts fail with `RuntimeError: Event loop is closed` on Windows.
+
+---
+
+## Database - ALWAYS Verify Before Writing Code
+
+### Schema Verification (MANDATORY)
+
+**BEFORE writing ANY database-related code:**
+
+1. **Read the actual model file** - Never guess column names
+2. **Use Alembic for ALL schema changes** - Never raw SQL for DDL
+3. **Use correct database session** - Core vs AI database
+
+```bash
+# Check columns for any model
+uv run python -c "
+from app.models.positions import Position
+print([c.name for c in Position.__table__.columns])
+"
+```
+
+| Model File | Contains |
+|------------|----------|
+| `app/models/users.py` | User, Portfolio |
+| `app/models/positions.py` | Position, PositionType |
+| `app/models/market_data.py` | CompanyProfile, PositionGreeks |
+| `app/models/tags_v2.py` | TagV2 |
+| `app/models/position_tags.py` | PositionTag |
+
+### Dual Database Architecture
+
+| Database | Tables | Session |
+|----------|--------|---------|
+| **Core (gondola)** | Users, Portfolios, Positions, Market data | `get_async_session()` |
+| **AI (metro)** | ai_kb_documents, ai_memories, ai_feedback | `get_ai_session()` |
+
+```python
+# Core tables
+from app.database import get_async_session
+async with get_async_session() as db: ...
+
+# AI tables
+from app.database import get_ai_session
+async with get_ai_session() as ai_db: ...
+```
+
+---
+
+## Key Technical Rules
+
+| Rule | Details |
+|------|---------|
+| **Async/Sync** | NEVER mix - causes greenlet errors |
+| **Batch Orchestrator** | Use `batch_orchestrator`, NOT v2 |
+| **Market Data** | YFinance-first, FMP secondary |
+| **Strategy Endpoints** | REMOVED October 2025 - use tagging |
+| **Alembic Migrations** | ALWAYS use for schema changes |
 
 ---
 
