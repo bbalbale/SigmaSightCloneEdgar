@@ -2,15 +2,43 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Last Updated**: 2026-01-12
+**Last Updated**: 2026-01-13
+
+---
+
+# MANDATORY RULES - READ BEFORE DOING ANYTHING
+
+## Git Operations - NEVER VIOLATE
+
+| Rule | Description |
+|------|-------------|
+| **NEVER push without permission** | Always ask user before `git push` to any branch |
+| **NEVER commit without permission** | Always ask user before `git commit` |
+| **NEVER assume branch syncing** | Only push to branches the user specifically requests |
+| **Production runs on Railway** | Pushing to main triggers redeployment and kills running cron jobs |
+
+**Before ANY git operation, ASK:**
+> "Should I commit/push these changes to [branch]?"
+
+---
+
+## Key Frontend Rules
+
+| Rule | Details |
+|------|---------|
+| **Client-Side Only** | All pages use `'use client'` directive, NO SSR |
+| **Service Layer** | NEVER make direct `fetch()` calls, always use services |
+| **Portfolio ID** | Use Zustand store `usePortfolioStore()`, NOT URL params |
+| **Tagging API** | Use `tagsApi`, NOT `strategiesApi` (deprecated Oct 2025) |
+| **Backend API** | OpenAI Responses API, NOT Chat Completions |
+
+---
 
 ## Project Overview
 
 **SigmaSight Frontend** - A Next.js 14 multi-page portfolio analytics application with AI chat integration, target price tracking, sector tagging, and advanced risk metrics. The frontend is a client-side application that connects to a FastAPI backend through a Next.js proxy layer.
 
-> 🤖 **CRITICAL**: The backend uses **OpenAI Responses API**, NOT Chat Completions API.
-
-> 🤖 **CRITICAL**: Never commit changes unless explicitly told to do so.
+---
 
 ### Database Schema Verification (MANDATORY - for backend API calls)
 

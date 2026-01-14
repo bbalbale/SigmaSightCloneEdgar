@@ -2,9 +2,67 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-**Last Updated**: 2026-01-12
+**Last Updated**: 2026-01-13
 
-## Project Overview
+---
+
+# MANDATORY RULES - READ BEFORE DOING ANYTHING
+
+## Git Operations - NEVER VIOLATE
+
+| Rule | Description |
+|------|-------------|
+| **NEVER push without permission** | Always ask user before `git push` to any branch |
+| **NEVER commit without permission** | Always ask user before `git commit` |
+| **NEVER assume branch syncing** | Only push to branches the user specifically requests |
+| **Production runs on Railway** | Pushing to main triggers redeployment and kills running cron jobs |
+
+**Before ANY git operation, ASK:**
+> "Should I commit/push these changes to [branch]?"
+
+## Platform - Windows Development, Railway Production
+
+| Environment | Platform | Notes |
+|-------------|----------|-------|
+| Development | Windows | Use `Path` objects, not string paths with backslashes |
+| Production | Railway (Linux) | Cron jobs run at 9 PM ET |
+
+**ALL Python scripts using asyncpg MUST start with:**
+```python
+import sys
+import asyncio
+
+# REQUIRED for Windows + asyncpg compatibility
+if sys.platform == "win32":
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+```
+
+## Database - ALWAYS Verify Before Writing Code
+
+**BEFORE writing ANY database-related code:**
+1. **Read the actual model file first** - Never guess column names
+2. **Use Alembic for ALL schema changes** - Never raw SQL for DDL
+3. **Use correct database session** - Core vs AI database
+
+```bash
+# Check columns for any model
+cd backend && uv run python -c "
+from app.models.positions import Position
+print([c.name for c in Position.__table__.columns])
+"
+```
+
+| Model File | Contains |
+|------------|----------|
+| `backend/app/models/users.py` | User, Portfolio |
+| `backend/app/models/positions.py` | Position, PositionType |
+| `backend/app/models/market_data.py` | CompanyProfile, PositionGreeks |
+| `backend/app/models/tags_v2.py` | TagV2 |
+| `backend/app/models/position_tags.py` | PositionTag |
+
+---
+
+# Project Overview
 
 **SigmaSight** - A full-stack portfolio risk analytics platform combining a FastAPI backend with Next.js 14 frontend. The system provides real-time portfolio analytics, AI-powered chat interface, automated batch processing, and comprehensive financial risk calculations.
 
@@ -14,46 +72,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Database**: PostgreSQL with UUID primary keys, Alembic migrations
 - **AI Integration**: OpenAI Responses API (NOT Chat Completions API) for analytical reasoning
 
-> 🤖 **CRITICAL**: The AI agent system uses **OpenAI Responses API**, NOT Chat Completions API.
-
 ---
 
-## 🚨 Critical Instructions
+# Quick Start Commands
 
-### Git Operations
-- **NEVER push to any branch without explicit user permission**
-- **NEVER assume branch syncing** - only push to branches the user specifically requests
-- Always wait for user confirmation before `git push`, `git commit`, or merging branches
-
-### Database Schema Verification (MANDATORY)
-
-**BEFORE writing ANY database-related code, Claude MUST:**
-
-1. **Read the actual model file first** - Never guess column names
-   ```bash
-   # Check columns for any model
-   cd backend && uv run python -c "
-   from app.models.positions import Position
-   print([c.name for c in Position.__table__.columns])
-   "
-   ```
-
-2. **Model files to check before database work:**
-   - `backend/app/models/users.py` - User, Portfolio
-   - `backend/app/models/positions.py` - Position, PositionType
-   - `backend/app/models/market_data.py` - CompanyProfile, PositionGreeks, etc.
-   - `backend/app/models/tags_v2.py` - TagV2
-   - `backend/app/models/position_tags.py` - PositionTag
-
-3. **If Claude writes code with wrong column names, STOP and read the model file**
-
----
-
-## Common Development Commands
-
-### Quick Start - Full Stack
-> **📖 Full Frontend Docker Guide**: See `frontend/DOCKER.md` for comprehensive Docker documentation
-
+### Full Stack
 ```bash
 # Start frontend (Docker Compose - uses .env.local)
 cd frontend && docker-compose up -d
@@ -63,598 +86,103 @@ cd backend && uv run python run.py
 
 # Frontend is now at http://localhost:3005
 # Backend API at http://localhost:8000
-# API Docs at http://localhost:8000/docs
 ```
 
-### Frontend (Docker Preferred)
+### Backend
 ```bash
-# Using Docker Compose (Recommended - uses .env.local)
+cd backend
+uv run python run.py              # Development server
+
+# Database migrations (DUAL DATABASE)
+uv run alembic -c alembic.ini upgrade head        # Core DB
+uv run alembic -c alembic_ai.ini upgrade head     # AI DB
+
+# Seed demo data
+uv run python scripts/database/reset_and_seed.py seed
+```
+
+### Frontend
+```bash
 cd frontend
-docker-compose up -d              # Build and start
-docker-compose logs -f            # View logs
-docker-compose down               # Stop and remove
-
-# Using Docker directly with env file
-docker build -t sigmasight-frontend .
-docker run -d -p 3005:3005 --env-file .env.local --name sigmasight-frontend sigmasight-frontend
-
-# Check health
-curl http://localhost:3005/api/health
-
-# Traditional npm (fallback)
-cd frontend && npm run dev
-```
-
-### Backend & Database
-```bash
-# Start development server
-cd backend
-uv run python run.py              # Main development server
-uvicorn app.main:app --reload     # Alternative with auto-reload
-
-# Database setup
-docker-compose up -d               # Start PostgreSQL
-
-# Run migrations (DUAL DATABASE - both Core and AI)
-uv run alembic -c alembic.ini upgrade head        # Core DB migrations
-uv run alembic -c alembic_ai.ini upgrade head     # AI DB migrations
-
-uv run python scripts/database/reset_and_seed.py seed  # Seed demo data (3 portfolios, 63 positions)
-```
-
-### Testing
-```bash
-# Backend tests
-cd backend
-uv run pytest                      # All tests
-uv run pytest tests/test_market_data_service.py  # Single test file
-uv run pytest -k "test_function_name"  # Single test function
-
-# Frontend tests
-cd frontend
-npm run test                       # Run tests once
-npm run test:watch                 # Run tests in watch mode
-npm run type-check                 # TypeScript validation
-```
-
-### Code Quality
-```bash
-# Backend
-cd backend
-uv run black .                     # Format code
-uv run isort .                     # Sort imports
-uv run flake8 app/                 # Lint
-uv run mypy app/                   # Type checking
-
-# Frontend
-cd frontend
-npm run lint                       # ESLint
-npm run type-check                 # TypeScript
-npx prettier --write .             # Format
-```
-
-### Batch Processing & Reports
-```bash
-# Manual batch runs
-cd backend
-uv run python scripts/run_batch_calculations.py      # Run all calculations
-uv run python scripts/generate_all_reports.py        # Generate portfolio reports
-
-# Database reset
-uv run python scripts/database/reset_and_seed.py reset  # Full reset and reseed
+docker-compose up -d              # Docker (recommended)
+npm run dev                       # Traditional npm
 ```
 
 ---
 
-## High-Level Architecture
+# Key Documentation
 
-### Core Structure
-The application follows a multi-layered architecture:
+| Area | File | Purpose |
+|------|------|---------|
+| Backend | `backend/CLAUDE.md` | **READ FIRST** for backend work |
+| Frontend | `frontend/CLAUDE.md` | **READ FIRST** for frontend work |
+| API Reference | `backend/_docs/reference/API_REFERENCE_V1.4.6.md` | 59 endpoints documented |
+| Requirements | `backend/_docs/requirements/` | Product specs |
 
-```
-SigmaSight/
-├── backend/              # FastAPI application
-│   ├── app/
-│   │   ├── api/v1/       # REST endpoints (57 implemented)
-│   │   ├── models/       # SQLAlchemy ORM models
-│   │   ├── services/     # Business logic layer
-│   │   ├── batch/        # Batch processing orchestration
-│   │   ├── calculations/ # Financial calculation engines
-│   │   ├── agent/        # AI agent system (OpenAI Responses API)
-│   │   └── core/         # Shared utilities (auth, db, logging)
-│   ├── scripts/          # Utility and verification scripts
-│   ├── migrations_core/  # Core DB migrations (users, portfolios, positions, etc.)
-│   ├── migrations_ai/    # AI DB migrations (RAG, memories, feedback)
-│   └── _docs/            # Backend documentation
-│
-├── frontend/             # Next.js 14 application
-│   ├── app/              # Next.js App Router (6 pages)
-│   ├── src/
-│   │   ├── components/   # React components
-│   │   ├── containers/   # Page containers
-│   │   ├── hooks/        # Custom React hooks
-│   │   ├── services/     # API client services (11 total)
-│   │   ├── stores/       # Zustand state management
-│   │   └── lib/          # Utility libraries
-│   └── _docs/            # Frontend documentation
-│
-└── docker-compose.yml    # PostgreSQL database
-```
+---
 
-### Key Architectural Patterns
+# Architecture Quick Reference
 
-1. **Async-First Design**: All database operations use async/await with SQLAlchemy 2.0
-2. **Batch Processing Framework**: 3-phase orchestration with 8 calculation engines
-   - Phase 1: Market Data Collection (1-year lookback)
-   - Phase 2: P&L Calculation & Snapshots
-   - Phase 2.5: Position Market Value Updates (added Oct 29, 2025)
-   - Phase 3: Risk Analytics (betas, factors, volatility, correlations)
-3. **Multi-Provider Market Data**: YFinance (primary), Polygon (options), FMP (secondary), FRED (economic)
-4. **Hybrid Calculation Engine**: Real calculations with graceful degradation when data unavailable
-5. **AI-Powered Chat**: OpenAI Responses API with SSE streaming and tool integration
-6. **Position Tagging System**: 3-tier tagging architecture (October 2, 2025)
-   - **Strategy System Removed**: All `/api/v1/strategies/*` endpoints deprecated (October 2025)
-   - Migration to position-level tagging only
+## Database Architecture (Dual PostgreSQL)
 
-### Database Architecture (Dual PostgreSQL)
-**Production runs on Railway with TWO separate PostgreSQL databases:**
-
-**Core Database (gondola)** - High-throughput transactional data:
-- Users, Portfolios, Positions
-- Market data, calculations, snapshots
-- Chat conversations and messages
-- Target prices, tags, position tags
+**Core Database (gondola)** - Transactional data:
+- Users, Portfolios, Positions, Market data, Snapshots
 - Connection: `DATABASE_URL` / `get_db()` / `get_async_session()`
 
-**AI Database (metro)** - Vector search and learning data:
-- `ai_kb_documents` - RAG knowledge base with pgvector embeddings
-- `ai_memories` - User preferences and learned rules
-- `ai_feedback` - Message feedback ratings
+**AI Database (metro)** - Vector search and learning:
+- `ai_kb_documents`, `ai_memories`, `ai_feedback`
 - Connection: `AI_DATABASE_URL` / `get_ai_db()` / `get_ai_session()`
 
-**⚠️ CRITICAL: Always use correct database session:**
 ```python
-# Core tables (portfolios, positions, messages, etc.)
+# Core tables
 from app.database import get_db, get_async_session
-async with get_async_session() as core_db:
-    # Query users, portfolios, positions, etc.
 
-# AI tables (ai_kb_documents, ai_memories, ai_feedback)
+# AI tables
 from app.database import get_ai_db, get_ai_session
-async with get_ai_session() as ai_db:
-    # Query/write AI data
 ```
 
-**Schema Details:**
-- PostgreSQL with UUID primary keys
-- Alembic for schema migrations (`migrations_core/` for Core, `migrations_ai/` for AI)
-- Full audit trails with created_at/updated_at
-- Relationships: User → Portfolio → Position → Calculations
-- Position → Tags (M:N via position_tags junction table)
+## Batch Processing
+
+- Use `batch_orchestrator` (NOT v2)
+- Market data priority: YFinance → Polygon → FMP
+- Nightly batch runs via Railway cron at 9 PM ET
+
+## Key Patterns
+
+| Pattern | Rule |
+|---------|------|
+| Async/Sync | Never mix - causes greenlet errors |
+| UUID handling | Convert strings to UUID objects when needed |
+| Strategy endpoints | **REMOVED** October 2025 - use tagging instead |
+| Frontend | Client-side only - all pages use `'use client'` |
+| API calls | Always use service layer, never direct `fetch()` |
 
 ---
 
-## Important Context
+# Demo Data
 
-### Current Status
-- **Phase**: Phases 1-11 complete, system in production refinement
-- **APIs Ready**: 59 endpoints across 9 categories (see API Reference section)
-- **Demo Data**: 3 portfolios with 63 positions ready for testing
-- **Frontend**: Multi-page application with AI analytical reasoning
-- **Features**: Target price tracking, sector tagging, risk metrics (sector exposure, concentration, volatility), company profiles
-
-### Key Documentation
-
-**Backend Documentation**:
-- **`backend/CLAUDE.md`**: Comprehensive backend reference (READ FIRST for backend work)
-- **`backend/_docs/reference/API_REFERENCE_V1.4.6.md`**: Complete API endpoint documentation
-- **`backend/_docs/requirements/`**: Product requirements and specifications
-- **`backend/_archive/todos/`**: Historical TODO files (Phase 1-3 complete, archived)
-
-**Frontend Documentation**:
-- **`frontend/CLAUDE.md`**: Complete frontend reference (READ FIRST for frontend work)
-- **`frontend/_docs/requirements/README.md`**: Master implementation guide
-- **`frontend/_docs/project-structure.md`**: Directory structure and patterns
-- **`frontend/_docs/API_AND_DATABASE_SUMMARY.md`**: Backend API integration reference
-
-### Environment Variables
-
-**Backend `.env` file**:
-```
-# Core Database (required) - portfolios, positions, market data
-DATABASE_URL=postgresql+asyncpg://sigmasight:sigmasight_dev@localhost:5432/sigmasight_db
-
-# AI Database (required for AI features) - RAG, memories, feedback with pgvector
-AI_DATABASE_URL=postgresql+asyncpg://sigmasight:sigmasight_dev@localhost:5432/sigmasight_ai_db
-
-# Market Data APIs (required for batch processing)
-POLYGON_API_KEY=your_polygon_key
-FMP_API_KEY=your_fmp_key        # Secondary provider
-FRED_API_KEY=your_fred_key
-
-# JWT Authentication (required)
-SECRET_KEY=your_jwt_secret
-
-# OpenAI (required for AI chat and embeddings)
-OPENAI_API_KEY=your_openai_key
+```python
+# Demo credentials (password: demo12345)
+DEMO_USERS = {
+    "demo_individual@sigmasight.com": "Balanced Individual Investor (16 positions)",
+    "demo_hnw@sigmasight.com": "High Net Worth (17 positions)",
+    "demo_hedgefundstyle@sigmasight.com": "Hedge Fund Style (30 positions)"
+}
 ```
 
-**Railway Environment Variables** (set in Railway dashboard):
-```
-DATABASE_URL=postgresql+asyncpg://...@gondola.proxy.rlwy.net:.../railway  # Core DB
-AI_DATABASE_URL=postgresql+asyncpg://...@metro.proxy.rlwy.net:.../railway  # AI DB
-```
+---
 
-**Frontend `.env.local` file**:
-```
-# Backend API URL (switch between local/Railway)
-BACKEND_URL=http://localhost:8000
-NEXT_PUBLIC_BACKEND_API_URL=http://localhost:8000/api/v1
+# Common Gotchas
 
-# Or for Railway backend (Production):
-# BACKEND_URL=https://sigmasight-be-production.up.railway.app
-# NEXT_PUBLIC_BACKEND_API_URL=https://sigmasight-be-production.up.railway.app/api/v1
-```
-
-### Common Gotchas
 1. **Async/Sync Mixing**: Always use async patterns - mixing causes greenlet errors
 2. **UUID Handling**: Convert string UUIDs to UUID objects when needed
-3. **Batch Orchestrator Version**: Use `batch_orchestrator`, NOT v2 (updated Oct 2025)
-4. **Market Data Priority**: YFinance-first, NOT FMP (changed Oct 2025)
-5. **Strategy Endpoints**: All strategy endpoints removed (October 2025) - use tagging instead
-6. **Demo Data**: Always test with existing demo portfolios first (password: demo12345)
-7. **Frontend Client-Side**: All pages use `'use client'` directive, no SSR
-8. **Service Layer**: Never make direct `fetch()` calls, always use service layer
-9. **Dual Database Sessions**: Use `get_ai_session()` for AI tables, `get_async_session()` for Core tables
-   - AI tables: `ai_kb_documents`, `ai_memories`, `ai_feedback`
-   - Core tables: Everything else (users, portfolios, positions, messages, etc.)
-
-### Testing Approach
-- Use existing demo data (don't create new test data)
-- Run diagnostic commands to verify imports
-- Test with graceful degradation for missing data
-- Frontend: Must login first at `/login` to establish authentication
-- Check browser DevTools Network tab for API call verification
+3. **Batch Orchestrator**: Use `batch_orchestrator`, NOT v2
+4. **Market Data**: YFinance-first, NOT FMP
+5. **Strategy Endpoints**: Removed October 2025 - use tagging instead
+6. **Dual Database**: Use `get_ai_session()` for AI tables, `get_async_session()` for Core
+7. **Frontend**: All pages use `'use client'` directive, no SSR
+8. **Service Layer**: Never make direct `fetch()` calls
 
 ---
 
-## API Endpoints Reference
-
-### Current Implementation Status
-**59 endpoints** implemented across 9 categories (~100% Phase 3 complete, production-ready)
-
-### Authentication (5 endpoints) ✅
-- `POST /api/v1/auth/login` - JWT token generation
-- `POST /api/v1/auth/logout` - Session invalidation
-- `POST /api/v1/auth/refresh` - Token refresh
-- `GET /api/v1/auth/me` - Current user info
-- `POST /api/v1/auth/register` - User registration
-
-### Data (10 endpoints) ✅
-- `GET /api/v1/data/portfolio/{id}/complete` - Full portfolio snapshot
-- `GET /api/v1/data/portfolio/{id}/data-quality` - Data completeness metrics
-- `GET /api/v1/data/positions/details` - Position details with P&L
-- `GET /api/v1/data/prices/historical/{id}` - Historical price data
-- `GET /api/v1/data/prices/quotes` - Real-time market quotes
-- `GET /api/v1/data/factors/etf-prices` - Factor ETF prices
-- `GET /api/v1/data/company-profile/{symbol}` - Company profile data (53 fields)
-- `GET /api/v1/data/market-cap/{symbol}` - Market capitalization
-- `GET /api/v1/data/beta/{symbol}` - Stock beta values
-- `GET /api/v1/data/sector/{symbol}` - Sector classification
-
-### Analytics (9 endpoints) ✅
-- `GET /api/v1/analytics/portfolio/{id}/overview` - Portfolio metrics overview
-- `GET /api/v1/analytics/portfolio/{id}/correlation-matrix` - Correlation matrix
-- `GET /api/v1/analytics/portfolio/{id}/diversification-score` - Diversification metrics
-- `GET /api/v1/analytics/portfolio/{id}/factor-exposures` - Portfolio factor betas
-- `GET /api/v1/analytics/portfolio/{id}/positions/factor-exposures` - Position-level factors
-- `GET /api/v1/analytics/portfolio/{id}/stress-test` - Stress test scenarios
-- `GET /api/v1/analytics/portfolio/{id}/sector-exposure` - Sector exposure vs S&P 500 ✨ **NEW** (Oct 17, 2025)
-- `GET /api/v1/analytics/portfolio/{id}/concentration` - Concentration metrics (HHI) ✨ **NEW** (Oct 17, 2025)
-- `GET /api/v1/analytics/portfolio/{id}/volatility` - Volatility analytics with HAR forecasting ✨ **NEW** (Oct 17, 2025)
-
-### Chat (6 endpoints) ✅
-- `POST /api/v1/chat/conversations` - Create new conversation
-- `GET /api/v1/chat/conversations` - List conversations
-- `GET /api/v1/chat/conversations/{id}` - Get conversation
-- `DELETE /api/v1/chat/conversations/{id}` - Delete conversation
-- `POST /api/v1/chat/conversations/{id}/send` - Send message (SSE streaming)
-- `GET /api/v1/chat/conversations/{id}/messages` - Get conversation messages
-
-### Target Prices (10 endpoints) ✅
-- `POST /api/v1/target-prices` - Create target price
-- `GET /api/v1/target-prices` - List target prices (filter by portfolio/position)
-- `GET /api/v1/target-prices/{id}` - Get target price
-- `PUT /api/v1/target-prices/{id}` - Update target price
-- `DELETE /api/v1/target-prices/{id}` - Delete target price
-- `POST /api/v1/target-prices/bulk` - Bulk create target prices
-- `PUT /api/v1/target-prices/bulk` - Bulk update target prices
-- `DELETE /api/v1/target-prices/bulk` - Bulk delete target prices
-- `POST /api/v1/target-prices/import-csv` - Import from CSV
-- `GET /api/v1/target-prices/export-csv` - Export to CSV
-
-### Position Tagging (12 endpoints) ✅
-
-**Tag Management (7 endpoints)** - October 2, 2025:
-- `POST /api/v1/tags` - Create tag
-- `GET /api/v1/tags` - List all tags
-- `GET /api/v1/tags/{id}` - Get tag
-- `PUT /api/v1/tags/{id}` - Update tag
-- `DELETE /api/v1/tags/{id}` - Delete tag
-- `POST /api/v1/tags/bulk` - Bulk create tags
-- `DELETE /api/v1/tags/bulk` - Bulk delete tags
-
-**Position Tagging (5 endpoints)** - October 2, 2025 (PREFERRED):
-- `POST /api/v1/position-tags` - Tag a position
-- `GET /api/v1/position-tags` - List position tags (filter by position/tag)
-- `DELETE /api/v1/position-tags/{id}` - Remove tag from position
-- `POST /api/v1/position-tags/bulk` - Bulk tag positions
-- `DELETE /api/v1/position-tags/bulk` - Bulk remove tags
-
-### Admin Batch Processing (6 endpoints) ✅
-- `POST /api/v1/admin/batch/run` - Trigger batch processing with real-time tracking
-- `GET /api/v1/admin/batch/run/current` - Get current batch status (polling endpoint)
-- `POST /api/v1/admin/batch/trigger/market-data` - Manually trigger market data update
-- `POST /api/v1/admin/batch/trigger/correlations` - Manually trigger correlation calculations
-- `GET /api/v1/admin/batch/data-quality` - Get data quality status and metrics
-- `POST /api/v1/admin/batch/data-quality/refresh` - Refresh market data for quality improvement
-
-### Company Profiles (1 endpoint) ✅
-- `GET /api/v1/company-profile/sync/{symbol}` - Sync company profile data (automatic via Railway cron)
-
-**Complete API Documentation**: See `frontend/_docs/1. API_AND_DATABASE_SUMMARY.md` (most current, updated Oct 7, 2025)
-
----
-
-## Critical Import Paths
-
-### Backend Imports
-```python
-# Database models
-from app.models.users import User, Portfolio
-from app.models.positions import Position, PositionType
-from app.models.tags_v2 import TagV2
-from app.models.position_tags import PositionTag
-from app.models.market_data import PositionGreeks, PositionFactorExposure
-
-# Database utilities
-from app.database import get_async_session, AsyncSessionLocal
-
-# Batch processing (USE V3, NOT V2)
-from app.batch.batch_orchestrator import batch_orchestrator
-
-# Core utilities
-from app.config import settings
-from app.core.logging import get_logger
-from app.core.auth import get_password_hash, verify_password
-from app.core.dependencies import get_current_user
-```
-
-### Frontend Imports
-```typescript
-// Services (ALWAYS use these, never direct fetch)
-import { apiClient } from '@/services/apiClient'
-import { authManager } from '@/services/authManager'
-import { portfolioResolver } from '@/services/portfolioResolver'
-import strategiesApi from '@/services/strategiesApi'
-import tagsApi from '@/services/tagsApi'
-
-// State management
-import { usePortfolioStore } from '@/stores/portfolioStore'
-import { useChatStore } from '@/stores/chatStore'
-
-// Hooks
-import { usePortfolioData } from '@/hooks/usePortfolioData'
-
-// Components
-import { NavigationDropdown } from '@/components/navigation/NavigationDropdown'
-import { Button } from '@/components/ui/button'
-```
-
----
-
-## Development Workflow
-
-### Backend Development
-1. **Before Starting**: Read `backend/CLAUDE.md` for comprehensive backend reference
-2. **Check API Status**: Review `backend/_docs/reference/API_REFERENCE_V1.4.6.md`
-3. **Test Imports**: Use diagnostic commands from backend documentation
-4. **Implement**: Follow async patterns, use batch_orchestrator
-5. **Handle Errors**: Implement graceful degradation for missing data
-6. **Migrations**: Always use Alembic for database changes
-
-### Frontend Development
-1. **Before Starting**: Read `frontend/CLAUDE.md` and `frontend/_docs/requirements/README.md`
-2. **Check Services**: Review `frontend/_docs/requirements/07-Services-Reference.md`
-3. **Authentication**: Must login at `/login` first
-4. **Use Services**: Never make direct `fetch()` calls, always use service layer
-5. **State Management**: Use Zustand for portfolio ID, React Context for auth
-6. **Testing**: Test with browser DevTools Network tab
-
-### Full-Stack Testing
-1. Start backend: `cd backend && uv run python run.py`
-2. Start frontend: `cd frontend && docker-compose up -d`
-3. Login at `http://localhost:3005/login` (demo_hnw@sigmasight.com / demo12345)
-4. Verify API calls in browser DevTools
-5. Check backend logs for any errors
-
----
-
-## Key Commands for Debugging
-
-### Backend Diagnostics
-```bash
-cd backend
-
-# Verify critical imports
-uv run python -c "from app.models.users import User; print('✅ Models import successfully')"
-
-# Check database content
-uv run python scripts/verification/check_database_content.py
-
-# Test batch processing v3
-uv run python -c "from app.batch.batch_orchestrator import batch_orchestrator; print('✅ Batch v3 ready')"
-
-# Verify demo portfolios
-uv run python scripts/verification/verify_demo_portfolios.py
-```
-
-### Frontend Diagnostics
-```bash
-cd frontend
-
-# TypeScript validation
-npm run type-check
-
-# Check build
-npm run build
-
-# Docker health check
-curl http://localhost:3005/api/health
-
-# View container logs
-docker-compose logs -f
-```
-
-### Database Diagnostics
-```bash
-cd backend
-
-# Check data counts
-uv run python -c "
-import asyncio
-from sqlalchemy import select, func
-from app.database import get_async_session
-from app.models.users import Portfolio
-from app.models.positions import Position
-
-async def check():
-    async with get_async_session() as db:
-        portfolios = await db.execute(select(func.count(Portfolio.id)))
-        positions = await db.execute(select(func.count(Position.id)))
-        print(f'Portfolios: {portfolios.scalar()}, Positions: {positions.scalar()}')
-
-asyncio.run(check())
-"
-```
-
----
-
-## Demo Data Reference
-
-### Demo Users & Portfolios
-```python
-# Demo user credentials (all use same password: "demo12345")
-DEMO_USERS = {
-    "demo_individual@sigmasight.com": "Balanced Individual Investor Portfolio (16 positions)",
-    "demo_hnw@sigmasight.com": "Sophisticated High Net Worth Portfolio (17 positions)",
-    "demo_hedgefundstyle@sigmasight.com": "Long/Short Equity Hedge Fund Style Portfolio (30 positions)"
-}
-
-# Total positions: 63 across all 3 portfolios
-```
-
-### Investment Classes
-- **PUBLIC**: Regular equities, ETFs (LONG/SHORT position types)
-- **OPTIONS**: Options contracts (LC/LP/SC/SP position types)
-- **PRIVATE**: Private/alternative investments
-
-### Seeding Commands
-```bash
-# Full reset and reseed (AUTHORITATIVE script)
-cd backend
-python scripts/database/reset_and_seed.py reset
-
-# Seed only (preserves existing data)
-python scripts/database/reset_and_seed.py seed
-```
-
----
-
-## Railway Deployment
-
-### Railway Audit Scripts
-All audit scripts can be run from local machine against Railway deployment:
-
-```bash
-cd backend/scripts/railway
-
-# Portfolio & Position Data Audit (no SSH required)
-python audit_railway_data.py
-# Output: railway_audit_results.json
-
-# Market Data Audit (no SSH required)
-python audit_railway_market_data.py
-# Output: railway_market_data_audit_report.txt
-
-# Analytics Audit - Client-Friendly (no SSH required)
-python audit_railway_analytics.py
-# Output: railway_analytics_audit_report.txt (31KB, formatted)
-
-# Calculation Results Audit (requires Railway SSH)
-railway run python audit_railway_calculations_verbose.py
-# Output: railway_calculations_audit_report.txt
-```
-
-**Full Documentation**: See `backend/scripts/railway/README.md`
-
----
-
-## Windows + asyncpg Compatibility
-
-**This codebase develops on Windows and deploys to Railway (Linux).** All standalone scripts using asyncpg MUST include the Windows event loop fix.
-
-### Required Script Template
-
-```python
-#!/usr/bin/env python
-"""Script description here"""
-import sys
-import asyncio
-
-# REQUIRED for Windows + asyncpg compatibility
-if sys.platform == "win32":
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-from sqlalchemy import select
-from app.database import get_async_session
-from app.models.positions import Position  # Always read model file first!
-
-async def main():
-    async with get_async_session() as db:
-        result = await db.execute(select(Position))
-        positions = result.scalars().all()
-        print(f"Found {len(positions)} positions")
-
-if __name__ == "__main__":
-    asyncio.run(main())
-```
-
-### Key Rules
-1. **Always add the Windows event loop policy** at the top of scripts before any async imports
-2. **Use `async with get_async_session()`** - never call session methods outside the context manager
-3. **Use `Path` objects for file paths** - avoids Windows backslash issues:
-   ```python
-   from pathlib import Path
-   file_path = Path(__file__).parent / "data" / "file.json"
-   ```
-
----
-
-## Notes
-
-- Telemetry events from batch orchestrator phases flow through `app.telemetry.metrics.record_metric` (added Nov 2025).
-- Main application code split between `backend/` and `frontend/` subdirectories
-- Always work from appropriate subdirectory when running commands
-- Backend uses batch_orchestrator (NOT v2) as of October 2025
-- Market data priority is YFinance-first (NOT FMP) as of October 2025
-- Strategy system removed October 2025 - use position tagging instead
-- Frontend is client-side only - all pages use `'use client'` directive
-- Position market value updates (Phase 2.5) added October 29, 2025
-- System has 767+ commits since September 2025, significantly evolved from initial design
-- Prefer simple, correct implementations over complex feature flags
-- Update subdirectory CLAUDE.md files when discovering new patterns
-
----
-
-**Remember**: This is a mature, production-ready system with comprehensive documentation. Always consult the subdirectory-specific CLAUDE.md files (`backend/CLAUDE.md`, `frontend/CLAUDE.md`) for detailed implementation guidance before starting work in either area.
+**Remember**: Always consult `backend/CLAUDE.md` or `frontend/CLAUDE.md` for detailed guidance before starting work in either area.
