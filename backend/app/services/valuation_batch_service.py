@@ -33,6 +33,7 @@ from typing import Dict, List, Any, Optional
 from yahooquery import Ticker
 
 from app.core.logging import get_logger
+from app.config import settings
 
 logger = get_logger(__name__)
 
@@ -97,14 +98,24 @@ class ValuationBatchService:
             sys.stdout.flush()
 
             # Run in thread pool to avoid blocking async event loop
+            # Add timeout to prevent indefinite hangs when Yahoo Finance is slow
+            timeout_seconds = settings.YAHOOQUERY_BATCH_TIMEOUT
             loop = asyncio.get_event_loop()
-            batch_results = await loop.run_in_executor(
-                None,
-                self._fetch_batch_sync,
-                batch,
-            )
-
-            all_results.update(batch_results)
+            try:
+                batch_results = await asyncio.wait_for(
+                    loop.run_in_executor(
+                        None,
+                        self._fetch_batch_sync,
+                        batch,
+                    ),
+                    timeout=timeout_seconds
+                )
+                all_results.update(batch_results)
+            except asyncio.TimeoutError:
+                logger.warning(f"[VALUATION] Batch {batch_num} timed out after {timeout_seconds}s, skipping")
+                print(f"[VALUATION] Batch {batch_num}/{total_batches}: TIMEOUT after {timeout_seconds}s")
+                sys.stdout.flush()
+                batch_results = {}  # Empty result for this batch
 
             # Progress update
             print(f"[VALUATION] Batch {batch_num}/{total_batches}: got {len(batch_results)} results (total: {len(all_results)})")

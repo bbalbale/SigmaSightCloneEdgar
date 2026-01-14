@@ -95,8 +95,19 @@ async def run_v2_batch():
         print(f"  Dates failed: {symbol_result.get('dates_failed', 0)}")
         sys.stdout.flush()
 
-        # Phase 2: Portfolio Refresh (only if symbol batch succeeded)
-        if symbol_result.get('success'):
+        # Phase 2: Portfolio Refresh
+        # With DATA-DRIVEN approach, each phase independently checks if work is needed
+        # Only skip if symbol batch FAILED (not just "nothing to do")
+        symbol_success = symbol_result.get('success', False)
+
+        if not symbol_success:
+            print("-" * 60)
+            print("PHASE 2: PORTFOLIO REFRESH - SKIPPED")
+            print("-" * 60)
+            print("[WARN] Skipping portfolio refresh due to symbol batch failure")
+            sys.stdout.flush()
+        else:
+            # Always run portfolio refresh - it will check if snapshots are needed
             print("-" * 60)
             print("PHASE 2: PORTFOLIO REFRESH")
             print("-" * 60)
@@ -107,7 +118,7 @@ async def run_v2_batch():
                 target_date=None,            # Auto-detect most recent trading day
                 wait_for_symbol_batch=False, # Already ran symbol batch above
                 wait_for_onboarding=True,    # Wait for any pending onboarding
-                backfill=True,               # Backfill missed dates (matches symbol batch)
+                backfill=True,               # Use data-driven check for missing snapshots
             )
 
             print(f"Portfolio Refresh Result: success={portfolio_result.get('success')}")
@@ -121,8 +132,6 @@ async def run_v2_batch():
                 # Single-date mode
                 print(f"  Portfolios processed: {portfolio_result.get('portfolios_processed', 0)}")
                 print(f"  Snapshots created: {portfolio_result.get('snapshots_created', 0)}")
-        else:
-            print("[WARN] Skipping portfolio refresh due to symbol batch failure")
 
         sys.stdout.flush()
 

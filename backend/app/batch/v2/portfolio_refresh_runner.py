@@ -257,106 +257,95 @@ async def _run_with_backfill(
     wait_for_onboarding: bool,
 ) -> BackfillResult:
     """
-    Run portfolio refresh with automatic backfill for missed dates.
+    Run portfolio refresh using DATA-DRIVEN approach.
+
+    Instead of checking batch_run_history, we check actual data:
+    - Which portfolios are missing snapshots for target_date?
+    - If none missing, we're caught up
+    - If some missing, process them
+
+    This is more resilient than date-based backfill because:
+    - Self-healing: If a batch fails halfway, next run catches what's missing
+    - Timezone-proof: No UTC vs ET confusion
+    - More accurate: Checks actual data, not batch history records
 
     Args:
-        target_date: End date to process
+        target_date: Date to check and process
         job_id: Job ID for tracking
         wait_for_symbol_batch: Whether to wait for symbol batch
         wait_for_onboarding: Whether to wait for onboarding
 
     Returns:
-        BackfillResult with all processed dates
+        BackfillResult with processing results
     """
     import sys
+    from app.batch.v2.data_checks import get_portfolios_missing_snapshots
+
     start_time = datetime.now()
 
-    print(f"{V2_LOG_PREFIX} Checking last successful portfolio refresh date...")
+    print(f"{V2_LOG_PREFIX} DATA-DRIVEN CHECK: Checking if portfolios have snapshots for {target_date}...")
     sys.stdout.flush()
 
-    # Find last successful portfolio refresh date
-    last_run = await get_last_portfolio_refresh_date()
-    print(f"{V2_LOG_PREFIX} Last successful run: {last_run}")
-    sys.stdout.flush()
+    # Check actual data - which portfolios are missing snapshots?
+    portfolios_missing, all_portfolios = await get_portfolios_missing_snapshots(target_date)
 
-    if last_run:
-        # Get all trading days between last_run + 1 and target_date
-        start_date = last_run + timedelta(days=1)
-        missing_dates = get_trading_days_between(start_date, target_date)
-        print(f"{V2_LOG_PREFIX} Backfill mode: last_run={last_run}, missing_dates={len(missing_dates)}")
+    if not portfolios_missing:
+        print(f"{V2_LOG_PREFIX} All {len(all_portfolios)} portfolios have snapshots for {target_date} - nothing to do")
         sys.stdout.flush()
-        logger.info(
-            f"{V2_LOG_PREFIX} Backfill mode: last_run={last_run}, "
-            f"missing_dates={len(missing_dates)}"
-        )
-    else:
-        # First run ever - just process target_date
-        missing_dates = [target_date] if is_trading_day(target_date) else []
-        print(f"{V2_LOG_PREFIX} First run ever, processing target_date only: {missing_dates}")
-        sys.stdout.flush()
-        logger.info(f"{V2_LOG_PREFIX} First run ever, processing target_date only")
-
-    # Safety limit
-    if len(missing_dates) > MAX_BACKFILL_DATES:
-        logger.warning(
-            f"{V2_LOG_PREFIX} Limiting backfill from {len(missing_dates)} to {MAX_BACKFILL_DATES} dates"
-        )
-        missing_dates = missing_dates[-MAX_BACKFILL_DATES:]
-
-    if not missing_dates:
-        print(f"{V2_LOG_PREFIX} No dates to process, already caught up")
-        sys.stdout.flush()
-        logger.info(f"{V2_LOG_PREFIX} No dates to process, already caught up")
+        logger.info(f"{V2_LOG_PREFIX} All portfolios have snapshots for {target_date}, skipping")
         return BackfillResult(
             success=True,
             dates_processed=0,
             dates_failed=0,
-            total_duration_seconds=0.0,
+            total_duration_seconds=(datetime.now() - start_time).total_seconds(),
         )
 
-    print(f"{V2_LOG_PREFIX} Processing {len(missing_dates)} dates...")
+    # Some portfolios are missing snapshots - need to process
+    print(f"{V2_LOG_PREFIX} {len(portfolios_missing)}/{len(all_portfolios)} portfolios missing snapshots for {target_date}")
     sys.stdout.flush()
+    logger.info(
+        f"{V2_LOG_PREFIX} {len(portfolios_missing)} portfolios missing snapshots for {target_date}, processing..."
+    )
 
-    # Process each missing date
+    # Process the target date (this will create snapshots for all portfolios)
+    # TODO: Future optimization - only process missing portfolios
     results = []
     dates_failed = 0
     total_snapshots = 0
 
-    for calc_date in missing_dates:
-        print(f"{V2_LOG_PREFIX} Processing date {calc_date} ({len(results)+1}/{len(missing_dates)})")
+    try:
+        print(f"{V2_LOG_PREFIX} Processing {target_date}...")
         sys.stdout.flush()
-        logger.info(f"{V2_LOG_PREFIX} Processing date {calc_date} ({len(results)+1}/{len(missing_dates)})")
 
-        try:
-            # Only wait for symbol batch on first date
-            wait_symbol = wait_for_symbol_batch if len(results) == 0 else False
-            wait_onboard = wait_for_onboarding if len(results) == 0 else False
+        result = await _run_portfolio_refresh_for_date(
+            target_date,
+            wait_for_symbol_batch,
+            wait_for_onboarding
+        )
+        results.append(result.to_dict())
 
-            result = await _run_portfolio_refresh_for_date(calc_date, wait_symbol, wait_onboard)
-            results.append(result.to_dict())
+        # Record completion for this date
+        await _record_portfolio_refresh_completion(target_date, result, job_id)
 
-            # Record completion for this date
-            await _record_portfolio_refresh_completion(calc_date, result, job_id)
-
-            if result.success:
-                total_snapshots += result.snapshots_created
-            else:
-                dates_failed += 1
-
-        except Exception as e:
-            logger.error(f"{V2_LOG_PREFIX} Failed to process {calc_date}: {e}", exc_info=True)
+        if result.success:
+            total_snapshots += result.snapshots_created
+        else:
             dates_failed += 1
-            results.append({
-                "success": False,
-                "target_date": calc_date.isoformat(),
-                "error": str(e),
-            })
+
+    except Exception as e:
+        logger.error(f"{V2_LOG_PREFIX} Failed to process {target_date}: {e}", exc_info=True)
+        dates_failed += 1
+        results.append({
+            "success": False,
+            "target_date": target_date.isoformat(),
+            "error": str(e),
+        })
 
     total_duration = (datetime.now() - start_time).total_seconds()
 
     return BackfillResult(
         success=dates_failed == 0,
-        dates_processed=len(missing_dates),
+        dates_processed=1 if dates_failed == 0 else 0,
         dates_failed=dates_failed,
         total_snapshots_created=total_snapshots,
         total_duration_seconds=total_duration,
@@ -1354,27 +1343,66 @@ async def get_last_portfolio_refresh_date() -> Optional[date]:
     """
     Get the most recent successful portfolio refresh date.
 
+    IMPORTANT: Uses calc_date from error_summary (US Eastern date that was processed),
+    NOT completed_at.date() which is a UTC date. This prevents timezone issues where
+    a batch completing at 9:30 PM ET on Jan 13 shows as Jan 14 in UTC.
+
     Returns:
         Date of last successful portfolio refresh, or None if never run
     """
-    async with get_async_session() as db:
-        result = await db.execute(
-            select(BatchRunHistory)
-            .where(
-                and_(
-                    BatchRunHistory.status == "completed",
-                    BatchRunHistory.triggered_by == "v2_cron_portfolio",
+    import sys
+
+    try:
+        print(f"{V2_LOG_PREFIX}   -> Opening database session...")
+        sys.stdout.flush()
+
+        # Add timeout to prevent hanging on database connection issues
+        async with asyncio.timeout(30):  # 30 second timeout
+            async with get_async_session() as db:
+                print(f"{V2_LOG_PREFIX}   -> Executing query...")
+                sys.stdout.flush()
+
+                result = await db.execute(
+                    select(BatchRunHistory)
+                    .where(
+                        and_(
+                            BatchRunHistory.status == "completed",
+                            BatchRunHistory.triggered_by == "v2_cron_portfolio",
+                        )
+                    )
+                    .order_by(desc(BatchRunHistory.completed_at))
+                    .limit(1)
                 )
-            )
-            .order_by(desc(BatchRunHistory.completed_at))
-            .limit(1)
-        )
-        last_run = result.scalar_one_or_none()
+                last_run = result.scalar_one_or_none()
 
-        if last_run and last_run.completed_at:
-            return last_run.completed_at.date()
+                print(f"{V2_LOG_PREFIX}   -> Query complete, processing result...")
+                sys.stdout.flush()
 
-    return None
+                if last_run:
+                    # Use calc_date from error_summary (US Eastern date that was processed)
+                    # This avoids UTC vs ET timezone issues
+                    error_summary = last_run.error_summary or {}
+                    calc_date_str = error_summary.get("calc_date")
+                    if calc_date_str:
+                        return date.fromisoformat(calc_date_str)
+
+                    # Fallback to completed_at.date() for backwards compatibility
+                    # (old runs without calc_date in error_summary)
+                    if last_run.completed_at:
+                        return last_run.completed_at.date()
+
+        return None
+
+    except asyncio.TimeoutError:
+        print(f"{V2_LOG_PREFIX}   -> ERROR: Database query timed out after 30s")
+        sys.stdout.flush()
+        logger.error(f"{V2_LOG_PREFIX} get_last_portfolio_refresh_date timed out")
+        return None
+    except Exception as e:
+        print(f"{V2_LOG_PREFIX}   -> ERROR: {e}")
+        sys.stdout.flush()
+        logger.error(f"{V2_LOG_PREFIX} get_last_portfolio_refresh_date failed: {e}")
+        return None
 
 
 # =============================================================================

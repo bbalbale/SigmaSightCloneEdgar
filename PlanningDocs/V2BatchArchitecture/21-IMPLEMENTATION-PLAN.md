@@ -290,6 +290,55 @@ If V2 causes issues in production:
 
 ---
 
+## Troubleshooting
+
+### New Data-Driven Architecture (2026-01-13)
+The batch system now uses a **data-driven approach** instead of checking `batch_run_history`:
+
+**Symbol Batch:**
+- Checks `market_data_cache` for symbols missing prices for today
+- If all symbols have prices → "nothing to do"
+- If some symbols missing → fetch prices
+
+**Portfolio Refresh:**
+- Checks `portfolio_snapshots` for portfolios missing snapshots for today
+- If all portfolios have snapshots → "nothing to do"
+- If some portfolios missing → create snapshots
+
+**Benefits:**
+- Self-healing: If a batch fails halfway, next run catches what's missing
+- Timezone-proof: No UTC vs ET confusion - just "do we have data?"
+- More accurate: Checks actual data, not batch history records
+
+### Batch Shows Wrong Date (UTC vs ET) - FIXED
+**Symptom**: Cron job shows it ran for 1/14 when today is 1/13 ET
+**Root Cause**: `get_last_symbol_batch_date()` was using `completed_at.date()` (UTC) instead of `calc_date` (ET)
+**Fix**: Replaced with data-driven checks - no longer depends on batch history dates
+
+### Batch Doesn't Process Today's Prices - FIXED
+**Symptom**: Batch says "No dates to process, already caught up" but prices weren't updated
+**Root Cause**: Same UTC vs ET timezone bug - last run's `completed_at` in UTC looked like today's date
+**Fix**: Replaced with data-driven checks - now checks actual `market_data_cache` for missing prices
+
+### Phase 0 (Company Profiles) Hangs
+**Symptom**: Batch stuck at "Phase 0: Daily valuations..." with no progress
+**Root Cause**: Yahoo Finance API timeout - no timeout on yahooquery calls
+**Solutions**:
+1. **Skip Phase 0**: Set `SKIP_PHASE0_VALUATIONS=true` in Railway env vars
+2. **Adjust timeout**: Set `YAHOOQUERY_BATCH_TIMEOUT=60` (default 120s per batch)
+
+### Configuration Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `BATCH_V2_ENABLED` | `false` | Master switch for V2 batch architecture |
+| `SKIP_PHASE0_VALUATIONS` | `false` | Skip Phase 0 (company profiles) if Yahoo Finance is slow |
+| `YAHOOQUERY_BATCH_TIMEOUT` | `120` | Timeout per batch (100 symbols) in seconds |
+| `SYMBOL_BATCH_TIMEOUT_SECONDS` | `1500` | Overall symbol batch timeout (25 min) |
+| `PORTFOLIO_REFRESH_TIMEOUT_SECONDS` | `1200` | Overall portfolio refresh timeout (20 min) |
+
+---
+
 ## Next Steps
 
 1. **Performance Benchmarking** - Measure Phase 3 execution time improvements
@@ -303,6 +352,10 @@ If V2 causes issues in production:
 
 | Date | Change | Commit |
 |------|--------|--------|
+| 2026-01-13 | **REFACTOR: Data-driven batch checks** - Instead of checking `batch_run_history`, we now check actual data (`market_data_cache` for prices, `portfolio_snapshots` for snapshots). This is self-healing, timezone-proof, and more accurate. See `app/batch/v2/data_checks.py` | pending |
+| 2026-01-13 | **FIX: UTC vs ET timezone issue** - `get_last_symbol_batch_date()` and `get_last_portfolio_refresh_date()` now use `calc_date` from `error_summary` instead of `completed_at.date()`. This fixes the bug where a batch completing at 9 PM ET shows as the next day in UTC. | pending |
+| 2026-01-13 | **FIX: Phase 0 timeout** - Added `YAHOOQUERY_BATCH_TIMEOUT` (default 120s) to prevent indefinite hangs when Yahoo Finance API is slow | pending |
+| 2026-01-13 | **FIX: Phase 0 skip flag** - Added `SKIP_PHASE0_VALUATIONS` env var to skip company profile fetching when yahooquery is unreliable | pending |
 | 2026-01-13 | Private asset filtering | `95a73249` |
 | 2026-01-13 | Cache-based Phase 5 lookups | `0b4171cb` |
 | 2026-01-13 | Factor cache refresh after Phase 3 | `adb4ed8c` |

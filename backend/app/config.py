@@ -279,6 +279,20 @@ class Settings(BaseSettings):
         description="Max pending symbol onboarding jobs (backpressure)"
     )
 
+    # V2 Phase Skip Flags (for debugging/performance)
+    SKIP_PHASE0_VALUATIONS: bool = Field(
+        default=False,
+        env="SKIP_PHASE0_VALUATIONS",
+        description="Skip Phase 0 (company profiles via yahooquery) - use when API is slow/unreliable"
+    )
+
+    # V2 Yahooquery Timeout (seconds per batch)
+    YAHOOQUERY_BATCH_TIMEOUT: int = Field(
+        default=120,
+        env="YAHOOQUERY_BATCH_TIMEOUT",
+        description="Timeout per yahooquery batch (100 symbols) in seconds"
+    )
+
     class Config:
         env_file = ".env"
         case_sensitive = True
