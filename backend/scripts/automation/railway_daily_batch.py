@@ -107,11 +107,20 @@ async def run_v2_batch():
                 target_date=None,            # Auto-detect most recent trading day
                 wait_for_symbol_batch=False, # Already ran symbol batch above
                 wait_for_onboarding=True,    # Wait for any pending onboarding
+                backfill=True,               # Backfill missed dates (matches symbol batch)
             )
 
             print(f"Portfolio Refresh Result: success={portfolio_result.get('success')}")
-            print(f"  Portfolios processed: {portfolio_result.get('portfolios_processed', 0)}")
-            print(f"  Snapshots created: {portfolio_result.get('snapshots_created', 0)}")
+            # Handle both single-date and backfill result formats
+            if 'dates_processed' in portfolio_result:
+                # Backfill mode
+                print(f"  Dates processed: {portfolio_result.get('dates_processed', 0)}")
+                print(f"  Dates failed: {portfolio_result.get('dates_failed', 0)}")
+                print(f"  Total snapshots: {portfolio_result.get('total_snapshots_created', 0)}")
+            else:
+                # Single-date mode
+                print(f"  Portfolios processed: {portfolio_result.get('portfolios_processed', 0)}")
+                print(f"  Snapshots created: {portfolio_result.get('snapshots_created', 0)}")
         else:
             print("[WARN] Skipping portfolio refresh due to symbol batch failure")
 

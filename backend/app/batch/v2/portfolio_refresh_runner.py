@@ -38,6 +38,7 @@ from app.core.trading_calendar import (
     get_most_recent_trading_day,
     get_most_recent_completed_trading_day,
     is_trading_day,
+    get_trading_days_between,
 )
 from app.database import get_async_session
 from app.models.admin import BatchRunHistory
@@ -73,6 +74,9 @@ MAX_ONBOARDING_WAIT_SECONDS = 120  # 2 minutes
 
 # Polling intervals
 POLL_INTERVAL_SECONDS = 5
+
+# Maximum dates to backfill in one run (safety limit)
+MAX_BACKFILL_DATES = 30
 
 
 # =============================================================================
@@ -116,6 +120,35 @@ class PortfolioRefreshResult:
         }
 
 
+@dataclass
+class BackfillResult:
+    """Result of a multi-date backfill run."""
+    success: bool
+    dates_processed: int = 0
+    dates_failed: int = 0
+    total_snapshots_created: int = 0
+    total_duration_seconds: float = 0.0
+    per_date_results: List[Dict[str, Any]] = None
+    errors: List[str] = None
+
+    def __post_init__(self):
+        if self.per_date_results is None:
+            self.per_date_results = []
+        if self.errors is None:
+            self.errors = []
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "success": self.success,
+            "dates_processed": self.dates_processed,
+            "dates_failed": self.dates_failed,
+            "total_snapshots_created": self.total_snapshots_created,
+            "total_duration_seconds": self.total_duration_seconds,
+            "per_date_results": self.per_date_results,
+            "errors": self.errors,
+        }
+
+
 # =============================================================================
 # MAIN ENTRY POINT
 # =============================================================================
@@ -124,9 +157,10 @@ async def run_portfolio_refresh(
     target_date: Optional[date] = None,
     wait_for_symbol_batch: bool = True,
     wait_for_onboarding: bool = True,
+    backfill: bool = True,
 ) -> Dict[str, Any]:
     """
-    Run portfolio refresh for all active portfolios.
+    Run portfolio refresh for all active portfolios with optional backfill.
 
     This is the main entry point for the V2 portfolio refresh cron job.
 
@@ -134,10 +168,19 @@ async def run_portfolio_refresh(
         target_date: Date to refresh (defaults to most recent trading day)
         wait_for_symbol_batch: If True, wait for symbol batch to complete
         wait_for_onboarding: If True, wait for pending symbol onboarding
+        backfill: If True, find and process all missed dates since last run
 
     Returns:
         Dict with refresh results
+
+    Examples:
+        # Normal cron run (backfills if needed)
+        result = await run_portfolio_refresh()
+
+        # Single date run (no backfill)
+        result = await run_portfolio_refresh(date(2026, 1, 10), backfill=False)
     """
+    import sys
     start_time = datetime.now()
     job_id = str(uuid4())
 
@@ -145,8 +188,10 @@ async def run_portfolio_refresh(
     if target_date is None:
         target_date = get_most_recent_completed_trading_day()
 
+    print(f"{V2_LOG_PREFIX} Starting portfolio refresh (job_id={job_id[:8]}, target={target_date}, backfill={backfill})")
+    sys.stdout.flush()
     logger.info(
-        f"{V2_LOG_PREFIX} Starting portfolio refresh (job_id={job_id}, target={target_date})"
+        f"{V2_LOG_PREFIX} Starting portfolio refresh (job_id={job_id}, target={target_date}, backfill={backfill})"
     )
 
     # Register job with tracker
@@ -166,131 +211,30 @@ async def run_portfolio_refresh(
             "message": "Another portfolio refresh is already in progress",
         }
 
-    result = PortfolioRefreshResult(
-        success=False,
-        target_date=target_date,
-    )
-
     try:
-        import sys
-        phase_durations = {}
+        # Backfill mode: process all missing dates
+        if backfill:
+            print(f"{V2_LOG_PREFIX} Running with backfill...")
+            sys.stdout.flush()
+            result = await _run_with_backfill(target_date, job_id, wait_for_symbol_batch, wait_for_onboarding)
 
-        # Step 1: Wait for symbol batch (if enabled)
-        if wait_for_symbol_batch:
-            batch_complete = await _wait_for_symbol_batch(target_date)
-            result.waited_for_symbol_batch = True
+            # Mark job complete
+            status = "completed" if result.success else "failed"
+            batch_run_tracker.complete_job_sync(BatchJobType.PORTFOLIO_REFRESH, status)
 
-            if not batch_complete:
-                logger.warning(
-                    f"{V2_LOG_PREFIX} Symbol batch not complete after waiting, proceeding anyway"
-                )
+            return result.to_dict()
 
-        # Step 2: Wait for onboarding (if enabled)
-        if wait_for_onboarding:
-            onboarding_complete = await _wait_for_onboarding()
-            result.waited_for_onboarding = True
-
-            if not onboarding_complete:
-                logger.warning(
-                    f"{V2_LOG_PREFIX} Symbol onboarding still pending, proceeding anyway"
-                )
-
-        # Step 3: Initialize unified V2 cache (prices + factors)
-        unified_cache = await _initialize_unified_cache(target_date)
-
-        # Phase 3: Create snapshots and populate risk analytics
-        # Step 1: Create base snapshots with P&L data
-        print(f"{V2_LOG_PREFIX} Phase 3: Creating portfolio snapshots...")
-        sys.stdout.flush()
-        phase_start = datetime.now()
-        refresh_result = await _refresh_all_portfolios(target_date, unified_cache)
-
-        result.portfolios_processed = refresh_result.get("portfolios_processed", 0)
-        result.snapshots_created = refresh_result.get("snapshots_created", 0)
-        result.errors = refresh_result.get("errors", [])
-
-        # Get portfolio IDs for analytics
-        portfolio_ids = await _get_active_portfolio_ids()
-
-        # Step 2: Update snapshots with risk analytics (beta, volatility, concentration)
-        print(f"{V2_LOG_PREFIX} Phase 3: Updating snapshots with risk analytics...")
-        sys.stdout.flush()
-        analytics_result = await _run_snapshot_analytics(
-            portfolio_ids, target_date, unified_cache
+        # Single date mode: process only target_date
+        single_result = await _run_portfolio_refresh_for_date(
+            target_date, wait_for_symbol_batch, wait_for_onboarding
         )
-
-        phase_durations["phase_3_snapshots"] = (datetime.now() - phase_start).total_seconds()
-        snapshots_updated = analytics_result.get('updated', 0)
-        print(f"{V2_LOG_PREFIX} Phase 3 complete: {result.snapshots_created} snapshots, {snapshots_updated} with analytics in {phase_durations['phase_3_snapshots']:.1f}s")
-        sys.stdout.flush()
-
-        if analytics_result.get("errors"):
-            result.errors.extend(analytics_result["errors"])
-
-        # Phase 4: Calculate correlations for all portfolios
-        print(f"{V2_LOG_PREFIX} Phase 4: Calculating correlations for {len(portfolio_ids)} portfolios...")
-        sys.stdout.flush()
-        phase_start = datetime.now()
-        correlation_result = await _run_correlations_for_all_portfolios(
-            portfolio_ids, target_date, unified_cache
-        )
-        phase_durations["phase_4_correlations"] = (datetime.now() - phase_start).total_seconds()
-        result.correlations_calculated = correlation_result.get("calculated", 0)
-        print(f"{V2_LOG_PREFIX} Phase 4 complete: {result.correlations_calculated} correlations in {phase_durations['phase_4_correlations']:.1f}s")
-        sys.stdout.flush()
-
-        if correlation_result.get("errors"):
-            result.errors.extend(correlation_result["errors"])
-
-        # Phase 5: Aggregate symbol factors to portfolio level
-        # This MUST happen before stress tests since they read from factor_exposures table
-        print(f"{V2_LOG_PREFIX} Phase 5: Aggregating symbol factors to portfolio level...")
-        sys.stdout.flush()
-        phase_start = datetime.now()
-        factor_agg_result = await _aggregate_portfolio_factors(
-            portfolio_ids, target_date
-        )
-        phase_durations["phase_5_factor_aggregation"] = (datetime.now() - phase_start).total_seconds()
-        print(f"{V2_LOG_PREFIX} Phase 5 complete: {factor_agg_result.get('calculated', 0)} portfolios in {phase_durations['phase_5_factor_aggregation']:.1f}s")
-        sys.stdout.flush()
-
-        if factor_agg_result.get("errors"):
-            result.errors.extend(factor_agg_result["errors"])
-
-        # Phase 6: Calculate stress tests for all portfolios
-        print(f"{V2_LOG_PREFIX} Phase 6: Calculating stress tests for {len(portfolio_ids)} portfolios...")
-        sys.stdout.flush()
-        phase_start = datetime.now()
-        stress_result = await _run_stress_tests_for_all_portfolios(
-            portfolio_ids, target_date
-        )
-        phase_durations["phase_6_stress_tests"] = (datetime.now() - phase_start).total_seconds()
-        result.stress_tests_calculated = stress_result.get("calculated", 0)
-        print(f"{V2_LOG_PREFIX} Phase 6 complete: {result.stress_tests_calculated} stress tests in {phase_durations['phase_6_stress_tests']:.1f}s")
-        sys.stdout.flush()
-
-        if stress_result.get("errors"):
-            result.errors.extend(stress_result["errors"])
-
-        # Finalize results
-        result.phase_durations = phase_durations
-        result.success = refresh_result.get("success", False)
-        result.duration_seconds = (datetime.now() - start_time).total_seconds()
-
-        # Step 6: Record completion
-        await _record_portfolio_refresh_completion(target_date, result, job_id)
+        await _record_portfolio_refresh_completion(target_date, single_result, job_id)
 
         # Mark job complete
-        status = "completed" if result.success else "failed"
+        status = "completed" if single_result.success else "failed"
         batch_run_tracker.complete_job_sync(BatchJobType.PORTFOLIO_REFRESH, status)
 
-        logger.info(
-            f"{V2_LOG_PREFIX} Portfolio refresh complete: "
-            f"portfolios={result.portfolios_processed}, snapshots={result.snapshots_created}, "
-            f"duration={result.duration_seconds:.1f}s"
-        )
-
-        return result.to_dict()
+        return single_result.to_dict()
 
     except Exception as e:
         logger.error(f"{V2_LOG_PREFIX} Portfolio refresh failed: {e}", exc_info=True)
@@ -304,6 +248,260 @@ async def run_portfolio_refresh(
             "error": "portfolio_refresh_exception",
             "message": str(e),
         }
+
+
+async def _run_with_backfill(
+    target_date: date,
+    job_id: str,
+    wait_for_symbol_batch: bool,
+    wait_for_onboarding: bool,
+) -> BackfillResult:
+    """
+    Run portfolio refresh with automatic backfill for missed dates.
+
+    Args:
+        target_date: End date to process
+        job_id: Job ID for tracking
+        wait_for_symbol_batch: Whether to wait for symbol batch
+        wait_for_onboarding: Whether to wait for onboarding
+
+    Returns:
+        BackfillResult with all processed dates
+    """
+    import sys
+    start_time = datetime.now()
+
+    print(f"{V2_LOG_PREFIX} Checking last successful portfolio refresh date...")
+    sys.stdout.flush()
+
+    # Find last successful portfolio refresh date
+    last_run = await get_last_portfolio_refresh_date()
+    print(f"{V2_LOG_PREFIX} Last successful run: {last_run}")
+    sys.stdout.flush()
+
+    if last_run:
+        # Get all trading days between last_run + 1 and target_date
+        start_date = last_run + timedelta(days=1)
+        missing_dates = get_trading_days_between(start_date, target_date)
+        print(f"{V2_LOG_PREFIX} Backfill mode: last_run={last_run}, missing_dates={len(missing_dates)}")
+        sys.stdout.flush()
+        logger.info(
+            f"{V2_LOG_PREFIX} Backfill mode: last_run={last_run}, "
+            f"missing_dates={len(missing_dates)}"
+        )
+    else:
+        # First run ever - just process target_date
+        missing_dates = [target_date] if is_trading_day(target_date) else []
+        print(f"{V2_LOG_PREFIX} First run ever, processing target_date only: {missing_dates}")
+        sys.stdout.flush()
+        logger.info(f"{V2_LOG_PREFIX} First run ever, processing target_date only")
+
+    # Safety limit
+    if len(missing_dates) > MAX_BACKFILL_DATES:
+        logger.warning(
+            f"{V2_LOG_PREFIX} Limiting backfill from {len(missing_dates)} to {MAX_BACKFILL_DATES} dates"
+        )
+        missing_dates = missing_dates[-MAX_BACKFILL_DATES:]
+
+    if not missing_dates:
+        print(f"{V2_LOG_PREFIX} No dates to process, already caught up")
+        sys.stdout.flush()
+        logger.info(f"{V2_LOG_PREFIX} No dates to process, already caught up")
+        return BackfillResult(
+            success=True,
+            dates_processed=0,
+            dates_failed=0,
+            total_duration_seconds=0.0,
+        )
+
+    print(f"{V2_LOG_PREFIX} Processing {len(missing_dates)} dates...")
+    sys.stdout.flush()
+
+    # Process each missing date
+    results = []
+    dates_failed = 0
+    total_snapshots = 0
+
+    for calc_date in missing_dates:
+        print(f"{V2_LOG_PREFIX} Processing date {calc_date} ({len(results)+1}/{len(missing_dates)})")
+        sys.stdout.flush()
+        logger.info(f"{V2_LOG_PREFIX} Processing date {calc_date} ({len(results)+1}/{len(missing_dates)})")
+
+        try:
+            # Only wait for symbol batch on first date
+            wait_symbol = wait_for_symbol_batch if len(results) == 0 else False
+            wait_onboard = wait_for_onboarding if len(results) == 0 else False
+
+            result = await _run_portfolio_refresh_for_date(calc_date, wait_symbol, wait_onboard)
+            results.append(result.to_dict())
+
+            # Record completion for this date
+            await _record_portfolio_refresh_completion(calc_date, result, job_id)
+
+            if result.success:
+                total_snapshots += result.snapshots_created
+            else:
+                dates_failed += 1
+
+        except Exception as e:
+            logger.error(f"{V2_LOG_PREFIX} Failed to process {calc_date}: {e}", exc_info=True)
+            dates_failed += 1
+            results.append({
+                "success": False,
+                "target_date": calc_date.isoformat(),
+                "error": str(e),
+            })
+
+    total_duration = (datetime.now() - start_time).total_seconds()
+
+    return BackfillResult(
+        success=dates_failed == 0,
+        dates_processed=len(missing_dates),
+        dates_failed=dates_failed,
+        total_snapshots_created=total_snapshots,
+        total_duration_seconds=total_duration,
+        per_date_results=results,
+    )
+
+
+async def _run_portfolio_refresh_for_date(
+    target_date: date,
+    wait_for_symbol_batch: bool = False,
+    wait_for_onboarding: bool = False,
+) -> PortfolioRefreshResult:
+    """
+    Run portfolio refresh for a single date.
+
+    This is the core logic extracted for use by both single-date and backfill modes.
+
+    Args:
+        target_date: Date to process
+        wait_for_symbol_batch: Whether to wait for symbol batch
+        wait_for_onboarding: Whether to wait for onboarding
+
+    Returns:
+        PortfolioRefreshResult for this date
+    """
+    import sys
+
+    result = PortfolioRefreshResult(
+        success=False,
+        target_date=target_date,
+    )
+
+    phase_durations = {}
+
+    # Step 1: Wait for symbol batch (if enabled)
+    if wait_for_symbol_batch:
+        batch_complete = await _wait_for_symbol_batch(target_date)
+        result.waited_for_symbol_batch = True
+
+        if not batch_complete:
+            logger.warning(
+                f"{V2_LOG_PREFIX} Symbol batch not complete after waiting, proceeding anyway"
+            )
+
+    # Step 2: Wait for onboarding (if enabled)
+    if wait_for_onboarding:
+        onboarding_complete = await _wait_for_onboarding()
+        result.waited_for_onboarding = True
+
+        if not onboarding_complete:
+            logger.warning(
+                f"{V2_LOG_PREFIX} Symbol onboarding still pending, proceeding anyway"
+            )
+
+    # Step 3: Initialize unified V2 cache (prices + factors)
+    unified_cache = await _initialize_unified_cache(target_date)
+
+    start_time = datetime.now()
+
+    # Phase 3: Create snapshots and populate risk analytics
+    # Step 1: Create base snapshots with P&L data
+    print(f"{V2_LOG_PREFIX} Phase 3: Creating portfolio snapshots...")
+    sys.stdout.flush()
+    phase_start = datetime.now()
+    refresh_result = await _refresh_all_portfolios(target_date, unified_cache)
+
+    result.portfolios_processed = refresh_result.get("portfolios_processed", 0)
+    result.snapshots_created = refresh_result.get("snapshots_created", 0)
+    result.errors = refresh_result.get("errors", [])
+
+    # Get portfolio IDs for analytics
+    portfolio_ids = await _get_active_portfolio_ids()
+
+    # Step 2: Update snapshots with risk analytics (beta, volatility, concentration)
+    print(f"{V2_LOG_PREFIX} Phase 3: Updating snapshots with risk analytics...")
+    sys.stdout.flush()
+    analytics_result = await _run_snapshot_analytics(
+        portfolio_ids, target_date, unified_cache
+    )
+
+    phase_durations["phase_3_snapshots"] = (datetime.now() - phase_start).total_seconds()
+    snapshots_updated = analytics_result.get('updated', 0)
+    print(f"{V2_LOG_PREFIX} Phase 3 complete: {result.snapshots_created} snapshots, {snapshots_updated} with analytics in {phase_durations['phase_3_snapshots']:.1f}s")
+    sys.stdout.flush()
+
+    if analytics_result.get("errors"):
+        result.errors.extend(analytics_result["errors"])
+
+    # Phase 4: Calculate correlations for all portfolios
+    print(f"{V2_LOG_PREFIX} Phase 4: Calculating correlations for {len(portfolio_ids)} portfolios...")
+    sys.stdout.flush()
+    phase_start = datetime.now()
+    correlation_result = await _run_correlations_for_all_portfolios(
+        portfolio_ids, target_date, unified_cache
+    )
+    phase_durations["phase_4_correlations"] = (datetime.now() - phase_start).total_seconds()
+    result.correlations_calculated = correlation_result.get("calculated", 0)
+    print(f"{V2_LOG_PREFIX} Phase 4 complete: {result.correlations_calculated} correlations in {phase_durations['phase_4_correlations']:.1f}s")
+    sys.stdout.flush()
+
+    if correlation_result.get("errors"):
+        result.errors.extend(correlation_result["errors"])
+
+    # Phase 5: Aggregate symbol factors to portfolio level
+    # This MUST happen before stress tests since they read from factor_exposures table
+    print(f"{V2_LOG_PREFIX} Phase 5: Aggregating symbol factors to portfolio level...")
+    sys.stdout.flush()
+    phase_start = datetime.now()
+    factor_agg_result = await _aggregate_portfolio_factors(
+        portfolio_ids, target_date
+    )
+    phase_durations["phase_5_factor_aggregation"] = (datetime.now() - phase_start).total_seconds()
+    print(f"{V2_LOG_PREFIX} Phase 5 complete: {factor_agg_result.get('calculated', 0)} portfolios in {phase_durations['phase_5_factor_aggregation']:.1f}s")
+    sys.stdout.flush()
+
+    if factor_agg_result.get("errors"):
+        result.errors.extend(factor_agg_result["errors"])
+
+    # Phase 6: Calculate stress tests for all portfolios
+    print(f"{V2_LOG_PREFIX} Phase 6: Calculating stress tests for {len(portfolio_ids)} portfolios...")
+    sys.stdout.flush()
+    phase_start = datetime.now()
+    stress_result = await _run_stress_tests_for_all_portfolios(
+        portfolio_ids, target_date
+    )
+    phase_durations["phase_6_stress_tests"] = (datetime.now() - phase_start).total_seconds()
+    result.stress_tests_calculated = stress_result.get("calculated", 0)
+    print(f"{V2_LOG_PREFIX} Phase 6 complete: {result.stress_tests_calculated} stress tests in {phase_durations['phase_6_stress_tests']:.1f}s")
+    sys.stdout.flush()
+
+    if stress_result.get("errors"):
+        result.errors.extend(stress_result["errors"])
+
+    # Finalize results
+    result.phase_durations = phase_durations
+    result.success = refresh_result.get("success", False)
+    result.duration_seconds = (datetime.now() - start_time).total_seconds()
+
+    logger.info(
+        f"{V2_LOG_PREFIX} Portfolio refresh for {target_date} complete: "
+        f"portfolios={result.portfolios_processed}, snapshots={result.snapshots_created}, "
+        f"duration={result.duration_seconds:.1f}s"
+    )
+
+    return result
 
 
 # =============================================================================
