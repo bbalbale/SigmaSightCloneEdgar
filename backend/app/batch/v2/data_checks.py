@@ -22,7 +22,7 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -37,6 +37,7 @@ from app.models.market_data import MarketDataCache
 from app.models.snapshots import PortfolioSnapshot
 from app.models.positions import Position
 from app.models.users import Portfolio
+from app.models.symbol_analytics import SymbolUniverse
 
 logger = get_logger(__name__)
 
@@ -85,11 +86,13 @@ async def get_all_portfolio_symbols() -> Set[str]:
     Get all unique symbols from all active portfolios.
 
     Only includes PUBLIC positions (stocks/ETFs), not OPTIONS or PRIVATE.
+    Excludes symbols marked as inactive in symbol_universe (delisted, renamed, etc.).
 
     Returns:
         Set of symbol strings
     """
     async with get_async_session() as db:
+        # First get all PUBLIC position symbols
         result = await db.execute(
             select(Position.symbol)
             .distinct()
@@ -102,8 +105,29 @@ async def get_all_portfolio_symbols() -> Set[str]:
                 )
             )
         )
-        symbols = {row[0] for row in result.fetchall() if row[0]}
-        return symbols
+        all_symbols = {row[0].upper() for row in result.fetchall() if row[0]}
+
+        if not all_symbols:
+            return set()
+
+        # Get inactive symbols from symbol_universe to exclude
+        result = await db.execute(
+            select(SymbolUniverse.symbol)
+            .where(SymbolUniverse.is_active == False)
+        )
+        inactive_symbols = {row[0].upper() for row in result.fetchall() if row[0]}
+
+        # Filter out inactive symbols
+        if inactive_symbols:
+            filtered_out = all_symbols & inactive_symbols
+            if filtered_out:
+                logger.info(
+                    f"{V2_LOG_PREFIX} Filtered out {len(filtered_out)} inactive symbols: "
+                    f"{list(filtered_out)[:5]}{'...' if len(filtered_out) > 5 else ''}"
+                )
+            all_symbols -= inactive_symbols
+
+        return all_symbols
 
 
 async def get_symbols_missing_prices(target_date: date) -> Tuple[List[str], List[str]]:
