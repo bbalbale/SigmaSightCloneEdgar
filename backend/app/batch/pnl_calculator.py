@@ -202,14 +202,51 @@ class PnLCalculator:
             # new: uq_portfolio_snapshot_date) or use SQLSTATE 23505 (unique violation)
             error_str = str(e).lower()
             if "uq_portfolio_snapshot" in error_str or "unique constraint" in error_str:
-                logger.info(
-                    f"    [IDEMPOTENCY] Snapshot already exists for {calculation_date}, "
-                    f"skipping duplicate run (constraint: {e.orig.diag.constraint_name if hasattr(e.orig, 'diag') else 'unknown'})"
-                )
                 await db.rollback()
-                return {"status": "skipped", "reason": "duplicate_run"}
-            # Some other integrity error - re-raise
-            raise
+
+                # Check if existing snapshot is incomplete (from crashed job)
+                existing_result = await db.execute(
+                    select(PortfolioSnapshot).where(
+                        and_(
+                            PortfolioSnapshot.portfolio_id == portfolio_id,
+                            PortfolioSnapshot.snapshot_date == calculation_date
+                        )
+                    )
+                )
+                existing_snapshot = existing_result.scalar_one_or_none()
+
+                if existing_snapshot and not existing_snapshot.is_complete:
+                    # Incomplete snapshot from crashed job - delete and retry
+                    logger.info(
+                        f"    [RECOVERY] Found incomplete snapshot for {calculation_date}, "
+                        f"deleting and retrying..."
+                    )
+                    await db.delete(existing_snapshot)
+                    await db.commit()
+
+                    # Retry the lock
+                    try:
+                        placeholder = await lock_snapshot_slot(
+                            db=db,
+                            portfolio_id=portfolio_id,
+                            snapshot_date=calculation_date
+                        )
+                        logger.debug(f"    [RECOVERY] Successfully locked snapshot slot {placeholder.id}")
+                    except IntegrityError:
+                        # Still failing - another process grabbed it
+                        logger.warning(f"    [RECOVERY] Retry failed, another process claimed the slot")
+                        await db.rollback()
+                        return {"status": "skipped", "reason": "duplicate_run"}
+                else:
+                    # Complete snapshot already exists - skip
+                    logger.info(
+                        f"    [IDEMPOTENCY] Complete snapshot already exists for {calculation_date}, "
+                        f"skipping duplicate run"
+                    )
+                    return {"status": "skipped", "reason": "duplicate_run"}
+            else:
+                # Some other integrity error - re-raise
+                raise
 
         # Get portfolio
         portfolio_query = select(Portfolio).where(Portfolio.id == portfolio_id)
@@ -299,7 +336,8 @@ class PnLCalculator:
             )
 
             # Update the snapshot's P&L fields with our calculated equity values
-            # (populate_snapshot_data sets is_complete=True, but we need to set P&L fields)
+            # NOTE: populate_snapshot_data leaves is_complete=False when skip_pnl_calculation=True
+            # We set is_complete=True HERE after all P&L fields are populated
             snapshot.equity_balance = new_equity
             snapshot.daily_pnl = total_daily_pnl
             snapshot.daily_realized_pnl = daily_realized_pnl
@@ -318,6 +356,10 @@ class PnLCalculator:
                 snapshot.cumulative_pnl = total_daily_pnl
                 snapshot.cumulative_realized_pnl = daily_realized_pnl
                 snapshot.cumulative_capital_flow = daily_capital_flow
+
+            # CRITICAL: Mark snapshot as complete AFTER P&L is calculated
+            # This ensures crashed jobs leave is_complete=False, allowing retry
+            snapshot.is_complete = True
 
             await db.commit()
             return True

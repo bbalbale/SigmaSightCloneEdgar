@@ -22,7 +22,7 @@ from datetime import date, datetime, timedelta
 from typing import List, Optional, Set, Tuple
 from uuid import UUID
 
-from sqlalchemy import select, and_, func
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
@@ -37,6 +37,7 @@ from app.models.market_data import MarketDataCache
 from app.models.snapshots import PortfolioSnapshot
 from app.models.positions import Position
 from app.models.users import Portfolio
+from app.models.symbol_analytics import SymbolUniverse
 
 logger = get_logger(__name__)
 
@@ -85,11 +86,13 @@ async def get_all_portfolio_symbols() -> Set[str]:
     Get all unique symbols from all active portfolios.
 
     Only includes PUBLIC positions (stocks/ETFs), not OPTIONS or PRIVATE.
+    Excludes symbols marked as inactive in symbol_universe (delisted, renamed, etc.).
 
     Returns:
         Set of symbol strings
     """
     async with get_async_session() as db:
+        # First get all PUBLIC position symbols
         result = await db.execute(
             select(Position.symbol)
             .distinct()
@@ -102,8 +105,29 @@ async def get_all_portfolio_symbols() -> Set[str]:
                 )
             )
         )
-        symbols = {row[0] for row in result.fetchall() if row[0]}
-        return symbols
+        all_symbols = {row[0].upper() for row in result.fetchall() if row[0]}
+
+        if not all_symbols:
+            return set()
+
+        # Get inactive symbols from symbol_universe to exclude
+        result = await db.execute(
+            select(SymbolUniverse.symbol)
+            .where(SymbolUniverse.is_active == False)
+        )
+        inactive_symbols = {row[0].upper() for row in result.fetchall() if row[0]}
+
+        # Filter out inactive symbols
+        if inactive_symbols:
+            filtered_out = all_symbols & inactive_symbols
+            if filtered_out:
+                logger.info(
+                    f"{V2_LOG_PREFIX} Filtered out {len(filtered_out)} inactive symbols: "
+                    f"{list(filtered_out)[:5]}{'...' if len(filtered_out) > 5 else ''}"
+                )
+            all_symbols -= inactive_symbols
+
+        return all_symbols
 
 
 async def get_symbols_missing_prices(target_date: date) -> Tuple[List[str], List[str]]:
@@ -153,7 +177,10 @@ async def get_symbols_missing_prices(target_date: date) -> Tuple[List[str], List
 
 async def get_portfolios_missing_snapshots(target_date: date) -> Tuple[List[UUID], List[UUID]]:
     """
-    Check which portfolios are missing snapshots for the target date.
+    Check which portfolios are missing COMPLETE snapshots for the target date.
+
+    A snapshot is considered complete only if is_complete=True.
+    Incomplete snapshots (from crashed jobs) are treated as missing.
 
     Args:
         target_date: Date to check for missing snapshots
@@ -177,7 +204,9 @@ async def get_portfolios_missing_snapshots(target_date: date) -> Tuple[List[UUID
             sys.stdout.flush()
             return [], []
 
-        # Get portfolios that HAVE snapshots for target_date
+        # Get portfolios that HAVE COMPLETE snapshots for target_date
+        # CRITICAL: Only count is_complete=True snapshots as "having" a snapshot
+        # This allows crashed jobs (is_complete=False) to be retried
         result = await db.execute(
             select(PortfolioSnapshot.portfolio_id)
             .distinct()
@@ -185,16 +214,39 @@ async def get_portfolios_missing_snapshots(target_date: date) -> Tuple[List[UUID
                 and_(
                     PortfolioSnapshot.snapshot_date == target_date,
                     PortfolioSnapshot.portfolio_id.in_(all_portfolio_ids),
+                    PortfolioSnapshot.is_complete == True,  # noqa: E712
                 )
             )
         )
-        portfolios_with_snapshots = {row[0] for row in result.fetchall()}
+        portfolios_with_complete_snapshots = {row[0] for row in result.fetchall()}
 
-    # Calculate missing
+        # Also check for incomplete snapshots (for logging)
+        result = await db.execute(
+            select(PortfolioSnapshot.portfolio_id)
+            .distinct()
+            .where(
+                and_(
+                    PortfolioSnapshot.snapshot_date == target_date,
+                    PortfolioSnapshot.portfolio_id.in_(all_portfolio_ids),
+                    PortfolioSnapshot.is_complete == False,  # noqa: E712
+                )
+            )
+        )
+        incomplete_snapshots = {row[0] for row in result.fetchall()}
+
+    # Calculate missing (includes incomplete)
     all_portfolio_set = set(all_portfolio_ids)
-    portfolios_missing = list(all_portfolio_set - portfolios_with_snapshots)
+    portfolios_missing = list(all_portfolio_set - portfolios_with_complete_snapshots)
 
-    print(f"{V2_LOG_PREFIX} Portfolios: {len(all_portfolio_ids)} total, {len(portfolios_with_snapshots)} have snapshots, {len(portfolios_missing)} missing")
+    if incomplete_snapshots:
+        logger.info(
+            f"{V2_LOG_PREFIX} Found {len(incomplete_snapshots)} incomplete snapshots for {target_date} "
+            f"(will be deleted and recreated)"
+        )
+        print(f"{V2_LOG_PREFIX} Found {len(incomplete_snapshots)} incomplete snapshots (will be retried)")
+        sys.stdout.flush()
+
+    print(f"{V2_LOG_PREFIX} Portfolios: {len(all_portfolio_ids)} total, {len(portfolios_with_complete_snapshots)} complete, {len(portfolios_missing)} need processing")
     sys.stdout.flush()
 
     return portfolios_missing, all_portfolio_ids
