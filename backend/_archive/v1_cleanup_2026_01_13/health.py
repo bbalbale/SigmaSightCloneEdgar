@@ -37,17 +37,25 @@ async def readiness_probe(response: Response):
     Returns:
     - 200: Cache ready OR cold start timeout exceeded (traffic can be served)
     - 503: Cache initializing and timeout not exceeded (hold traffic)
-    """
-    from app.cache.symbol_cache import symbol_cache
 
-    if symbol_cache.is_ready():
-        return {"status": "ready"}
-    else:
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-        return {
-            "status": "initializing",
-            "message": "Cache warming up, traffic will be served with DB fallback",
-        }
+    In V2 mode, checks symbol cache readiness.
+    In V1 mode, always returns ready.
+    """
+    if settings.BATCH_V2_ENABLED:
+        from app.cache.symbol_cache import symbol_cache
+
+        if symbol_cache.is_ready():
+            return {"status": "ready", "mode": "v2"}
+        else:
+            response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+            return {
+                "status": "initializing",
+                "mode": "v2",
+                "message": "Cache warming up, traffic will be served with DB fallback",
+            }
+
+    # V1 mode - always ready
+    return {"status": "ready", "mode": "v1"}
 
 
 @router.get("/health/status")
@@ -58,12 +66,18 @@ async def health_status():
     Returns comprehensive health information including:
     - Cache initialization status
     - Stats and counts
+    - V2 mode detection
     """
-    from app.cache.symbol_cache import symbol_cache
-
-    return {
+    result = {
+        "batch_v2_enabled": settings.BATCH_V2_ENABLED,
         "status": "healthy",
-        "symbol_cache": symbol_cache.get_health_status(),
-        "ready": symbol_cache.is_ready(),
-        "alive": symbol_cache.is_alive(),
     }
+
+    if settings.BATCH_V2_ENABLED:
+        from app.cache.symbol_cache import symbol_cache
+
+        result["symbol_cache"] = symbol_cache.get_health_status()
+        result["ready"] = symbol_cache.is_ready()
+        result["alive"] = symbol_cache.is_alive()
+
+    return result

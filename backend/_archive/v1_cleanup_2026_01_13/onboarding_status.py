@@ -161,30 +161,44 @@ async def get_onboarding_status(
             }
         )
 
-    # Onboarding uses instant mode
-    onboarding_mode = "instant"
+    # Determine onboarding mode
+    onboarding_mode = "v2_instant" if settings.BATCH_V2_ENABLED else "v1_batch"
 
     # Get status from batch_run_tracker
     status_data = batch_run_tracker.get_onboarding_status(portfolio_id)
 
     if status_data is None:
         # No batch running for this portfolio
-        # "not_found" means instant onboarding already completed
-        # Frontend should redirect to portfolio immediately
         logger.debug(f"No batch running for portfolio {portfolio_id}")
 
+        # V2 mode: "not_found" means instant onboarding already completed
+        # Frontend should redirect to portfolio immediately
+        if settings.BATCH_V2_ENABLED:
+            return OnboardingStatusResponse(
+                portfolio_id=portfolio_id,
+                status="completed",  # V2: Instant = already done
+                started_at=None,
+                elapsed_seconds=0,
+                overall_progress=OverallProgressResponse(
+                    current_phase=None,
+                    current_phase_name=None,
+                    phases_completed=4,
+                    phases_total=4,
+                    percent_complete=100
+                ),
+                current_phase_progress=None,
+                activity_log=[],
+                phases=None,
+                mode=onboarding_mode
+            )
+
+        # V1 mode: "not_found" means no batch running yet
         return OnboardingStatusResponse(
             portfolio_id=portfolio_id,
-            status="completed",  # Instant = already done
+            status="not_found",
             started_at=None,
             elapsed_seconds=0,
-            overall_progress=OverallProgressResponse(
-                current_phase=None,
-                current_phase_name=None,
-                phases_completed=4,
-                phases_total=4,
-                percent_complete=100
-            ),
+            overall_progress=None,
             current_phase_progress=None,
             activity_log=[],
             phases=None,

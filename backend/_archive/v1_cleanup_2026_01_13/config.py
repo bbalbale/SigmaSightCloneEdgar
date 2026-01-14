@@ -229,14 +229,18 @@ class Settings(BaseSettings):
     MARKET_DATA_UPDATE_INTERVAL: int = 3600  # 1 hour in seconds
 
     # ==========================================================================
-    # BATCH ARCHITECTURE SETTINGS
+    # V2 BATCH ARCHITECTURE (Two-Cron, Instant Onboarding)
     # ==========================================================================
-    # The batch system uses two-phase processing:
-    # - Symbol batch: Market data + factor calculations (nightly cron)
-    # - Portfolio refresh: P&L + analytics (nightly cron)
-    # - batch_orchestrator: On-demand processing (admin API, user triggers)
+    # Master switch for V2 batch architecture
+    # When True: Symbol batch + Portfolio refresh run as separate cron jobs
+    # When False: Legacy batch_orchestrator runs all phases together
+    BATCH_V2_ENABLED: bool = Field(
+        default=False,
+        env="BATCH_V2_ENABLED",
+        description="Enable V2 batch architecture (two-cron, instant onboarding)"
+    )
 
-    # Batch timing thresholds (seconds)
+    # V2 Batch timing thresholds (seconds)
     SYMBOL_BATCH_TIMEOUT_SECONDS: int = Field(
         default=1500,  # 25 min abort
         env="SYMBOL_BATCH_TIMEOUT_SECONDS",
@@ -248,7 +252,7 @@ class Settings(BaseSettings):
         description="Portfolio refresh timeout (target 10 min, warn at 15 min)"
     )
 
-    # Concurrency limits (Railway-safe defaults)
+    # V2 Concurrency limits (Railway-safe defaults)
     PRICE_FETCH_CONCURRENCY: int = Field(
         default=5,
         env="PRICE_FETCH_CONCURRENCY",

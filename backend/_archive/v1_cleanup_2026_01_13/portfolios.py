@@ -590,20 +590,40 @@ async def trigger_portfolio_calculations(
             f"(batch_run_id: {batch_run_id}, calculation_date: {calculation_date}, today: {date.today()})"
         )
 
-        # Use fast onboarding path: pre-computed symbol data + scoped processing
-        # - Classifies symbols as known (in cache) or unknown (need processing)
-        # - Only processes unknown symbols via Phase 0/1/3
-        # - Runs portfolio Phases 4/5/6 using caches
-        # - Typically completes in 5-60 seconds
-        logger.info(
-            f"Starting onboarding for portfolio {portfolio_id} "
-            f"(batch_run_id: {batch_run_id})"
-        )
-        background_tasks.add_task(
-            _run_v2_onboarding_with_tracking,
-            str(portfolio_id),
-            calculation_date,
-        )
+        # Check if V2 batch is enabled
+        if settings.BATCH_V2_ENABLED:
+            # V2 Fast Path: Use pre-computed symbol data + scoped processing
+            # - Classifies symbols as known (in cache) or unknown (need processing)
+            # - Only processes unknown symbols via Phase 0/1/3
+            # - Runs portfolio Phases 4/5/6 using V2 caches
+            # - Typically completes in 5-60 seconds vs 15-20 minutes for V1
+            logger.info(
+                f"[V2] Using V2 onboarding for portfolio {portfolio_id} "
+                f"(batch_run_id: {batch_run_id})"
+            )
+            background_tasks.add_task(
+                _run_v2_onboarding_with_tracking,
+                str(portfolio_id),
+                calculation_date,
+            )
+        else:
+            # V1 Fallback: Full batch backfill
+            # Execute batch processing in background using per-portfolio onboarding backfill
+            # Why run_portfolio_onboarding_backfill instead of run_daily_batch_with_backfill?
+            # - run_daily_batch_with_backfill uses GLOBAL watermark (max snapshot across ALL portfolios)
+            # - If cron already ran today, global backfill returns "already up to date" - new portfolio gets nothing
+            # - run_portfolio_onboarding_backfill finds earliest position entry_date for THIS portfolio
+            # - Processes all trading days from that date, guaranteeing complete historical analytics
+            # - Includes Phase 1.5 (Symbol Factors) and Phase 1.75 (Symbol Metrics)
+            logger.info(
+                f"[V1] Using V1 batch backfill for portfolio {portfolio_id} "
+                f"(batch_run_id: {batch_run_id})"
+            )
+            background_tasks.add_task(
+                batch_orchestrator.run_portfolio_onboarding_backfill,
+                str(portfolio_id),  # portfolio_id - the specific portfolio to backfill
+                calculation_date  # end_date - process up to most recent trading day
+            )
 
         return TriggerCalculationsResponse(
             portfolio_id=str(portfolio_id),

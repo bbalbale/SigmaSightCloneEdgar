@@ -14,27 +14,18 @@ Environment Variables Required:
   OPENAI_API_KEY - OpenAI API key for chat features
 
 Workflow:
-  The batch orchestrator handles everything:
-  - Trading day detection and adjustment
-  - Phase 0: Company profile sync (on final date only)
-  - Phase 1: Market data collection
-  - Phase 2: Fundamental data collection
-  - Phase 3: P&L calculation & snapshots
-  - Phase 4: Position market value updates
-  - Phase 5: Sector tag restoration
-  - Phase 6: Risk analytics
+  Two-phase batch processing:
+  - Phase 1: Symbol Batch (market data + factor calculations)
+  - Phase 2: Portfolio Refresh (P&L + analytics)
 
-Phase 11.1 Change: Simplified to use batch orchestrator directly.
-All trading day logic, company profile sync, and batch processing is now
-handled by the batch orchestrator's run_daily_batch_with_backfill() method.
-This eliminates code duplication and ensures Railway uses the same code path
-as local batch processing (scripts/batch_processing/run_batch.py).
+  For on-demand processing (admin API, manual runs), use batch_orchestrator
+  via the admin batch endpoint or scripts/batch_processing/run_batch.py.
 """
 
 import os
 import asyncio
 import sys
-import datetime
+from datetime import datetime as dt
 
 # Fix Railway DATABASE_URL format BEFORE any imports
 if 'DATABASE_URL' in os.environ:
@@ -47,32 +38,45 @@ if 'DATABASE_URL' in os.environ:
 sys.path.insert(0, '/app')  # Railway container path
 sys.path.insert(0, '.')      # Local development path
 
-from app.config import settings
 from app.core.logging import get_logger
-from app.batch.batch_orchestrator import batch_orchestrator
 from app.database import AsyncSessionLocal
 from app.db.seed_factors import seed_factors
 
 logger = get_logger(__name__)
 
 
-async def run_v2_batch():
-    """
-    Run V2 batch logic directly (symbol batch + portfolio refresh).
+async def ensure_factor_definitions():
+    """Ensure factor definitions exist before running batch.
 
-    This is called when BATCH_V2_ENABLED=true instead of V1 legacy batch.
+    This is critical because:
+    1. Factor definitions must exist for analytics to save exposures
+    2. Stress testing needs factor exposures to calculate scenario impacts
+    3. seed_factors() is idempotent - won't duplicate existing factors
     """
-    from datetime import datetime as dt
+    logger.info("Verifying factor definitions...")
+    async with AsyncSessionLocal() as db:
+        await seed_factors(db)
+        await db.commit()
+    logger.info("✅ Factor definitions verified/seeded")
 
+
+async def run_daily_batch():
+    """
+    Run daily batch processing (symbol batch + portfolio refresh).
+
+    This is the main batch logic for Railway nightly cron.
+    """
     job_start = dt.now()
 
     print("=" * 60)
-    print("  SIGMASIGHT DAILY BATCH V2 - STARTING")
+    print("  SIGMASIGHT DAILY BATCH - STARTING")
     print("=" * 60)
     print(f"Timestamp:    {job_start.strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"V2 Enabled:   True")
     print("=" * 60)
     sys.stdout.flush()
+
+    # Ensure factor definitions exist
+    await ensure_factor_definitions()
 
     symbol_result = None
     portfolio_result = None
@@ -96,7 +100,6 @@ async def run_v2_batch():
         sys.stdout.flush()
 
         # Phase 2: Portfolio Refresh
-        # With DATA-DRIVEN approach, each phase independently checks if work is needed
         # Only skip if symbol batch FAILED (not just "nothing to do")
         symbol_success = symbol_result.get('success', False)
 
@@ -141,7 +144,7 @@ async def run_v2_batch():
 
         # Print summary
         print("=" * 60)
-        print("  SIGMASIGHT DAILY BATCH V2 - COMPLETE")
+        print("  SIGMASIGHT DAILY BATCH - COMPLETE")
         print("=" * 60)
         print(f"Duration:     {duration:.1f}s ({duration/60:.1f} min)")
         print(f"Symbol Batch: {'SUCCESS' if symbol_result and symbol_result.get('success') else 'FAILED'}")
@@ -153,107 +156,23 @@ async def run_v2_batch():
         return symbol_result and symbol_result.get('success')
 
     except Exception as e:
-        print(f"[FAIL] V2 batch error: {e}")
+        print(f"[FAIL] Batch error: {e}")
         import traceback
         traceback.print_exc()
         sys.stdout.flush()
         return False
 
 
-async def check_v2_guard():
-    """
-    V2 Architecture Guard: Redirect to V2 batch when enabled.
-
-    When BATCH_V2_ENABLED=true, this script runs the V2 batch logic directly
-    instead of V1 legacy batch. This allows seamless migration without
-    changing Railway cron configuration.
-
-    Returns True if V2 was run (and script should exit), False otherwise.
-    """
-    if settings.BATCH_V2_ENABLED:
-        print("=" * 60)
-        print("[V2] V2 BATCH MODE ENABLED - RUNNING V2 BATCH")
-        print("=" * 60)
-        sys.stdout.flush()
-
-        # Run V2 batch directly (await since we're already in async context)
-        success = await run_v2_batch()
-
-        if success:
-            print("[OK] V2 batch completed successfully")
-            sys.exit(0)
-        else:
-            print("[FAIL] V2 batch failed")
-            sys.exit(1)
-
-    return False  # V2 not enabled, continue with V1
-
-
-async def ensure_factor_definitions():
-    """Ensure factor definitions exist before running batch.
-
-    This is critical because:
-    1. Factor definitions must exist for analytics_runner to save exposures
-    2. Stress testing needs factor exposures to calculate scenario impacts
-    3. seed_factors() is idempotent - won't duplicate existing factors
-    """
-    logger.info("Verifying factor definitions...")
-    async with AsyncSessionLocal() as db:
-        await seed_factors(db)
-        await db.commit()
-    logger.info("✅ Factor definitions verified/seeded")
-
-
 async def main():
     """Main entry point for daily batch job."""
-    # V2 Guard: Exit early if V2 batch mode is enabled
-    await check_v2_guard()
-
-    job_start = datetime.datetime.now()
-
-    # Use print() for critical messages - logger.info() doesn't show in Railway logs
-    print("╔══════════════════════════════════════════════════════════════╗")
-    print("║       SIGMASIGHT DAILY BATCH WORKFLOW - STARTING (V1)        ║")
-    print("╚══════════════════════════════════════════════════════════════╝")
-    print(f"Timestamp: {job_start.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-
     try:
-        # Ensure factor definitions exist before running batch
-        await ensure_factor_definitions()
+        success = await run_daily_batch()
 
-        # Run the batch orchestrator - it handles everything:
-        # - Trading day detection and adjustment (to previous trading day if needed)
-        # - Phase 0: Company profile sync (on final date only)
-        # - Phase 1: Market data collection (1-year lookback)
-        # - Phase 2: Fundamental data collection (earnings-driven)
-        # - Phase 3: P&L calculation & snapshots (equity rollforward)
-        # - Phase 4: Position market value updates (for analytics accuracy)
-        # - Phase 5: Sector tag restoration (auto-tag from company profiles)
-        # - Phase 6: Risk analytics (betas, factors, volatility, correlations)
-
-        logger.info("Starting batch orchestrator with automatic backfill...")
-        results = await batch_orchestrator.run_daily_batch_with_backfill()
-
-        # Calculate total duration
-        job_end = datetime.datetime.now()
-        total_duration = (job_end - job_start).total_seconds()
-
-        # Print completion summary - use print() for Railway visibility
-        print("=" * 60)
-        print("DAILY BATCH JOB COMPLETE")
-        print("=" * 60)
-        print(f"Start Time:    {job_start.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"End Time:      {job_end.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"Total Runtime: {total_duration:.1f}s ({total_duration/60:.1f} minutes)")
-        print(f"Results: {results}")
-        print("=" * 60)
-
-        # Check for success
-        if results.get('success'):
-            print("✅ All operations completed successfully")
+        if success:
+            print("✅ Daily batch completed successfully")
             sys.exit(0)
         else:
-            print(f"⚠️ Job completed with issues: {results.get('message', 'Unknown error')}")
+            print("❌ Daily batch failed")
             sys.exit(1)
 
     except KeyboardInterrupt:

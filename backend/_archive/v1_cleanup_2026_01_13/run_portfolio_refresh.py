@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Portfolio Refresh Runner - Railway Cron Entry Point
+V2 Portfolio Refresh Runner - Railway Cron Entry Point
 
 Runs at 9:30 PM ET (30 minutes after symbol batch) to refresh all portfolios:
 1. Wait for symbol batch completion
@@ -18,6 +18,7 @@ Usage:
   uv run python scripts/batch_processing/run_portfolio_refresh.py --date 2026-01-10
 
 Environment Variables Required:
+  BATCH_V2_ENABLED=true     - Must be enabled for V2 mode
   DATABASE_URL              - PostgreSQL connection string
 
 Railway Cron Configuration:
@@ -42,15 +43,37 @@ if 'DATABASE_URL' in os.environ:
 sys.path.insert(0, '/app')  # Railway container path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from app.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 
+def check_v2_enabled():
+    """
+    Verify V2 batch mode is enabled.
+
+    This script should only run when BATCH_V2_ENABLED=true.
+    If V1 mode, portfolio refresh happens as part of railway_daily_batch.py.
+    """
+    if not settings.BATCH_V2_ENABLED:
+        print("=" * 60)
+        print("V2 BATCH MODE NOT ENABLED")
+        print("=" * 60)
+        print("BATCH_V2_ENABLED=false detected.")
+        print("")
+        print("To use V2 portfolio refresh, set BATCH_V2_ENABLED=true")
+        print("")
+        print("For V1 mode, portfolio refresh is part of:")
+        print("  python scripts/automation/railway_daily_batch.py")
+        print("=" * 60)
+        sys.exit(0)  # Exit 0 = graceful skip (not an error)
+
+
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Portfolio Refresh Runner",
+        description="V2 Portfolio Refresh Runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -67,7 +90,10 @@ def parse_args():
 
 
 async def main():
-    """Main entry point for portfolio refresh."""
+    """Main entry point for V2 portfolio refresh."""
+    # Check V2 mode is enabled
+    check_v2_enabled()
+
     args = parse_args()
     job_start = datetime.now()
 
@@ -84,7 +110,7 @@ async def main():
     wait_for_onboarding = not args.no_wait
 
     print("=" * 60)
-    print("  PORTFOLIO REFRESH RUNNER - STARTING")
+    print("  V2 PORTFOLIO REFRESH RUNNER - STARTING")
     print("=" * 60)
     print(f"Timestamp:         {job_start.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Target Date:       {target_date or 'auto (most recent trading day)'}")
@@ -109,7 +135,7 @@ async def main():
 
         # Print results
         print("=" * 60)
-        print("  PORTFOLIO REFRESH RUNNER - COMPLETE")
+        print("  V2 PORTFOLIO REFRESH RUNNER - COMPLETE")
         print("=" * 60)
         print(f"Duration:          {duration:.1f}s ({duration/60:.1f} min)")
         print(f"Success:           {result.get('success', False)}")

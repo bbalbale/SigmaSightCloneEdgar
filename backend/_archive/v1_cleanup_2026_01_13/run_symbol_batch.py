@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Symbol Batch Runner - Railway Cron Entry Point
+V2 Symbol Batch Runner - Railway Cron Entry Point
 
 Runs at 9:00 PM ET (after market close) to process all symbols:
 1. Company profiles sync
@@ -16,6 +16,7 @@ Usage:
   uv run python scripts/batch_processing/run_symbol_batch.py --date 2026-01-10 --no-backfill
 
 Environment Variables Required:
+  BATCH_V2_ENABLED=true     - Must be enabled for V2 mode
   DATABASE_URL              - PostgreSQL connection string
   POLYGON_API_KEY           - Market data API key
   FMP_API_KEY              - Financial Modeling Prep API key
@@ -42,15 +43,37 @@ if 'DATABASE_URL' in os.environ:
 sys.path.insert(0, '/app')  # Railway container path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+from app.config import settings
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 
+def check_v2_enabled():
+    """
+    Verify V2 batch mode is enabled.
+
+    This script should only run when BATCH_V2_ENABLED=true.
+    If V1 mode, the legacy railway_daily_batch.py should be used instead.
+    """
+    if not settings.BATCH_V2_ENABLED:
+        print("=" * 60)
+        print("V2 BATCH MODE NOT ENABLED")
+        print("=" * 60)
+        print("BATCH_V2_ENABLED=false detected.")
+        print("")
+        print("To use V2 symbol batch, set BATCH_V2_ENABLED=true")
+        print("")
+        print("For V1 mode, use:")
+        print("  python scripts/automation/railway_daily_batch.py")
+        print("=" * 60)
+        sys.exit(0)  # Exit 0 = graceful skip (not an error)
+
+
 def parse_args():
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="Symbol Batch Runner",
+        description="V2 Symbol Batch Runner",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -67,7 +90,10 @@ def parse_args():
 
 
 async def main():
-    """Main entry point for symbol batch."""
+    """Main entry point for V2 symbol batch."""
+    # Check V2 mode is enabled
+    check_v2_enabled()
+
     args = parse_args()
     job_start = datetime.now()
 
@@ -83,7 +109,7 @@ async def main():
     backfill = not args.no_backfill
 
     print("=" * 60)
-    print("  SYMBOL BATCH RUNNER - STARTING")
+    print("  V2 SYMBOL BATCH RUNNER - STARTING")
     print("=" * 60)
     print(f"Timestamp:    {job_start.strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"Target Date:  {target_date or 'auto (most recent trading day)'}")
@@ -106,7 +132,7 @@ async def main():
 
         # Print results
         print("=" * 60)
-        print("  SYMBOL BATCH RUNNER - COMPLETE")
+        print("  V2 SYMBOL BATCH RUNNER - COMPLETE")
         print("=" * 60)
         print(f"Duration:     {duration:.1f}s ({duration/60:.1f} min)")
         print(f"Success:      {result.get('success', False)}")
