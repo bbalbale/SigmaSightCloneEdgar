@@ -371,10 +371,17 @@ async def populate_snapshot_data(
     snapshot.volatility_percentile = volatility_percentile
 
     # Mark as complete (CRITICAL for Phase 2.10)
-    snapshot.is_complete = True
+    # When skip_pnl_calculation=True, the caller (pnl_calculator) will set P&L fields
+    # and is responsible for setting is_complete=True AFTER P&L is calculated.
+    # This prevents orphaned "complete" snapshots if the job crashes mid-P&L calculation.
+    if skip_pnl_calculation:
+        snapshot.is_complete = False  # Caller must set True after P&L
+        logger.info(f"Populated snapshot {snapshot.id} for {calculation_date} (is_complete=False, awaiting P&L)")
+    else:
+        snapshot.is_complete = True
+        logger.info(f"Populated snapshot {snapshot.id} for {calculation_date} (is_complete=True)")
 
     await db.flush()
-    logger.info(f"Populated snapshot {snapshot.id} for {calculation_date} (is_complete=True)")
 
     return snapshot
 
